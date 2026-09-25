@@ -19,6 +19,25 @@ namespace DirectPackageInstaller.ViewModels
 
     public enum LibrarySort { Title, Newest, Largest }
 
+    /// <summary>A library folder chip: USB drives and network shares can be offline.</summary>
+    public sealed class LibraryFolder
+    {
+        public LibraryFolder(string Path, bool Available, int Count)
+        {
+            this.Path = Path;
+            this.Available = Available;
+            this.Count = Count;
+        }
+
+        public string Path { get; }
+        public bool Available { get; }
+        public int Count { get; }
+        public string Label => Available ? $"{Path}  ·  {Count}" : $"{Path}  ·  offline";
+        public string Tip => Available
+            ? $"{Path}\n{Count} PKG files (subfolders included)"
+            : $"{Path}\nNot reachable right now: plug in the drive or connect to the network share, then press Rescan. Its games are hidden until then.";
+    }
+
     /// <summary>One cover in the library grid.</summary>
     public sealed class LibraryItem : ReactiveObject
     {
@@ -196,6 +215,9 @@ namespace DirectPackageInstaller.ViewModels
             }
         }
 
+        /// <summary>Another file in the library is the same package (content ID, type and version).</summary>
+        public bool IsDuplicate { get; set; }
+
         /// <summary>The last PS4 check found this on the console (so it can be uninstalled).</summary>
         public bool CanUninstall => State is InstallState.Installed or InstallState.NewerInstalled
                                     || (State == InstallState.UpdateAvailable && Entry.Kind == "Update");
@@ -223,14 +245,13 @@ namespace DirectPackageInstaller.ViewModels
 
         public ObservableCollection<LibraryItem> Items { get; } = new();
         public ObservableCollection<LibraryItem> Selected { get; } = new();
-        public ObservableCollection<string> Folders { get; } = new();
+        public ObservableCollection<LibraryFolder> Folders { get; } = new();
 
         ConsoleSnapshot? Snapshot;
 
         public LibraryViewModel()
         {
-            foreach (var Folder in LibraryService.Folders)
-                Folders.Add(Folder);
+            RefreshFolders();
 
             Load(LibraryService.Cached);
 
@@ -268,6 +289,26 @@ namespace DirectPackageInstaller.ViewModels
             get => _Sort;
             set { this.RaiseAndSetIfChanged(ref _Sort, value); ApplyFilter(); }
         }
+
+        bool _OnlyDuplicates;
+        /// <summary>Show only packages stored more than once.</summary>
+        public bool OnlyDuplicates
+        {
+            get => _OnlyDuplicates;
+            set { this.RaiseAndSetIfChanged(ref _OnlyDuplicates, value); ApplyFilter(); }
+        }
+
+        int _DuplicateCount;
+        public int DuplicateCount
+        {
+            get => _DuplicateCount;
+            private set
+            {
+                this.RaiseAndSetIfChanged(ref _DuplicateCount, value);
+                this.RaisePropertyChanged(nameof(HasDuplicates));
+            }
+        }
+        public bool HasDuplicates => DuplicateCount > 0;
 
         bool _OnlyMissing;
         /// <summary>Hide what the PS4 already has.</summary>
@@ -360,6 +401,16 @@ namespace DirectPackageInstaller.ViewModels
             foreach (var Gone in Previous.Values)
                 Gone.Queued = null;
 
+            // same package stored twice (content ID + type + version)
+            var Copies = All.Where(x => x.Entry.ContentId.Length > 0)
+                .GroupBy(x => (x.Entry.ContentId, x.Entry.Category, x.Entry.AppVersion))
+                .Where(g => g.Count() > 1).SelectMany(g => g).ToHashSet();
+            foreach (var Item in All)
+                Item.IsDuplicate = Copies.Contains(Item);
+            DuplicateCount = Copies.Count;
+
+            RefreshFolders();
+
             LinkQueue();
             ApplyFilter();
             UpdateSummary();
@@ -372,6 +423,20 @@ namespace DirectPackageInstaller.ViewModels
                 : !Snapshot.IsAppsOnly && Item.Entry.Kind == "Update" && Snapshot.Patches.Contains(Item.Entry.TitleId) ? "An update is on PS4"
                 : "";
             Item.State = Snapshot.StateOf(Item.Entry.Category, Item.Entry.TitleId, Item.Entry.ContentId, Item.Entry.AppVersion);
+        }
+
+        /// <summary>Folder chips with availability and PKG counts.</summary>
+        void RefreshFolders()
+        {
+            Folders.Clear();
+            foreach (var Folder in LibraryService.Folders)
+            {
+                bool Available;
+                try { Available = Directory.Exists(Folder); } catch { Available = false; }
+                var Prefix = Folder.TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+                int Count = All.Count(x => x.Entry.Path.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase));
+                Folders.Add(new LibraryFolder(Folder, Available, Count));
+            }
         }
 
         void LinkQueue()
@@ -393,6 +458,7 @@ namespace DirectPackageInstaller.ViewModels
                 if (Filter == LibraryFilter.Updates && x.Entry.Kind != "Update") return false;
                 if (Filter == LibraryFilter.DLC && x.Entry.Kind != "DLC") return false;
                 if (OnlyMissing && x.State is InstallState.Installed or InstallState.NewerInstalled) return false;
+                if (OnlyDuplicates && !x.IsDuplicate) return false;
                 if (Query.Length == 0) return true;
                 return x.Entry.Title.Contains(Query, StringComparison.CurrentCultureIgnoreCase)
                        || x.Entry.TitleId.Contains(Query, StringComparison.OrdinalIgnoreCase)
@@ -439,7 +505,8 @@ namespace DirectPackageInstaller.ViewModels
             int Dlc = All.Count(x => x.Entry.Kind == "DLC");
             long Size = All.Sum(x => x.Entry.Size);
             Summary = All.Count == 0 ? "" :
-                $"{Games} games  ·  {Updates} updates  ·  {Dlc} DLC  ·  {TransferProgressInfo.FormatBytes(Size)}";
+                $"{Games} games  ·  {Updates} updates  ·  {Dlc} DLC  ·  {TransferProgressInfo.FormatBytes(Size)}"
+                + (DuplicateCount > 0 ? $"  ·  {DuplicateCount} duplicates" : "");
         }
 
         public async Task AddFolderAsync(string Folder)
@@ -448,7 +515,7 @@ namespace DirectPackageInstaller.ViewModels
                 return;
 
             if (LibraryService.AddFolder(Folder))
-                Folders.Add(Path.GetFullPath(Folder));
+                RefreshFolders();
 
             this.RaisePropertyChanged(nameof(HasFolders));
             this.RaisePropertyChanged(nameof(IsEmpty));
@@ -458,7 +525,7 @@ namespace DirectPackageInstaller.ViewModels
         public async Task RemoveFolderAsync(string Folder)
         {
             LibraryService.RemoveFolder(Folder);
-            Folders.Remove(Folder);
+            RefreshFolders();
             this.RaisePropertyChanged(nameof(HasFolders));
             Load(LibraryService.Cached);
             this.RaisePropertyChanged(nameof(IsEmpty));

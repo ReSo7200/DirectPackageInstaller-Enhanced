@@ -1,3 +1,29 @@
+# DirectPackageInstaller Enhanced
+
+A fork of [marcussacana/DirectPackageInstaller](https://github.com/marcussacana/DirectPackageInstaller) with a redesigned desktop app, a local PKG library and several install fixes. Everything below the line is the original README.
+
+### What's different
+
+- **Library.** Add the folders where you keep `.pkg` files (local, USB or network shares). They are scanned into a cover grid with games, updates and DLC grouped by title, search, filters, sorting and duplicate detection. Folders on a disconnected drive show as offline.
+- **What's on the console.** One click (or automatically at startup) asks the PS4 what is installed: through GoldHEN's FTP server you get installed games, update versions and DLC; through Remote Package Installer, installed games. Each cover's bar shows it: green = on the PS4, amber stripes = update available, blue = sending.
+- **Newer official updates.** Titles whose newest local update is behind Sony's latest are marked ("Update 03.49 is out").
+- **Send queue.** Select games and press *Send to PS4*: packages go out one at a time (game, then updates, then DLC) with live progress, readable error messages, retry.
+- **Uninstall** games, updates or DLC from the Library (Remote Package Installer).
+- **Settings page** for everything that used to live in menus; *This PC's address* is picked from your network adapters and never changes on its own.
+- **Fixes** for GoldHEN installs that were silently lost when sending several packages, paths that failed because of `+` in base64, a busy port 9898 reported as success, the archive picker installing the wrong PKG, and more (see the commit history).
+- Pasting a path from Explorer's *Copy as path* works: the quotes are removed.
+
+### Build (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-windows.ps1            # Release\Windows-X64.zip
+powershell -ExecutionPolicy Bypass -File build-windows.ps1 -Runtimes win-x64,win-arm64 -SelfContained
+```
+
+The script installs a .NET 8 SDK into `.dotnet\` if none is found. The GitHub workflow `.github/workflows/windows.yml` builds the same zips; running it manually with *publish* ticked updates the `Updater` branch that the in-app updater reads.
+
+---
+
 # DirectPackageInstaller
 
 A tool to preview and send PKG files to your PS4 or PS5 using direct download links.  

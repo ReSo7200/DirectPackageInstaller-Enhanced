@@ -58,6 +58,11 @@
                             </StackPanel>
                             <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckOfficialUpdates}" OnContent="" OffContent=""/>
                         </Grid>
+                        <Rectangle Classes="divider"/>
+                        <StackPanel Classes="note">
+                            <TextBlock Classes="label" Text="Where games install"/>
+                            <TextBlock Classes="hint" Text="The console decides: Settings › Storage › Options › Application Install Location on the PS4 (system storage or extended storage). This app can't choose it for a single package, and it can't read the console's free space. If an install fails with not enough space, free some up and send it again."/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -184,6 +189,9 @@
         </Style>
         <Style Selector="Grid.row > :is(Control)">
             <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="StackPanel.note">
+            <Setter Property="Margin" Value="18,14"/>
         </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="14"/>

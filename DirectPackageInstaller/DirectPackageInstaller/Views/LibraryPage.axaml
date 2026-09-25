@@ -36,6 +36,8 @@
                     <Rectangle Width="1" Height="18" Fill="{StaticResource Line}" Margin="6,0"/>
                     <ToggleButton Classes="chip" IsChecked="{Binding OnlyMissing}"
                                   ToolTip.Tip="Hide packages the last PS4 check found installed">Not on PS4</ToggleButton>
+                    <ToggleButton Classes="chip" IsChecked="{Binding OnlyDuplicates}" IsVisible="{Binding HasDuplicates}"
+                                  ToolTip.Tip="Show packages stored more than once (same content ID and version)">Duplicates</ToggleButton>
                     <ComboBox Name="SortBox" SelectedIndex="0" Margin="8,0,0,0" MinWidth="150" FontSize="12.5" Padding="12,4" MinHeight="30"
                               ToolTip.Tip="Sort order">
                         <ComboBoxItem>Sort: title</ComboBoxItem>
@@ -55,14 +57,14 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="x:String">
-                        <Border Background="{StaticResource Deck}" BorderBrush="{StaticResource Line}" BorderThickness="1"
-                                CornerRadius="4" Padding="9,2,2,2" Margin="0,0,6,0">
+                    <DataTemplate x:DataType="vm:LibraryFolder">
+                        <Border Classes="folder" Classes.offline="{Binding !Available}" BorderThickness="1"
+                                CornerRadius="4" Padding="9,2,2,2" Margin="0,0,6,6" ToolTip.Tip="{Binding Tip}">
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Classes="mono" Text="{Binding}" VerticalAlignment="Center" MaxWidth="420"
-                                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding}"/>
+                                <TextBlock Classes="mono" Text="{Binding Label}" VerticalAlignment="Center" MaxWidth="460"
+                                           TextTrimming="PrefixCharacterEllipsis"/>
                                 <Button Classes="ghost danger" Padding="6,1" FontSize="12" Content="✕"
-                                        Tag="{Binding}" Click="RemoveFolderClick"
+                                        Tag="{Binding Path}" Click="RemoveFolderClick"
                                         ToolTip.Tip="Remove this folder from the library (files are not touched)"/>
                             </StackPanel>
                         </Border>
@@ -113,6 +115,11 @@
                                         Width="22" Height="22" CornerRadius="11" Background="{StaticResource Signal}">
                                     <TextBlock Text="✓" FontWeight="Bold" FontSize="13" Foreground="#0B1220"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <Border Classes="kind" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                                        IsVisible="{Binding IsDuplicate}" Background="#E612141C"
+                                        ToolTip.Tip="Another file in the library is this same package">
+                                    <TextBlock Text="DUPLICATE" Foreground="{StaticResource Amber}"/>
                                 </Border>
                                 <Border Classes="kind" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8"
                                         IsVisible="{Binding HasError}" Background="{StaticResource AlarmSoft}">
@@ -187,6 +194,14 @@
     </Grid>
 
     <UserControl.Styles>
+        <Style Selector="Border.folder">
+            <Setter Property="Background" Value="{StaticResource Deck}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        </Style>
+        <Style Selector="Border.folder.offline">
+            <Setter Property="BorderBrush" Value="{StaticResource Alarm}"/>
+            <Setter Property="Background" Value="{StaticResource AlarmSoft}"/>
+        </Style>
         <Style Selector="ListBox.library ListBoxItem">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0,0,16,20"/>

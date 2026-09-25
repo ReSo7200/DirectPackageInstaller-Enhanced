@@ -85,9 +85,35 @@ namespace DirectPackageInstaller.Views
                     ToolTip.SetTip(Entry, Why ?? "The console copies it to the other drive and removes the old copy. Nothing is sent from this device.");
                     ToolTip.SetShowOnDisabled(Entry, true);
                 }
+                if (Entry.Classes.Contains("check"))
+                    Enabled &= Entry.Tag is LibraryItem { CheckStatus.Length: 0 };
                 if (Entry.Classes.Contains("recycle"))
                     Enabled &= OperatingSystem.IsWindows();
                 Entry.IsEnabled = Enabled;
+            }
+        }
+
+        async void MenuCheckClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item || Item.CheckStatus.Length > 0)
+                return;
+
+            Item.CheckStatus = "Checking…";
+            try
+            {
+                var Result = await PackageCheck.CheckAsync(Item.Entry.Path, new Progress<string>(Text => Item.CheckStatus = Text));
+                Item.CheckStatus = "";
+                if (Result.Damaged)
+                    await MessageBox.ShowAsync($"{Item.Entry.Title} ({Path.GetFileName(Item.Entry.Path)}) is damaged:\n\n• {string.Join("\n• ", Result.Failed)}\n\nDownload it again before sending it; the console would fail to install it or the game would crash.",
+                        "Package check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                else
+                    await MessageBox.ShowAsync($"{Item.Entry.Title} ({Path.GetFileName(Item.Entry.Path)}): all {Result.Passed} checksums match. The file isn't damaged.",
+                        "Package check", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Item.CheckStatus = "";
+                await MessageBox.ShowAsync("Couldn't check the package: " + ex.Message, "Package check", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

@@ -189,10 +189,20 @@ namespace DirectPackageInstaller.ViewModels
         public bool ShowRailFill => IsSending;
 
 
+        string _CheckStatus = "";
+        /// <summary>Progress of a running package check ("" when none); shown instead of the install state.</summary>
+        public string CheckStatus
+        {
+            get => _CheckStatus;
+            set { this.RaiseAndSetIfChanged(ref _CheckStatus, value); RaiseRail(); }
+        }
+
         public string StatusText
         {
             get
             {
+                if (CheckStatus.Length > 0)
+                    return CheckStatus;
                 if (Queued is { } Q && !Q.IsFinished)
                     return Q.State == QueueState.Downloading ? $"Sending {Q.Progress:0}%" : Q.StateText;
                 if (Queued is { State: QueueState.Failed })

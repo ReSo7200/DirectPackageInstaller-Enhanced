@@ -108,6 +108,8 @@
                                     <MenuItem Header="{Binding DownloadOfficialText}" Tag="{Binding}" Click="MenuDownloadUpdateClick"
                                               IsVisible="{Binding HasNewerOfficial}"/>
                                     <MenuItem Header="Open in Direct link" Tag="{Binding}" Click="MenuInspectClick"/>
+                                    <MenuItem Header="Check the package for damage" Tag="{Binding}" Click="MenuCheckClick" Classes="check"
+                                              ToolTip.Tip="Recomputes the checksums inside the PKG (reads the whole file) to catch a broken download before sending it"/>
                                     <Separator/>
                                     <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"
                                               IsVisible="{x:Static local:App.IsDesktop}"/>

@@ -1,6 +1,8 @@
 /*
  * EXPERIMENTAL GoldHEN installer payload (payload_experimental.bin).
  * Adds free-space query (cmd 3) and an optional storage request (cmd 2).
+ * The storage request works by switching the console's "Application Install
+ * Location" setting (registry 0x02880200) around the task registration.
  * The default payload (main.c -> payload.bin) is unchanged.
  */
 #include <stddef.h>
@@ -12,7 +14,17 @@ asm("clear_stack:\nmov $0x800,%ecx\nxor %rax, %rax\n.L1:\npush %rax\nloop .L1\na
 void clear_stack(void);
 
 typedef int (*register_task_fn)(struct bgft_download_param*, int*);
-typedef int (*register_task_ex_fn)(struct bgft_download_param_ex*, int*);
+typedef int (*reg_get_int_fn)(int, int*);
+typedef int (*reg_set_int_fn)(int, int);
+
+/*
+ * Settings > Storage > Application Install Location. Found by diffing
+ * /system_data/settings/system.dat around a flip on a PS4 (Sep 2026):
+ * 0 = extended storage, 1 = system storage.
+ */
+#define REG_INSTALL_LOCATION 0x02880200
+#define REG_LOC_EXTENDED 0
+#define REG_LOC_SYSTEM   1
 
 static void int32ToHex(int32_t Value, char* Hex)
 {
@@ -82,12 +94,10 @@ int main()
 	register_task_fn sceBgftDebugDownloadRegisterTask = dlsym(bgft, "sceBgftServiceIntDebugDownloadRegisterPkg");
 	int(*sceBgftDownloadStartTask)(int) = dlsym(bgft, "sceBgftServiceIntDownloadStartTask");
 
-	/* EXPERIMENTAL: may be missing; only used when the PC asks for a storage */
-	register_task_ex_fn sceBgftRegisterTaskByStorageEx = dlsym(bgft, "sceBgftServiceIntDownloadRegisterTaskByStorageEx");
-	if (!sceBgftRegisterTaskByStorageEx)
-		sceBgftRegisterTaskByStorageEx = dlsym(bgft, "sceBgftServiceDownloadRegisterTaskByStorageEx");
-	if (!sceBgftRegisterTaskByStorageEx)
-		sceBgftRegisterTaskByStorageEx = dlsym(bgft, "sceBgftDownloadRegisterTaskByStorageEx");
+	/* only used when the PC asks for a storage */
+	void* regmgr = dlopen("/system/common/lib/libSceRegMgr.sprx", 0);
+	reg_get_int_fn sceRegMgrGetInt = regmgr ? dlsym(regmgr, "sceRegMgrGetInt") : 0;
+	reg_set_int_fn sceRegMgrSetInt = regmgr ? dlsym(regmgr, "sceRegMgrSetInt") : 0;
 
 	clear_stack();
 
@@ -159,43 +169,38 @@ int main()
 		int task = BGFT_INVALID_TASK_ID;
 
 		/*
-		 * EXPERIMENTAL storage selection: pass the storage as the "slot" of
-		 * SceBgftDownloadParamEx. Undocumented; on any failure fall back to
-		 * the normal registration (console default storage).
+		 * Storage choice: the task goes where "Application Install Location"
+		 * points when it's registered (its folder is created on that drive),
+		 * so switch the setting for the registration and put it back after.
+		 * Any failure: install with the console's setting.
 		 */
+		int saved = 0, restore = 0;
 		if (storage == STORAGE_INTERNAL || storage == STORAGE_EXTENDED) {
-			if (!sceBgftRegisterTaskByStorageEx) {
-				notify(222, "DPI: Storage choice not supported, using the console default");
-			} else {
-				struct bgft_download_param_ex ex;
-				ex.param = bgft_params;
-				ex.slot = (unsigned int)storage;
-
-				rv = sceBgftRegisterTaskByStorageEx(&ex, &task);
-				if (rv == 0 && task != BGFT_INVALID_TASK_ID) {
-					sceBgftDownloadStartTask(task);
-					continue;
-				}
-
-				task = BGFT_INVALID_TASK_ID;
-				if (rv != 0x80990088) /* already installed: the default path reports it */
-					notify_code(notify, "DPI: Storage choice failed, using the console default ", rv);
+			int want = storage == STORAGE_INTERNAL ? REG_LOC_SYSTEM : REG_LOC_EXTENDED;
+			if (!sceRegMgrGetInt || !sceRegMgrSetInt || sceRegMgrGetInt(REG_INSTALL_LOCATION, &saved) != 0) {
+				notify(222, "DPI: Can't read the install location, using the console setting");
+			} else if (saved != want) {
+				rv = sceRegMgrSetInt(REG_INSTALL_LOCATION, want);
+				if (rv == 0)
+					restore = 1;
+				else
+					notify_code(notify, "DPI: Can't change the install location, using the console setting ", rv);
 			}
 		}
 
 		rv = sceBgftDownloadRegisterTask(&bgft_params, &task);
+		if (rv == 0x80990088 || task == BGFT_INVALID_TASK_ID)
+			rv = sceBgftDebugDownloadRegisterTask(&bgft_params, &task);
 
-		if (rv != 0x80990088 && task != BGFT_INVALID_TASK_ID) {
-			rv = sceBgftDownloadStartTask(task);
+		int registered = rv != 0x80990088 && task != BGFT_INVALID_TASK_ID;
+		if (registered)
+			sceBgftDownloadStartTask(task);
+
+		if (restore)
+			sceRegMgrSetInt(REG_INSTALL_LOCATION, saved);
+
+		if (registered)
 			continue;
-		}
-
-		rv = sceBgftDebugDownloadRegisterTask(&bgft_params, &task);
-
-		if (rv != 0x80990088 && task != BGFT_INVALID_TASK_ID) {
-			rv = sceBgftDownloadStartTask(task);
-			continue;
-		}
 
 		if (rv == 0x80990086) {
 			notify(222, "DPI: BGFT Error 0x80990086\nEnsure that there are no old downloads in the notification list.");

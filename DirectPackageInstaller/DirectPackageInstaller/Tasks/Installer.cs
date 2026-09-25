@@ -250,10 +250,16 @@ namespace DirectPackageInstaller.Tasks
             if (!Config.AutoSplitPKG)
                 CanSplit = false;
 
+            // a chosen install storage only works through the experimental payload:
+            // prefer it over RPI/etaHEN when GoldHEN can take it
+            bool WantsStorage = Config.ExperimentalPayload && ExperimentalPayloadProtocol.StorageChoiceWorks
+                                && Config.InstallStorage != ExperimentalPayloadProtocol.StorageDefault;
+            bool PayloadFirst = WantsStorage && (Payload.ClientRunning || await IPHelper.IsGoldHENOnline(Config.PSIP));
+
             bool OK;
-            if (await IPHelper.IsRPIOnline(Config.PSIP))
+            if (!PayloadFirst && await IPHelper.IsRPIOnline(Config.PSIP))
                 OK = await PushRPI(URL, Config, Silent);
-            else if (await IPHelper.IsEtaHenOnline(Config.PSIP))
+            else if (!PayloadFirst && await IPHelper.IsEtaHenOnline(Config.PSIP))
                 OK = await PushEtaHen(URL, Config, Silent);
             else
             {

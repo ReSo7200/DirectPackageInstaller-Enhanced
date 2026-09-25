@@ -206,12 +206,11 @@
                             </StackPanel>
                             <ToggleSwitch Grid.Column="1" Name="ExperimentalSwitch" OnContent="" OffContent=""/>
                         </Grid>
-                        <!-- hidden: tested on a PS4 (Sep 2026), the console ignores the requested storage -->
-                        <Rectangle Classes="divider" IsVisible="False"/>
-                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="StorageRow" IsVisible="False">
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="StorageRow">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="Install to"/>
-                                <TextBlock Classes="hint" Text="Needs the experimental payload. If the console refuses the choice it installs to its own setting (Settings › Storage › Application Install Location) and shows a notification."/>
+                                <TextBlock Classes="hint" Text="Needs the experimental payload (GoldHEN BinLoader). For each package it switches the console's Application Install Location to this choice, then back. Remote Package Installer and etaHEN installs use the console's setting."/>
                             </StackPanel>
                             <ComboBox Grid.Column="1" Name="StorageBox" MinWidth="230">
                                 <ComboBoxItem>Console setting</ComboBoxItem>

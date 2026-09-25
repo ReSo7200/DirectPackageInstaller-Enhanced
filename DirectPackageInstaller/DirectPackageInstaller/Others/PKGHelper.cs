@@ -22,6 +22,10 @@ public static class PKGHelper
 
             Result.Digest = string.Join("", PKG.HeaderDigest.Select((x) => x.ToString("X2")));
 
+            // header type: tells license-only DLC (AL) apart from DLC with data (AC);
+            // PARAM.SFO says "ac" for both
+            Result.HeaderContentType = PKG.Header.content_type.ToString();
+
             Result.PackageSize = Input.Length;
             
             Result.Entries = PKG.Metas.Metas.Select(x => (x.DataOffset, x.DataOffset + x.DataSize, x.DataSize, x.id)).ToArray();
@@ -121,9 +125,17 @@ public static class PKGHelper
 
         public string ContentType;
 
+        /// <summary>PKG header content type ("GD", "AC", "AL", ...).</summary>
+        public string HeaderContentType;
+
         public long PackageSize;
 
-        public string BGFTContentType => $"PS4{ContentType.ToUpperInvariant()}";
+        /// <summary>
+        /// BGFT package type. Unlock-key DLC (header type AL) must be "PS4AL": sent as
+        /// "PS4AC" (from the SFO category) the console's downloader rejects it.
+        /// </summary>
+        public string BGFTContentType =>
+            string.Equals(HeaderContentType, "AL", StringComparison.OrdinalIgnoreCase) ? "PS4AL" : $"PS4{ContentType.ToUpperInvariant()}";
         public string FirendlyContentType
         {
             get => ContentType.ToLowerInvariant().Trim() switch {

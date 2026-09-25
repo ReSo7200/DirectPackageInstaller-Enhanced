@@ -99,6 +99,34 @@ namespace DirectPackageInstaller.Services
                 _ = RefreshAsync();
         }
 
+        /// <summary>
+        /// Nothing that installs answered: say what does (so "offline" isn't
+        /// misleading when the console is on and only BinLoader is off).
+        /// </summary>
+        static async Task<string> WhyNotAsync(string IP)
+        {
+            static async Task<bool> Opens(string Host, int Port)
+            {
+                try
+                {
+                    using var Client = new System.Net.Sockets.TcpClient();
+                    using var Timeout = new CancellationTokenSource(800);
+                    await Client.ConnectAsync(Host, Port, Timeout.Token);
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            if (await Opens(IP, 2121))
+                return "Only FTP answers: turn on BinLoader in GoldHEN";
+            if (await Opens(IP, 12800))
+                return "RPI isn't responding: open it on the console";
+            return "No installer answering";
+        }
+
         async Task ProbeAsync()
         {
             {
@@ -133,7 +161,7 @@ namespace DirectPackageInstaller.Services
                 }
 
                 Link = Found != null ? ConsoleLink.Online : ConsoleLink.Offline;
-                Mode = Found ?? "No installer answering";
+                Mode = Found ?? await WhyNotAsync(IP);
             }
         }
     }

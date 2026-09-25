@@ -23,6 +23,7 @@ namespace DirectPackageInstaller.Views
             BtnOpenData.Click += (_, _) => OpenDataFolder();
 
             BtnRefreshAdapters.Click += (_, _) => FillAdapters();
+            BtnFindConsoles.Click += async (_, _) => await FindConsolesAsync();
             PcIpPicker.SelectionChanged += (_, _) =>
             {
                 if (!Filling && PcIpPicker.SelectedItem is LocalAddress Choice && Model != null && Model.PCIP != Choice.Address)
@@ -52,6 +53,46 @@ namespace DirectPackageInstaller.Views
         }
 
         ViewModels.MainViewModel? Model => DataContext as ViewModels.MainViewModel;
+
+        /// <summary>Scan the network and list consoles to pick from (there may be more than one).</summary>
+        public async System.Threading.Tasks.Task FindConsolesAsync()
+        {
+            BtnFindConsoles.IsEnabled = false;
+            BtnFindConsoles.Content = "Searching…";
+            FoundPanel.IsVisible = true;
+            FoundStatus.Text = "Looking for consoles on this PC's networks…";
+            FoundList.ItemsSource = null;
+            try
+            {
+                var Found = await Services.ConsoleScanner.ScanAsync();
+                FoundList.ItemsSource = Found;
+                FoundStatus.Text = Found.Count switch
+                {
+                    0 => "No consoles found. Make sure the console is on (not in rest mode), on the same network as this PC, and running GoldHEN or Remote Package Installer.",
+                    1 => "Found one console. Click it to use it.",
+                    _ => $"Found {Found.Count} consoles. Click the one to use."
+                };
+            }
+            catch (Exception ex)
+            {
+                FoundStatus.Text = "Search failed: " + ex.Message;
+            }
+            finally
+            {
+                BtnFindConsoles.IsEnabled = true;
+                BtnFindConsoles.Content = "Find consoles";
+            }
+        }
+
+        void UseConsoleClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is string Address && Model != null)
+            {
+                Model.PS4IP = Address;
+                FoundStatus.Text = $"Using {Address}.";
+                App.SaveSettings();
+            }
+        }
 
         readonly Avalonia.Threading.DispatcherTimer AdaptersChanged = new() { Interval = TimeSpan.FromMilliseconds(600) };
 

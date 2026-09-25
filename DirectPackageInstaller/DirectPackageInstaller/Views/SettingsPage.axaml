@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DirectPackageInstaller.ViewModels"
              xmlns:local="using:DirectPackageInstaller"
+             xmlns:svc="using:DirectPackageInstaller.Services"
              x:Class="DirectPackageInstaller.Views.SettingsPage"
              x:DataType="vm:MainViewModel"
              x:CompileBindings="True">
@@ -15,13 +16,31 @@
                 <TextBlock Classes="eyebrow" Text="CONSOLE"/>
                 <Border Classes="card">
                     <StackPanel>
-                        <Grid Classes="row" ColumnDefinitions="*,220">
+                        <Grid Classes="row" RowDefinitions="Auto,Auto" ColumnDefinitions="*,220,Auto">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="PS4 / PS5 address"/>
-                                <TextBlock Classes="hint" Text="On the console: Settings › Network › View Connection Status › IP Address."/>
+                                <TextBlock Classes="hint" Text="Press Find consoles to scan your network, or type it (on the console: Settings › Network › View Connection Status)."/>
                             </StackPanel>
                             <TextBox Grid.Column="1" Name="PsIp" Text="{Binding PS4IP}" Watermark="192.168.1.20"
                                      FontFamily="{StaticResource Mono}"/>
+                            <Button Grid.Column="2" Name="BtnFindConsoles"
+                                    ToolTip.Tip="Look for consoles on this PC's networks (takes a few seconds)">Find consoles</Button>
+
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Name="FoundPanel" IsVisible="False" Spacing="6" Margin="0,12,0,0">
+                                <TextBlock Name="FoundStatus" Classes="hint"/>
+                                <ItemsControl Name="FoundList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="svc:FoundConsole">
+                                            <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                    Padding="10,7" Margin="0,0,0,4" Tag="{Binding Address}" Click="UseConsoleClick"
+                                                    BorderBrush="{StaticResource Line}" BorderThickness="1">
+                                                <TextBlock Text="{Binding Label}" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                           Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis"/>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
                         </Grid>
                         <Rectangle Classes="divider"/>
                         <Grid Classes="row" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">

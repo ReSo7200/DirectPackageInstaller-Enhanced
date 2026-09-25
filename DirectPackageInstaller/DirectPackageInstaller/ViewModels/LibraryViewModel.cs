@@ -613,8 +613,8 @@ namespace DirectPackageInstaller.ViewModels
             if (!App.Config.AutoCheckConsole || string.IsNullOrWhiteSpace(App.Config.PSIP))
                 return;
 
-            if (All.Count > 0)
-                await CheckConsoleAsync();
+            // even with an empty library: the summary shows what the console has
+            await CheckConsoleAsync();
         }
 
         /// <summary>Ask the PS4 (GoldHEN FTP, else RPI) what is installed.</summary>
@@ -648,10 +648,23 @@ namespace DirectPackageInstaller.ViewModels
                 int OnConsole = All.Count(x => x.State is InstallState.Installed or InstallState.NewerInstalled);
                 int Updates = All.Count(x => x.State == InstallState.UpdateAvailable);
                 int OnExt = All.Where(x => x.Entry.Kind == "Game" && x.OnExtended).Select(x => x.Entry.TitleId).Distinct().Count();
-                ConsoleSummary = Result.IsAppsOnly
-                    // RPI can only say which games are installed
-                    ? $"{OnConsole} games on PS4 (via RPI at {Result.Taken.ToLocalTime():HH:mm}). Update and DLC status needs GoldHEN's FTP server on port 2121: turn it off and on in GoldHEN settings, then Check PS4."
-                    : $"{OnConsole} on PS4{(OnExt > 0 ? $" ({OnExt} games on extended storage)" : "")}  ·  {Updates} updates to install  ·  via {Result.Source} at {Result.Taken.ToLocalTime():HH:mm}";
+                var When = Result.Taken.ToLocalTime().ToString("HH:mm");
+                if (Result.IsAppsOnly)
+                {
+                    // RPI can only answer "is this game installed" for titles we ask about
+                    ConsoleSummary = All.Count == 0
+                        ? $"Remote Package Installer answered at {When}, but it can only check titles in your library. Add a PKG folder, or turn on GoldHEN's FTP server to see everything on the PS4."
+                        : $"{OnConsole} of your library's games are on the PS4 (via RPI at {When}). Update and DLC status needs GoldHEN's FTP server on port 2121.";
+                }
+                else
+                {
+                    // what the console has, whether or not it's in the library
+                    int Ext = Result.ExtendedApps.Count;
+                    var ConsoleText = $"PS4: {Result.Apps.Count} apps, {Result.Patches.Count} updates{(Ext > 0 ? $" ({Ext} on extended storage)" : "")}";
+                    ConsoleSummary = All.Count == 0
+                        ? $"{ConsoleText}  ·  via {Result.Source} at {When}. Add a PKG folder to compare it with your files."
+                        : $"{ConsoleText}  ·  {OnConsole} of your library's packages installed  ·  {Updates} updates to install  ·  via {Result.Source} at {When}";
+                }
                 ApplyFilter();
             }
             catch (Exception ex)

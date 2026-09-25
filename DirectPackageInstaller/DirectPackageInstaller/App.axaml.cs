@@ -150,6 +150,8 @@ namespace DirectPackageInstaller
                 IniWriter.SetValue("ShowTransferProgress", Config.ShowTransferProgress.ToString());
                 IniWriter.SetValue("AutoCheckConsole", Config.AutoCheckConsole.ToString());
                 IniWriter.SetValue("CheckOfficialUpdates", Config.CheckOfficialUpdates.ToString());
+                IniWriter.SetValue("ExperimentalPayload", Config.ExperimentalPayload.ToString());
+                IniWriter.SetValue("InstallStorage", Config.InstallStorage.ToString());
                 IniWriter.SetValue("SkipUpdateCheck", Config.SkipUpdateCheck.ToString());
                 IniWriter.SetValue("EthernetAdapter", Config.EthernetAdapter);
                 IniWriter.SetValue("EnableDHCP", Config.EnableDHCP.ToString());

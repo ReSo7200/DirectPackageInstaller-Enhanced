@@ -193,6 +193,34 @@
                 </Border>
             </StackPanel>
 
+            <!-- experimental -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="EXPERIMENTAL"/>
+                <Border Classes="card">
+                    <StackPanel>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Experimental GoldHEN payload"/>
+                                <TextBlock Classes="hint" Text="A newer build of the installer payload that can report free space (shown on the On PS4 page) and try to install to a chosen storage. Untested on consoles: turn it off if installs misbehave. Remote Package Installer and etaHEN installs are not affected."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" Name="ExperimentalSwitch" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Install to"/>
+                                <TextBlock Classes="hint" Text="Needs the experimental payload. If the console refuses the choice it installs to its own setting (Settings › Storage › Application Install Location) and shows a notification."/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" Name="StorageBox" MinWidth="230">
+                                <ComboBoxItem>Console setting</ComboBoxItem>
+                                <ComboBoxItem>System storage</ComboBoxItem>
+                                <ComboBoxItem>Extended storage</ComboBoxItem>
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
             <!-- about -->
             <StackPanel Spacing="8">
                 <TextBlock Classes="eyebrow" Text="ABOUT"/>

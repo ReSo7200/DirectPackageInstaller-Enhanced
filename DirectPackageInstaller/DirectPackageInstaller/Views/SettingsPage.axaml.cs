@@ -24,6 +24,32 @@ namespace DirectPackageInstaller.Views
 
             BtnRefreshAdapters.Click += (_, _) => FillAdapters();
 
+            // experimental payload: stored straight in App.Config (not part of the main view model)
+            AttachedToVisualTree += (_, _) =>
+            {
+                ExperimentalSwitch.IsChecked = App.Config.ExperimentalPayload;
+                StorageBox.SelectedIndex = App.Config.InstallStorage + 1;
+                StorageBox.IsEnabled = App.Config.ExperimentalPayload;
+            };
+            ExperimentalSwitch.IsCheckedChanged += async (_, _) =>
+            {
+                bool On = ExperimentalSwitch.IsChecked == true;
+                if (On == App.Config.ExperimentalPayload)
+                    return;
+                App.Config.ExperimentalPayload = On;
+                StorageBox.IsEnabled = On;
+                App.SaveSettings();
+                // the payload running on the console is the other build: let it exit
+                await Tasks.Installer.Payload.ReleaseResidentAsync();
+            };
+            StorageBox.SelectionChanged += (_, _) =>
+            {
+                if (StorageBox.SelectedIndex < 0)
+                    return;
+                App.Config.InstallStorage = StorageBox.SelectedIndex - 1;
+                App.SaveSettings();
+            };
+
             ShellRow.IsVisible = ShellDivider.IsVisible = Services.ShellIntegration.IsSupported;
             if (Services.ShellIntegration.IsSupported)
             {

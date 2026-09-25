@@ -142,6 +142,42 @@ namespace DirectPackageInstaller.ViewModels
             private set => this.RaiseAndSetIfChanged(ref _Summary, value);
         }
 
+        string _FreeSpace = "";
+        /// <summary>Free space line (experimental payload only).</summary>
+        public string FreeSpace
+        {
+            get => _FreeSpace;
+            private set
+            {
+                this.RaiseAndSetIfChanged(ref _FreeSpace, value);
+                this.RaisePropertyChanged(nameof(HasFreeSpace));
+            }
+        }
+        public bool HasFreeSpace => FreeSpace.Length > 0;
+
+        static string Space(ulong Free, ulong Total) =>
+            $"{Host.TransferProgressInfo.FormatBytes(Free)} free of {Host.TransferProgressInfo.FormatBytes(Total)}";
+
+        async Task ReadFreeSpaceAsync(string IP)
+        {
+            if (!App.Config.ExperimentalPayload)
+            {
+                FreeSpace = "";
+                return;
+            }
+
+            FreeSpace = "Reading free space…";
+            var Space_ = await Tasks.Installer.Payload.QueryFreeSpaceAsync(IP, App.Config.PCIP);
+            if (Space_ is not { } S)
+            {
+                FreeSpace = "Free space: " + (Tasks.Installer.LastError ?? "not available");
+                return;
+            }
+
+            FreeSpace = "System storage: " + (S.HasInternal ? Space(S.InternalFree, S.InternalTotal) : "unknown")
+                        + (S.HasExtended ? "   ·   Extended storage: " + Space(S.ExtendedFree, S.ExtendedTotal) : "");
+        }
+
         string _Search = "";
         public string Search
         {
@@ -190,6 +226,7 @@ namespace DirectPackageInstaller.ViewModels
                           + $"  ·  read at {DateTime.Now:HH:mm}";
                 Loaded = true;
                 ApplyFilter();
+                _ = ReadFreeSpaceAsync(IP);
             }
             catch (Exception ex)
             {

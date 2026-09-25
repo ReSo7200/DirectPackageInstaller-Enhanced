@@ -39,6 +39,12 @@ namespace DirectPackageInstaller
         /// <summary>Look up the latest official update of each title (Sony's public patch server).</summary>
         public bool CheckOfficialUpdates;
 
+        /// <summary>Use Payload/payload_experimental.bin for GoldHEN installs (free space, storage choice).</summary>
+        public bool ExperimentalPayload;
+
+        /// <summary>Experimental payload only: -1 console setting, 0 system storage, 1 extended storage.</summary>
+        public int InstallStorage;
+
         public bool AutoSplitPKG;
     }
 }

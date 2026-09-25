@@ -57,6 +57,12 @@ namespace DirectPackageInstaller.Host
             try
             {
                 PKGInfo = BuildPkgInfo(URL);
+                // experimental payload + a chosen storage: "package v2" carries it
+                if (App.Config.ExperimentalPayload && App.Config.InstallStorage != ExperimentalPayloadProtocol.StorageDefault)
+                    PKGInfoV2 = ExperimentalPayloadProtocol.BuildPackageV2(URL, Installer.CurrentPKG.FriendlyName, Installer.CurrentPKG.ContentID,
+                        Installer.CurrentPKG.BGFTContentType, Installer.CurrentPKG.PackageSize, Installer.CurrentPKG.IconData, App.Config.InstallStorage);
+                else
+                    PKGInfoV2 = null;
             }
             catch (ArgumentException ex)
             {
@@ -69,51 +75,148 @@ namespace DirectPackageInstaller.Host
             await SendLock.WaitAsync();
             try
             {
-                if (!EnsureListener(PCIP))
+                // a dead queued connection fails the send: try the next one / inject
+                for (int Attempt = 0; Attempt < 3; Attempt++)
                 {
-                    Installer.LastError = "Couldn't open the port the PS4 payload connects back to.";
-                    return false;
+                    var Connection = await GetConnectionAsync(PS4IP, PCIP);
+                    if (Connection == null)
+                        return false;
+
+                    // only the experimental payload understands v2
+                    var Data = ResidentExperimental && PKGInfoV2 != null ? PKGInfoV2 : PKGInfo;
+                    if (await TrySend(Connection, Data))
+                        return await Sent(Silent);
                 }
 
-                // 1) a resident payload is already waiting
-                var Connection = TakeLiveConnection();
-                if (Connection != null && await TrySend(Connection, PKGInfo))
-                    return await Sent(Silent);
-
-                // 2) none (or it died): inject once, wait for its callback
-                if (!await TryConnectSocket(PS4IP))
-                {
-                    Installer.LastError = "GoldHEN's payload server isn't answering (ports 9090/9021/9020). Turn on BinLoader in GoldHEN settings, or open Remote Package Installer.";
-                    return false;
-                }
-
-                if (!InjectPayload(PCIP))
-                {
-                    Installer.LastError = "Sending the installer payload to GoldHEN failed. Try again.";
-                    return false;
-                }
-
-                DateTime WaitBegin = DateTime.Now;
-                while ((DateTime.Now - WaitBegin).TotalMilliseconds < CallbackTimeoutMs)
-                {
-                    Connection = TakeLiveConnection();
-                    if (Connection != null)
-                    {
-                        if (await TrySend(Connection, PKGInfo))
-                            return await Sent(Silent);
-                        continue;
-                    }
-
-                    await Task.Delay(100);
-                }
-
-                Installer.LastError = "The PS4 payload didn't connect back to this PC. Check the PC address in Settings and that Windows Firewall allows DirectPackageInstaller.";
+                Installer.LastError = "The PS4 payload connection kept dropping. Try again.";
                 return false;
             }
             finally
             {
                 SendLock.Release();
             }
+        }
+
+        byte[]? PKGInfoV2;
+
+        /// <summary>The payload running on the console is the experimental build (commands 2 and 3).</summary>
+        public bool ResidentExperimental { get; private set; }
+
+        /// <summary>
+        /// A connection from the payload on the console: a waiting resident one, or
+        /// inject the payload and wait for it to call back. Sets LastError on failure.
+        /// </summary>
+        async Task<Socket?> GetConnectionAsync(string PS4IP, string PCIP)
+        {
+            if (!EnsureListener(PCIP))
+            {
+                Installer.LastError = "Couldn't open the port the PS4 payload connects back to.";
+                return null;
+            }
+
+            // 1) a resident payload is already waiting
+            var Connection = TakeLiveConnection();
+            if (Connection != null)
+                return Connection;
+
+            // 2) none (or it died): inject once, wait for its callback
+            if (!await TryConnectSocket(PS4IP))
+            {
+                Installer.LastError = "GoldHEN's payload server isn't answering (ports 9090/9021/9020). Turn on BinLoader in GoldHEN settings, or open Remote Package Installer.";
+                return null;
+            }
+
+            bool Experimental = App.Config.ExperimentalPayload;
+            if (!InjectPayload(PCIP, Experimental))
+            {
+                Installer.LastError = "Sending the installer payload to GoldHEN failed. Try again.";
+                return null;
+            }
+            ResidentExperimental = Experimental;
+
+            DateTime WaitBegin = DateTime.Now;
+            while ((DateTime.Now - WaitBegin).TotalMilliseconds < CallbackTimeoutMs)
+            {
+                Connection = TakeLiveConnection();
+                if (Connection != null)
+                    return Connection;
+                await Task.Delay(100);
+            }
+
+            Installer.LastError = "The PS4 payload didn't connect back to this PC. Check the PC address in Settings and that Windows Firewall allows DirectPackageInstaller.";
+            return null;
+        }
+
+        /// <summary>
+        /// Free space on system and extended storage, from the experimental payload
+        /// (injected if needed). Null when it can't be read; see Installer.LastError.
+        /// </summary>
+        public async Task<PayloadFreeSpace?> QueryFreeSpaceAsync(string PS4IP, string PCIP)
+        {
+            if (!App.Config.ExperimentalPayload)
+                return null;
+
+            await SendLock.WaitAsync();
+            try
+            {
+                // a resident default payload doesn't know command 3: replace it
+                if (!ResidentExperimental)
+                    await ReleaseResidentAsync();
+
+                for (int Attempt = 0; Attempt < 3; Attempt++)
+                {
+                    var Connection = await GetConnectionAsync(PS4IP, PCIP);
+                    if (Connection == null)
+                        return null;
+                    if (!ResidentExperimental)
+                        return null;
+
+                    try
+                    {
+                        var Query = ExperimentalPayloadProtocol.BuildFreeSpaceQuery();
+                        await Connection.SendAsync(new ArraySegment<byte>(Query), SocketFlags.None);
+
+                        var Reply = new byte[32];
+                        int Got = 0;
+                        using var Timeout = new CancellationTokenSource(5000);
+                        while (Got < Reply.Length)
+                        {
+                            int Count = await Connection.ReceiveAsync(new ArraySegment<byte>(Reply, Got, Reply.Length - Got), SocketFlags.None, Timeout.Token);
+                            if (Count <= 0)
+                                break;
+                            Got += Count;
+                        }
+
+                        if (Got == Reply.Length)
+                            return ExperimentalPayloadProtocol.ParseFreeSpaceReply(Reply);
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        Connection.Close();
+                    }
+                }
+
+                Installer.LastError = "The payload didn't report free space.";
+                return null;
+            }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
+
+        /// <summary>Tell waiting payloads to exit (cmd 0) so the next push injects a fresh one.</summary>
+        public async Task ReleaseResidentAsync()
+        {
+            while (TakeLiveConnection() is { } Connection)
+            {
+                try { await Connection.SendAsync(new ArraySegment<byte>(new byte[4]), SocketFlags.None); } catch { }
+                Connection.Close();
+            }
+            ResidentExperimental = false;
         }
 
         private static async Task<bool> Sent(bool Silent)
@@ -234,6 +337,17 @@ namespace DirectPackageInstaller.Host
             }
 
             return null;
+        }
+
+        /// <summary>Payload/payload_experimental.bin, embedded at build time (a fresh copy to patch).</summary>
+        static byte[] ExperimentalPayloadBytes()
+        {
+            using var Stream = typeof(PayloadService).Assembly.GetManifestResourceStream("payload_experimental.bin");
+            if (Stream == null)
+                return Array.Empty<byte>();
+            using var Buffer = new System.IO.MemoryStream();
+            Stream.CopyTo(Buffer);
+            return Buffer.ToArray();
         }
 
         public async Task StopServer()
@@ -396,13 +510,15 @@ namespace DirectPackageInstaller.Host
         /// </summary>
         /// <param name="PCIP">The PC IP</param>
         /// <returns>True when the payload was sent</returns>
-        private bool InjectPayload(string PCIP)
+        private bool InjectPayload(string PCIP, bool Experimental = false)
         {
             if (ServiceSocket == null || PayloadSocket == null)
                 return false;
 
             // patch a copy: never mutate the shared resource bytes
-            var Payload = (byte[])Resources.Payload.Clone();
+            var Payload = Experimental ? ExperimentalPayloadBytes() : (byte[])Resources.Payload.Clone();
+            if (Payload.Length == 0)
+                return false;
 
             var Offset = Payload.IndexOf(new byte[] { 0xB4, 0xB4, 0xB4, 0xB4, 0xB4, 0xB4 });
             if (Offset == -1)

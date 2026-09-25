@@ -194,6 +194,8 @@ namespace DirectPackageInstaller.Views
                 App.Config.AutoCheckConsole = string.IsNullOrWhiteSpace(AutoCheckConsole) || IniReader.GetBooleanValue("AutoCheckConsole");
                 var CheckOfficialUpdates = IniReader.GetValue("CheckOfficialUpdates");
                 App.Config.CheckOfficialUpdates = string.IsNullOrWhiteSpace(CheckOfficialUpdates) || IniReader.GetBooleanValue("CheckOfficialUpdates");
+                App.Config.ExperimentalPayload = IniReader.GetBooleanValue("ExperimentalPayload");
+                App.Config.InstallStorage = IniReader.GetIntValue("InstallStorage") ?? -1;
                 App.Config.AutoSplitPKG = IniReader.GetBooleanValue("AutoSplitPKG");
 
                 App.Config.PayloadPort = IniReader.GetIntValue("PayloadPort");
@@ -224,6 +226,7 @@ namespace DirectPackageInstaller.Views
                     ShowTransferProgress = true,
                     AutoCheckConsole = true,
                     CheckOfficialUpdates = true,
+                    InstallStorage = -1,
                     SkipUpdateCheck = false,
                     EnableDHCP = false,
                     AllDebridApiKey = null,

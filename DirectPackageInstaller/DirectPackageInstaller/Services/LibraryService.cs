@@ -242,7 +242,10 @@ namespace DirectPackageInstaller.Services
             }
 
             // unreadable entries are retried every scan (the file may have been locked or still copying)
-            if (Previous.TryGetValue(File, out var Cached) && Cached.Error == null && (Cached.FileLength > 0 ? Cached.FileLength : Cached.Size) == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
+            // "_0.pkg" names are always re-read: later parts can appear (a download finishing)
+            // without part 0 changing
+            if (!SplitPackages.LooksLikePartZero(File)
+                && Previous.TryGetValue(File, out var Cached) && Cached.Error == null && (Cached.FileLength > 0 ? Cached.FileLength : Cached.Size) == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
                 && (Cached.IconFile == null || System.IO.File.Exists(Cached.IconFile)))
                 return Cached;
 
@@ -257,6 +260,12 @@ namespace DirectPackageInstaller.Services
 
             try
             {
+                if (SplitPackages.IsIncomplete(File))
+                {
+                    Entry.Error = "Incomplete split package: some parts are missing or still downloading.";
+                    return Entry;
+                }
+
                 var Parts = SplitPackages.PartsOf(File);
                 if (Parts != null)
                 {

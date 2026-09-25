@@ -99,6 +99,8 @@ namespace DirectPackageInstaller.Host
 
         byte[]? PKGInfoV2;
 
+        DateTime LastInject = DateTime.MinValue;
+
         /// <summary>The payload running on the console is the experimental build (commands 2 and 3).</summary>
         public bool ResidentExperimental { get; private set; }
 
@@ -119,6 +121,20 @@ namespace DirectPackageInstaller.Host
             if (Connection != null)
                 return Connection;
 
+            // a payload injected moments ago reconnects for its next package: wait for
+            // it rather than injecting a second one that would compete for connections
+            if (DateTime.Now - LastInject < TimeSpan.FromMilliseconds(CallbackTimeoutMs))
+            {
+                var Until = LastInject.AddMilliseconds(CallbackTimeoutMs);
+                while (DateTime.Now < Until)
+                {
+                    Connection = TakeLiveConnection();
+                    if (Connection != null)
+                        return Connection;
+                    await Task.Delay(100);
+                }
+            }
+
             // 2) none (or it died): inject once, wait for its callback
             if (!await TryConnectSocket(PS4IP))
             {
@@ -133,6 +149,7 @@ namespace DirectPackageInstaller.Host
                 return null;
             }
             ResidentExperimental = Experimental;
+            LastInject = DateTime.Now;
 
             DateTime WaitBegin = DateTime.Now;
             while ((DateTime.Now - WaitBegin).TotalMilliseconds < CallbackTimeoutMs)
@@ -161,7 +178,7 @@ namespace DirectPackageInstaller.Host
             {
                 // a resident default payload doesn't know command 3: replace it
                 if (!ResidentExperimental)
-                    await ReleaseResidentAsync();
+                    await ReleaseResidentLockedAsync();
 
                 for (int Attempt = 0; Attempt < 3; Attempt++)
                 {
@@ -210,6 +227,20 @@ namespace DirectPackageInstaller.Host
 
         /// <summary>Tell waiting payloads to exit (cmd 0) so the next push injects a fresh one.</summary>
         public async Task ReleaseResidentAsync()
+        {
+            // never while a push is waiting for its payload to call back
+            await SendLock.WaitAsync();
+            try
+            {
+                await ReleaseResidentLockedAsync();
+            }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
+
+        async Task ReleaseResidentLockedAsync()
         {
             while (TakeLiveConnection() is { } Connection)
             {

@@ -58,6 +58,8 @@ namespace DirectPackageInstaller.Services
                 return Entry.Path;
             if (File.Exists(Target))
                 throw new IOException($"\"{NewName}\" already exists in that folder.");
+            if (IsBusy(Entry.Path))
+                throw new IOException("It's being sent to the console right now. Try again when that's done.");
 
             File.Move(Entry.Path, Target);
             return Target;
@@ -93,24 +95,61 @@ namespace DirectPackageInstaller.Services
             return Moves;
         }
 
-        /// <summary>Carry out planned moves; returns (moved, failed messages).</summary>
+        /// <summary>
+        /// A package the console or a download is using right now: renaming or
+        /// moving it would break the transfer.
+        /// </summary>
+        public static bool IsBusy(string File)
+        {
+            bool Same(string A) => string.Equals(A, File, StringComparison.OrdinalIgnoreCase)
+                                   || (SplitPackages.PartsOf(A)?.Any(p => string.Equals(p, File, StringComparison.OrdinalIgnoreCase)) ?? false);
+
+            if (SendQueue.Instance.Items.Any(x => !x.IsFinished && Same(x.Path)))
+                return true;
+
+            var Folder = Path.GetDirectoryName(File) ?? "";
+            return UpdateDownloads.Instance.Items.Any(x => !x.IsFinished && string.Equals(x.Folder.TrimEnd('\\', '/'), Folder, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Carry out planned moves package by package (split parts together): if
+        /// one part fails, the parts already moved go back. Returns (moved, failed).
+        /// </summary>
         public static (int Moved, List<string> Failed) Apply(IEnumerable<Move> Moves)
         {
             int Moved = 0;
             var Failed = new List<string>();
-            foreach (var Move in Moves)
+
+            // group the parts of one package: they share the part-0 base name
+            var Packages = Moves.GroupBy(m =>
             {
+                var Name = Path.GetFileName(m.From);
+                var Match = System.Text.RegularExpressions.Regex.Match(Name, @"^(.+)_\d+\.pkg$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                return Path.Combine(Path.GetDirectoryName(m.From)!, Match.Success ? Match.Groups[1].Value : Name);
+            });
+
+            foreach (var Package in Packages)
+            {
+                var Done = new List<Move>();
                 try
                 {
-                    Directory.CreateDirectory(Path.GetDirectoryName(Move.To)!);
-                    if (File.Exists(Move.To))
-                        throw new IOException("a file with that name is already there");
-                    File.Move(Move.From, Move.To);
-                    Moved++;
+                    foreach (var Move in Package)
+                    {
+                        if (IsBusy(Move.From))
+                            throw new IOException("it's being sent to the console or downloaded right now");
+                        Directory.CreateDirectory(Path.GetDirectoryName(Move.To)!);
+                        if (File.Exists(Move.To))
+                            throw new IOException("a file with that name is already there");
+                        File.Move(Move.From, Move.To);
+                        Done.Add(Move);
+                    }
+                    Moved += Done.Count;
                 }
                 catch (Exception ex)
                 {
-                    Failed.Add($"{Path.GetFileName(Move.From)}: {ex.Message}");
+                    foreach (var Back in Done)
+                        try { File.Move(Back.To, Back.From); } catch { }
+                    Failed.Add($"{Path.GetFileName(Package.First().From)}: {ex.Message}");
                 }
             }
             return (Moved, Failed);
@@ -122,22 +161,25 @@ namespace DirectPackageInstaller.Services
             if (!OperatingSystem.IsWindows())
                 throw new PlatformNotSupportedException("Moving to the Recycle Bin is only available on Windows.");
 
-            foreach (var File in SplitPackages.PartsOf(Entry.Path) ?? new[] { Entry.Path })
+            // all parts in one operation (a split package goes as a whole). FOF_WANTNUKEWARNING:
+            // when a file can't be recycled (bigger than the bin, network/USB drive) Windows
+            // asks before deleting it permanently instead of silently doing it.
+            var Files = SplitPackages.PartsOf(Entry.Path) ?? new[] { Entry.Path };
+            var Operation = new SHFILEOPSTRUCT
             {
-                var Operation = new SHFILEOPSTRUCT
-                {
-                    wFunc = FO_DELETE,
-                    pFrom = File + "\0\0",
-                    fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT
-                };
-                int Result = SHFileOperation(ref Operation);
-                if (Result != 0 || Operation.fAnyOperationsAborted)
-                    throw new IOException($"Windows couldn't move \"{Path.GetFileName(File)}\" to the Recycle Bin (code {Result}).");
-            }
+                wFunc = FO_DELETE,
+                pFrom = string.Join("\0", Files) + "\0\0",
+                fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_WANTNUKEWARNING | FOF_SILENT
+            };
+            int Result = SHFileOperation(ref Operation);
+            if (Result != 0 || Operation.fAnyOperationsAborted)
+                throw new IOException(Operation.fAnyOperationsAborted
+                    ? "Cancelled: nothing was deleted."
+                    : $"Windows couldn't move \"{Path.GetFileName(Entry.Path)}\" to the Recycle Bin (code {Result}).");
         }
 
         const uint FO_DELETE = 3;
-        const ushort FOF_SILENT = 0x0004, FOF_NOCONFIRMATION = 0x0010, FOF_ALLOWUNDO = 0x0040, FOF_NOERRORUI = 0x0400;
+        const ushort FOF_SILENT = 0x0004, FOF_NOCONFIRMATION = 0x0010, FOF_ALLOWUNDO = 0x0040, FOF_WANTNUKEWARNING = 0x4000;
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         struct SHFILEOPSTRUCT

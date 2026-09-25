@@ -185,6 +185,9 @@ namespace DirectPackageInstaller.Services
                         PipeTransmissionMode.Byte, PipeOptions.CurrentUserOnly);
                     Server.WaitForConnection();
 
+                    // a client that connects and never writes must not block later ones
+                    using var Stuck = new Timer(_ => { try { Server.Disconnect(); } catch { } }, null, 5000, Timeout.Infinite);
+
                     string[] Args;
                     using (var Reader = new BinaryReader(Server, Encoding.UTF8, true))
                     {

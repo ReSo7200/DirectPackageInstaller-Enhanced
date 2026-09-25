@@ -209,13 +209,14 @@ namespace DirectPackageInstaller.Services
             PS4Server.GlobalTransferProgressChanged += OnTransferProgress;
 
             // Safety net for the PC-side estimate: if the console stopped asking for
-            // a file that is at least 99.5% sent, it has it.
+            // a file that was sent except for the last few MB, it has it.
             Watchdog = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) =>
             {
                 foreach (var Item in Items.Where(x => x.State == QueueState.Downloading && x.TaskId == null))
                 {
                     long Size = Item.Entry.Size;
-                    if (Size > 0 && DateTime.UtcNow - Item.LastActivity > IdleDone && Item.Received.Covered >= Size * 0.995)
+                    // a few MB of slack only: a console that stopped at 99% of 100 GB is not done
+                    if (Size > 0 && DateTime.UtcNow - Item.LastActivity > IdleDone && Item.Received.Covered >= Size - 4L * 1024 * 1024)
                     {
                         Item.State = QueueState.Done;
                         Item.Progress = 100;
@@ -265,6 +266,9 @@ namespace DirectPackageInstaller.Services
             Item.Message = "";
             Item.Progress = 0;
             Item.Received.Clear();
+            // a new push gets a new console task (or none): never control the old one
+            Item.TaskId = null;
+            Item.IsPaused = false;
             _ = RunAsync();
         }
 
@@ -326,6 +330,8 @@ namespace DirectPackageInstaller.Services
             Item.State = QueueState.Pushing;
             Item.Message = "";
             Item.Received.Clear();
+            Item.TaskId = null;
+            Item.IsPaused = false;
 
             if (!File.Exists(Item.Path))
             {

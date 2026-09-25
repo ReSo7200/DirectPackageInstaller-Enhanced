@@ -180,7 +180,7 @@ namespace DirectPackageInstaller.Views
                 return;
 
             var Reply = await MessageBox.ShowAsync(
-                $"Move this copy to the Recycle Bin?\n\n{Item.Entry.Path}\n\nThe other copy stays in the library. You can restore it from the Recycle Bin.",
+                $"Move this copy to the Recycle Bin?\n\n{Item.Entry.Path}\n\nThe other copy stays in the library. If it's too big for the Recycle Bin (or on a network/USB drive), Windows asks before deleting it for good.",
                 "Remove duplicate", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (Reply != DialogResult.Yes)
                 return;

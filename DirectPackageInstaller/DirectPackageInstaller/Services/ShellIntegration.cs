@@ -49,7 +49,7 @@ namespace DirectPackageInstaller.Services
             try
             {
                 WriteVerb(SendKeyPath, "Send to PS4 (DPI)", ExePath, $"\"{ExePath}\" {SendSwitch} \"%1\"");
-                WriteVerb(FolderKeyPath, "Add to DPI library", ExePath, $"\"{ExePath}\" {AddFolderSwitch} \"%1\"");
+                WriteVerb(FolderKeyPath, "Add to DPI library", ExePath, $"\"{ExePath}\" {AddFolderSwitch} \"%V\"");
                 return true;
             }
             catch

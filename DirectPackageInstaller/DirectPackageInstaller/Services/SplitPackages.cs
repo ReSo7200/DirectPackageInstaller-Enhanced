@@ -65,6 +65,32 @@ namespace DirectPackageInstaller.Services
             }
         }
 
+        /// <summary>Named like part 0 of a split package ("name_0.pkg").</summary>
+        public static bool LooksLikePartZero(string File)
+        {
+            var Match = PartName.Match(Path.GetFileName(File));
+            return Match.Success && Match.Groups["n"].Value == "0";
+        }
+
+        /// <summary>
+        /// Part 0 whose header declares a bigger package than the parts on disk add
+        /// up to (parts missing or still downloading): must not be sent as is.
+        /// </summary>
+        public static bool IsIncomplete(string File)
+        {
+            if (!LooksLikePartZero(File) || PartsOf(File) != null)
+                return false;
+            try
+            {
+                using var Stream = new FileStream(File, FileMode.Open, FileAccess.Read, FileShare.Read);
+                return new PkgReader(Stream).ReadHeader().package_size > (ulong)Stream.Length;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         /// <summary>The whole package as one stream (all parts back to back), or null if File isn't split.</summary>
         public static Stream? OpenMerged(string File)
         {
@@ -72,8 +98,20 @@ namespace DirectPackageInstaller.Services
             if (Parts == null)
                 return null;
 
-            var Streams = Parts.Select(x => (Stream)new FileStream(x, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.SequentialScan)).ToArray();
-            return new MergedStream(Streams, Streams.Select(x => x.Length).ToArray());
+            var Streams = new List<Stream>();
+            try
+            {
+                foreach (var Part in Parts)
+                    Streams.Add(new FileStream(Part, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.SequentialScan));
+            }
+            catch
+            {
+                // don't leave the parts already opened locked
+                foreach (var Opened in Streams)
+                    Opened.Dispose();
+                throw;
+            }
+            return new MergedStream(Streams.ToArray(), Streams.Select(x => x.Length).ToArray());
         }
 
         /// <summary>The package stream for a local file: merged parts when split, else the file.</summary>

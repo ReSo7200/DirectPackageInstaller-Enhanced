@@ -22,7 +22,7 @@ namespace DirectPackageInstaller.Services
     /// </summary>
     public static class RpiTasks
     {
-        static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(6) };
+        static readonly HttpClient Http = NetConnect.ConsoleHttp(TimeSpan.FromSeconds(6));
 
         /// <summary>For tests: the RPI port.</summary>
         public static int Port { get; set; } = 12800;

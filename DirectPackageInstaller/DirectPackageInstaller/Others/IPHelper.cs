@@ -177,10 +177,7 @@ namespace DirectPackageInstaller
             return IPs.ToArray();
         }
 
-        static HttpClient Client = new HttpClient()
-        {
-            Timeout = TimeSpan.FromMilliseconds(1000)
-        };
+        static HttpClient Client = Services.NetConnect.ConsoleHttp(TimeSpan.FromMilliseconds(1000));
         
         
         public static async Task<bool> IsGoldHENOnline(string IP)

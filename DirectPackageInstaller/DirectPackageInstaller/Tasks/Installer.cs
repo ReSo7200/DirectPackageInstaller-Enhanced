@@ -272,7 +272,7 @@ namespace DirectPackageInstaller.Tasks
             {
                 string Boundary = GetBoundary();
 
-                using var client = new HttpClient();
+                using var client = Services.NetConnect.ConsoleHttp(TimeSpan.FromSeconds(100));
                 var requestUri = $"http://{Config.PSIP}:12800/upload";
 
                 var content = new MultipartFormDataContent(Boundary);
@@ -351,7 +351,7 @@ namespace DirectPackageInstaller.Tasks
         {
             try
             {
-                using var client = new HttpClient();
+                using var client = Services.NetConnect.ConsoleHttp(TimeSpan.FromSeconds(100));
                 var requestUri = $"http://{Config.PSIP}:12800/api/install";
 
 

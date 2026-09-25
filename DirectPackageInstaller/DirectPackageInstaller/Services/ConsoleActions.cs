@@ -12,7 +12,7 @@ namespace DirectPackageInstaller.Services
     /// </summary>
     public static class ConsoleActions
     {
-        static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
+        static readonly HttpClient Http = NetConnect.ConsoleHttp(TimeSpan.FromSeconds(20));
 
         /// <summary>
         /// Uninstall a game, its update, or one DLC, matching the library entry's kind.

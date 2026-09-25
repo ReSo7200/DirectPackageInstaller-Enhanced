@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +15,34 @@ namespace DirectPackageInstaller.Services
     /// </summary>
     public static class NetConnect
     {
+        /// <summary>
+        /// HttpClient for talking to the console (RPI, etaHEN, GoldHEN). The default on
+        /// Android is the Java HTTP stack, whose requests differ from the desktop's and
+        /// crashed Remote Package Installer; this sends the same requests everywhere.
+        /// </summary>
+        public static HttpClient ConsoleHttp(TimeSpan Timeout) => new(ConsoleHandler()) { Timeout = Timeout };
+
+        public static HttpMessageHandler ConsoleHandler() => new SocketsHttpHandler
+        {
+            ConnectCallback = async (Context, Token) =>
+            {
+                var Address = IPAddress.TryParse(Context.DnsEndPoint.Host, out var Parsed) ? Parsed
+                    : (await Dns.GetHostAddressesAsync(Context.DnsEndPoint.Host, Token).ConfigureAwait(false))[0];
+                var Socket = new Socket(Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                try
+                {
+                    await ConnectAsync(Socket, new IPEndPoint(Address, Context.DnsEndPoint.Port), Token).ConfigureAwait(false);
+                    Socket.NoDelay = true;
+                    return new NetworkStream(Socket, ownsSocket: true);
+                }
+                catch
+                {
+                    Socket.Dispose();
+                    throw;
+                }
+            }
+        };
+
         public static Task ConnectAsync(TcpClient Client, IPAddress Address, int Port, CancellationToken Token) =>
             ConnectAsync(Client.Client, new IPEndPoint(Address, Port), Token);
 

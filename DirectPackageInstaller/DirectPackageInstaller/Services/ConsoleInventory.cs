@@ -378,7 +378,7 @@ namespace DirectPackageInstaller.Services
 
         private static async Task<ConsoleSnapshot?> QueryRpiAsync(string ip, int port, List<string> tids, CancellationToken ct)
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
+            using var http = NetConnect.ConsoleHttp(TimeSpan.FromSeconds(4));
             var url = $"http://{ip}:{port}/api/is_exists";
             var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             bool anyAnswer = false;

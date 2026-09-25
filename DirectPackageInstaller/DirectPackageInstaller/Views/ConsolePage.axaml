@@ -12,10 +12,16 @@
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}" TextWrapping="Wrap"/>
                 <TextBlock FontFamily="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Text}"
                            Text="{Binding FreeSpace}" IsVisible="{Binding HasFreeSpace}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                <TextBlock FontSize="12.5" Foreground="{StaticResource Signal}" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Text="{Binding CapturesStatus}" IsVisible="{Binding HasCapturesStatus}"/>
             </StackPanel>
-            <Button Name="BtnRefresh" Classes="primary headbutton" VerticalAlignment="Center" MinWidth="110"
-                    IsEnabled="{Binding CanRefresh}" Content="{Binding RefreshText}"
-                    ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True"/>
+            <WrapPanel Classes="headbutton" VerticalAlignment="Center" ItemSpacing="8" LineSpacing="8">
+                <Button Name="BtnCaptures" IsEnabled="{Binding CanCopyCaptures}" ToolTip.ShowOnDisabled="True"
+                        ToolTip.Tip="{Binding CapturesTip}">Copy captures</Button>
+                <Button Name="BtnRefresh" Classes="primary" MinWidth="110"
+                        IsEnabled="{Binding CanRefresh}" Content="{Binding RefreshText}"
+                        ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True"/>
+            </WrapPanel>
         </Grid>
 
         <!-- storage boxes: free space per drive (experimental payload) -->
@@ -142,7 +148,7 @@
         <Style Selector="Grid.pagehead">
             <Setter Property="Margin" Value="28,22,28,14"/>
         </Style>
-        <Style Selector="Button.headbutton">
+        <Style Selector=":is(Control).headbutton">
             <Setter Property="Grid.Column" Value="1"/>
         </Style>
         <Style Selector="WrapPanel.pagebody">
@@ -174,7 +180,7 @@
         <Style Selector=":is(UserControl).narrow Grid.pagehead">
             <Setter Property="Margin" Value="14,14,14,8"/>
         </Style>
-        <Style Selector=":is(UserControl).narrow Button.headbutton">
+        <Style Selector=":is(UserControl).narrow :is(Control).headbutton">
             <Setter Property="Grid.Row" Value="1"/>
             <Setter Property="Grid.Column" Value="0"/>
             <Setter Property="Margin" Value="0,10,0,0"/>

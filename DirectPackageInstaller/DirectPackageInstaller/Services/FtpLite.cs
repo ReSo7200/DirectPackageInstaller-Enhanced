@@ -222,6 +222,59 @@ namespace DirectPackageInstaller.Services
             }
         }
 
+        /// <summary>RETR path into Target as it arrives (for files too big to hold in memory).</summary>
+        public async Task DownloadToAsync(string path, Stream Target, Action<long>? Progress = null, CancellationToken ct = default)
+        {
+            var ep = await EnterPassiveAsync(ct).ConfigureAwait(false);
+            using var data = new TcpClient(ep.AddressFamily);
+            using (var cts = Linked(ct, ConnectTimeout))
+            {
+                try
+                {
+                    await NetConnect.ConnectAsync(data, ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                    data.NoDelay = true;
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    Abort();
+                    throw new TimeoutException($"FTP data connection to {ep} timed out");
+                }
+            }
+
+            await SendAsync("RETR " + path, ct).ConfigureAwait(false);
+            var prelim = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (prelim.Code != 125 && prelim.Code != 150)
+                throw new FtpException($"Download of '{path}' was refused", prelim);
+
+            var ds = data.GetStream();
+            var chunk = new byte[65536];
+            long got = 0;
+            while (true)
+            {
+                int n;
+                using (var cts = Linked(ct, OperationTimeout))
+                {
+                    try
+                    {
+                        n = await ds.ReadAsync(chunk.AsMemory(), cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        Abort();
+                        throw new TimeoutException($"FTP download of '{path}' timed out");
+                    }
+                }
+                if (n <= 0) break;
+                await Target.WriteAsync(chunk.AsMemory(0, n), ct).ConfigureAwait(false);
+                got += n;
+                Progress?.Invoke(got);
+            }
+
+            var done = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (done.Code / 100 != 2)
+                throw new FtpException($"Download of '{path}' did not complete", done);
+        }
+
         /// <summary>STOR the rest of Source to path. Progress gets the bytes sent so far.</summary>
         public async Task UploadAsync(string path, Stream Source, Action<long>? Progress = null, CancellationToken ct = default)
         {

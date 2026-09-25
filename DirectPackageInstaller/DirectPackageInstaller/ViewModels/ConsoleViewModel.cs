@@ -152,12 +152,74 @@ namespace DirectPackageInstaller.ViewModels
 
             ConsoleStatus.Instance.PropertyChanged += (_, e) =>
             {
+                if (e.PropertyName == nameof(ConsoleStatus.FtpOpen))
+                {
+                    this.RaisePropertyChanged(nameof(CanCopyCaptures));
+                    this.RaisePropertyChanged(nameof(CapturesTip));
+                }
                 if (e.PropertyName == nameof(ConsoleStatus.CanRead))
                 {
                     this.RaisePropertyChanged(nameof(CanRefresh));
                     this.RaisePropertyChanged(nameof(RefreshTip));
                 }
             };
+        }
+
+        // ----- screenshots and video clips (copied to this device, never deleted on the console)
+
+        bool CopyingCaptures;
+        public bool CanCopyCaptures => !CopyingCaptures && ConsoleStatus.Instance.FtpOpen;
+        public string CapturesTip => ConsoleStatus.Instance.FtpOpen
+            ? $"Copy the console's screenshots and video clips to {ConsoleCaptures.Folder} (a folder per game; ones already copied are skipped)"
+            : "Needs GoldHEN's FTP server running on the console";
+
+        string _CapturesStatus = "";
+        public string CapturesStatus
+        {
+            get => _CapturesStatus;
+            private set { this.RaiseAndSetIfChanged(ref _CapturesStatus, value); this.RaisePropertyChanged(nameof(HasCapturesStatus)); }
+        }
+        public bool HasCapturesStatus => CapturesStatus.Length > 0;
+
+        public async Task CopyCapturesAsync()
+        {
+            var IP = App.Config.PSIP?.Trim();
+            if (!CanCopyCaptures || string.IsNullOrEmpty(IP))
+                return;
+
+            CopyingCaptures = true;
+            this.RaisePropertyChanged(nameof(CanCopyCaptures));
+            try
+            {
+                CapturesStatus = "Looking for screenshots and videos…";
+                var Found = await ConsoleCaptures.ListAsync(IP);
+                if (Found.Count == 0)
+                {
+                    CapturesStatus = "No screenshots or videos on the console.";
+                    return;
+                }
+
+                // folders named after the game when the console (or library) knows it
+                var Names = All.ToDictionary(x => x.TitleId, x => x.Name, StringComparer.OrdinalIgnoreCase);
+                foreach (var Entry in LibraryEntries())
+                    Names.TryAdd(Entry.TitleId, Entry.Title);
+
+                int Copied = await ConsoleCaptures.CopyAsync(IP, Found, Tid => Names.TryGetValue(Tid, out var Name) ? Name : Tid,
+                    new Progress<string>(Text => CapturesStatus = Text));
+                int Photos = Found.Count(x => !x.IsVideo), Videos = Found.Count - Photos;
+                CapturesStatus = Copied == 0
+                    ? $"All {Photos} screenshots and {Videos} videos were already copied to {ConsoleCaptures.Folder}."
+                    : $"Copied {Copied} new ({Photos} screenshots and {Videos} videos on the console) to {ConsoleCaptures.Folder}.";
+            }
+            catch (Exception ex)
+            {
+                CapturesStatus = "Couldn't copy the captures: " + ex.Message;
+            }
+            finally
+            {
+                CopyingCaptures = false;
+                this.RaisePropertyChanged(nameof(CanCopyCaptures));
+            }
         }
 
         /// <summary>Reading needs GoldHEN's FTP (or RPI) answering.</summary>

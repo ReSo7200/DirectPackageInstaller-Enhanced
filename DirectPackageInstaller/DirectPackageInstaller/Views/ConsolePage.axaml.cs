@@ -32,6 +32,7 @@ namespace DirectPackageInstaller.Views
             DataContext = new ConsoleViewModel(LibraryEntries);
 
             BtnRefresh.Click += async (_, _) => await Model.RefreshAsync();
+            BtnCaptures.Click += async (_, _) => await Model.CopyCapturesAsync();
             BtnRefreshIntro.Click += async (_, _) => await Model.RefreshAsync();
 
             FilterAll.IsCheckedChanged += (_, _) => { if (FilterAll.IsChecked == true) Model.Filter = ConsoleFilter.All; };

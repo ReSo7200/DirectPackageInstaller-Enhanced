@@ -89,6 +89,8 @@
                             <StackPanel.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Send to PS4" Tag="{Binding}" Click="MenuSendClick"/>
+                                    <MenuItem Header="Send what this title is missing" Tag="{Binding}" Click="MenuSendMissingClick"
+                                              ToolTip.Tip="Game if not installed, newest update if newer than the console's, DLC not installed yet"/>
                                     <MenuItem Header="Open in Direct link" Tag="{Binding}" Click="MenuInspectClick"/>
                                     <Separator/>
                                     <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"/>

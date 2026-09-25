@@ -733,6 +733,43 @@ namespace DirectPackageInstaller.ViewModels
                 Item.NewerOfficial = "";
         }
 
+        /// <summary>
+        /// What a title still needs on the console: the game if it isn't installed,
+        /// only the newest update (when newer than what's installed), and DLC not
+        /// installed yet. Without a PS4 check everything counts as missing.
+        /// </summary>
+        public List<LibraryEntry> MissingFor(string TitleId)
+        {
+            var Family = All.Where(x => x.Entry.TitleId == TitleId && !x.HasError).ToList();
+            static bool OnConsole(LibraryItem x) => x.State is InstallState.Installed or InstallState.NewerInstalled;
+
+            var Result = new List<LibraryEntry>();
+
+            var Game = Family.Where(x => x.Entry.Kind == "Game").OrderByDescending(x => x.Entry.Modified).FirstOrDefault();
+            if (Game != null && !OnConsole(Game))
+                Result.Add(Game.Entry);
+
+            var NewestUpdate = Family.Where(x => x.Entry.Kind == "Update")
+                .OrderByDescending(x => x.Entry.AppVersion, Comparer<string>.Create(PatchInfo.Compare)).FirstOrDefault();
+            if (NewestUpdate != null && !OnConsole(NewestUpdate))
+                Result.Add(NewestUpdate.Entry);
+
+            Result.AddRange(Family.Where(x => x.Entry.Kind == "DLC" && !OnConsole(x)).Select(x => x.Entry));
+            return Result;
+        }
+
+        /// <summary>Queue everything a title is missing (game, then newest update, then DLC).</summary>
+        public int SendMissing(string TitleId)
+        {
+            var Missing = MissingFor(TitleId);
+            if (Missing.Count > 0)
+            {
+                SendQueue.Instance.Enqueue(Missing);
+                LinkQueue();
+            }
+            return Missing.Count;
+        }
+
         public void SendSelected()
         {
             var Entries = Selected.Where(x => !x.HasError).Select(x => x.Entry).ToList();

@@ -60,6 +60,16 @@ namespace DirectPackageInstaller.Views
                 SendQueue.Instance.Enqueue(new[] { Item.Entry });
         }
 
+        async void MenuSendMissingClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item || string.IsNullOrEmpty(Item.Entry.TitleId))
+                return;
+
+            if (Model.SendMissing(Item.Entry.TitleId) == 0)
+                await MessageBox.ShowAsync($"{Item.Entry.Title}: nothing to send. The last PS4 check found everything in your library for this title already installed.",
+                    "Send what's missing", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
         void MenuInspectClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)

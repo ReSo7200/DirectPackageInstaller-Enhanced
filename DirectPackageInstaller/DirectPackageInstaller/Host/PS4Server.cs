@@ -528,19 +528,31 @@ namespace DirectPackageInstaller.Host
                 }
 
                 var Token = new CancellationTokenSource();
-                await Context.Response.SendAsync(Context.Response.ContentLength.Value, Origin, Token.Token);
-
-                if (trackProgress)
+                try
                 {
-                    ReportTransferProgress(new TransferProgressInfo(
-                        Context.Request.Url.Full,
-                        transferStart + responseLength,
-                        totalLength,
-                        responseLength,
-                        responseLength,
-                        transferStarted,
-                        DateTime.Now,
-                        true));
+                    await Context.Response.SendAsync(Context.Response.ContentLength.Value, Origin, Token.Token);
+                }
+                finally
+                {
+                    // The console often closes the connection as soon as it has the
+                    // last byte, which throws here: still report how far it got,
+                    // or the queue never learns the file finished.
+                    if (trackProgress)
+                    {
+                        long Sent;
+                        lock (progressLock)
+                            Sent = Math.Min(responseSent, responseLength);
+
+                        ReportTransferProgress(new TransferProgressInfo(
+                            Context.Request.Url.Full,
+                            transferStart + Sent,
+                            totalLength,
+                            Sent,
+                            responseLength,
+                            transferStarted,
+                            DateTime.Now,
+                            true));
+                    }
                 }
             }
             finally

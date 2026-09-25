@@ -94,6 +94,9 @@ namespace DirectPackageInstaller.Services
             this.RaisePropertyChanged(nameof(CanCancel));
         }
 
+        /// <summary>Last time the console fetched part of this file.</summary>
+        internal DateTime LastActivity = DateTime.UtcNow;
+
         /// <summary>Completed ranges of the file (the console may fetch it in pieces).</summary>
         internal readonly ByteRanges Received = new();
 
@@ -196,9 +199,31 @@ namespace DirectPackageInstaller.Services
 
         public int PendingCount => Items.Count(x => !x.IsFinished);
 
+        readonly DispatcherTimer Watchdog;
+
+        /// <summary>No requests for this long with (nearly) everything sent means downloaded.</summary>
+        public static TimeSpan IdleDone { get; set; } = TimeSpan.FromSeconds(45);
+
         SendQueue()
         {
             PS4Server.GlobalTransferProgressChanged += OnTransferProgress;
+
+            // Safety net for the PC-side estimate: if the console stopped asking for
+            // a file that is at least 99.5% sent, it has it.
+            Watchdog = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) =>
+            {
+                foreach (var Item in Items.Where(x => x.State == QueueState.Downloading && x.TaskId == null))
+                {
+                    long Size = Item.Entry.Size;
+                    if (Size > 0 && DateTime.UtcNow - Item.LastActivity > IdleDone && Item.Received.Covered >= Size * 0.995)
+                    {
+                        Item.State = QueueState.Done;
+                        Item.Progress = 100;
+                        Item.Message = $"Sent {TransferProgressInfo.FormatBytes(Size)}";
+                    }
+                }
+            });
+            Watchdog.Start();
             Items.CollectionChanged += (_, _) => this.RaisePropertyChanged(nameof(PendingCount));
         }
 
@@ -526,12 +551,13 @@ namespace DirectPackageInstaller.Services
                 long FileSize = Item.Entry.Size > 0 ? Item.Entry.Size : Info.TotalBytes;
                 long ResponseStart = PieceOffset + Info.BytesSent - Info.ResponseBytesSent;
 
-                if (Info.Completed)
-                    Item.Received.Add(ResponseStart, ResponseStart + Info.ResponseBytesTotal);
+                // every event says how far this response got: count what was
+                // actually sent (a dropped connection never reports "complete")
+                Item.Received.Add(ResponseStart, ResponseStart + Info.ResponseBytesSent);
+                Item.LastActivity = DateTime.UtcNow;
 
                 // done only when every byte of the file arrived, whatever order the ranges came in
-                long InFlight = Info.Completed ? 0 : Info.ResponseBytesSent;
-                long Have = Math.Min(FileSize, Item.Received.Covered + InFlight);
+                long Have = Math.Min(FileSize, Item.Received.Covered);
                 Item.Progress = FileSize <= 0 ? 0 : Math.Round(Have * 100.0 / FileSize, 1);
 
                 if (Item.Received.Covered >= FileSize && FileSize > 0)

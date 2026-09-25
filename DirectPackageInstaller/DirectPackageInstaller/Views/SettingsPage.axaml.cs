@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 
 namespace DirectPackageInstaller.Views
 {
@@ -23,6 +24,20 @@ namespace DirectPackageInstaller.Views
             DhcpRow.IsVisible = DhcpDivider.IsVisible = App.IsWindows;
             DhcpSwitch.Click += DhcpClick;
             BtnRestartServer.Click += (_, _) => Host?.RestartServer_OnClick(this, null);
+
+            // payload sender: only while BinLoader answers
+            void SyncPayloadButton()
+            {
+                BtnSendPayload.IsEnabled = Services.ConsoleStatus.Instance.HasBinLoader;
+                ToolTip.SetTip(BtnSendPayload, BtnSendPayload.IsEnabled ? "Pick the payload file to send" : "Needs GoldHEN's BinLoader turned on");
+            }
+            SyncPayloadButton();
+            Services.ConsoleStatus.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(Services.ConsoleStatus.HasBinLoader))
+                    SyncPayloadButton();
+            };
+            BtnSendPayload.Click += async (_, _) => await SendPayloadAsync();
             BtnOpenData.Click += (_, _) => OpenDataFolder();
             BtnOpenData.IsVisible = !App.IsAndroid;
             ExitRow.IsVisible = App.IsAndroid;
@@ -156,6 +171,49 @@ namespace DirectPackageInstaller.Views
                 Model.PS4IP = Address;
                 FoundStatus.Text = $"Using {Address}.";
                 App.SaveSettings();
+            }
+        }
+
+        async System.Threading.Tasks.Task SendPayloadAsync()
+        {
+            string? File = null;
+            if (App.IsSingleView)
+            {
+                var Picker = new FilePicker();
+                await Picker.OpenDir(App.RootDir);
+                await SingleView.CallView(Picker, false);
+                File = Picker.SelectedFiles.FirstOrDefault();
+            }
+            else if (TopLevel.GetTopLevel(this) is { } Top)
+            {
+                var Picked = await Top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+                {
+                    Title = "Choose a payload (.bin / .elf)",
+                    FileTypeFilter = new[] { new Avalonia.Platform.Storage.FilePickerFileType("Payloads") { Patterns = new[] { "*.bin", "*.elf" } } }
+                });
+                File = Picked.FirstOrDefault()?.TryGetLocalPath();
+            }
+            if (string.IsNullOrEmpty(File))
+                return;
+
+            var Name = System.IO.Path.GetFileName(File);
+            if (await MessageBox.ShowAsync($"Send {Name} to the console? It runs right away.", "Send a payload",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            BtnSendPayload.IsEnabled = false;
+            try
+            {
+                await Services.PayloadSender.SendAsync(App.Config.PSIP.Trim(), File);
+                PayloadHint.Text = $"Sent {Name}.";
+            }
+            catch (Exception ex)
+            {
+                PayloadHint.Text = $"Couldn't send {Name}: {ex.Message}";
+            }
+            finally
+            {
+                BtnSendPayload.IsEnabled = Services.ConsoleStatus.Instance.HasBinLoader;
             }
         }
 

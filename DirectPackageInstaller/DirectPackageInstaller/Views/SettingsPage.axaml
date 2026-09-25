@@ -190,6 +190,14 @@
                             </StackPanel>
                             <Button Grid.Column="1" Name="BtnRestartServer">Restart</Button>
                         </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Send a payload"/>
+                                <TextBlock Classes="hint" Name="PayloadHint" Text="Send a .bin or .elf payload file to GoldHEN's BinLoader (port 9090). It runs on the console right away: only send payloads you trust."/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Name="BtnSendPayload" ToolTip.ShowOnDisabled="True">Choose file…</Button>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </StackPanel>

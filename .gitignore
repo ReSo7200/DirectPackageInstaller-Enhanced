@@ -301,3 +301,6 @@ $RECYCLE.BIN/
 [Pp]ackages/
 [Oo]bj/
 [Bb]in/
+
+# local SDK installed by build-windows.ps1
+.dotnet/

@@ -45,12 +45,14 @@ namespace DirectPackageInstaller
 
         private static string TempUpdateDir => Path.Combine(Path.GetDirectoryName(MainExecutable) ?? App.WorkingDirectory, "LastVersion");
 
-        const string Repo = "https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/";
+        // Enhanced fork: Update.ini + {OS}-{Arch}.zip live on this repo's Updater branch
+        // (published by .github/workflows/windows.yml).
+        const string Repo = "https://raw.githubusercontent.com/ReSo7200/DirectPackageInstaller-Enhanced/Updater/";
         //const string Repo = "http://192.168.2.101:8000/";
 
         const string UpdateList = "Update.ini";
 
-        public const string CurrentVersion = "8.4.0";
+        public const string CurrentVersion = "8.5.0";
         
         static Version CurrentVer = new Version(CurrentVersion);
 
@@ -131,10 +133,8 @@ namespace DirectPackageInstaller
             }
             catch (Exception e)
             {
+                // offline or no Update.ini published yet: not an error
                 Console.WriteLine(e);
-#if DEBUG
-                throw;
-#endif
                 return null;
             }
         }

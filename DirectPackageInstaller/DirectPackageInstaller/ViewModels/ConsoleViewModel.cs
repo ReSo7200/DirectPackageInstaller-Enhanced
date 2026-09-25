@@ -222,6 +222,40 @@ namespace DirectPackageInstaller.ViewModels
             }
         }
 
+        /// <summary>Zip the title's saves (every console user) to this device; read-only on the console.</summary>
+        public async Task BackupSavesAsync(ConsoleTitleItem Item)
+        {
+            var IP = App.Config.PSIP?.Trim();
+            if (!CanCopyCaptures || string.IsNullOrEmpty(IP))
+                return;
+
+            CopyingCaptures = true;
+            this.RaisePropertyChanged(nameof(CanCopyCaptures));
+            try
+            {
+                CapturesStatus = $"Looking for {Item.Name}'s saves…";
+                var Users = await ConsoleSaves.FindAsync(IP, Item.TitleId);
+                if (Users.Count == 0)
+                {
+                    CapturesStatus = $"{Item.Name} has no saved data on the console.";
+                    return;
+                }
+
+                var Folder = await ConsoleSaves.BackupAsync(IP, Item.TitleId, Item.Name, Users, new Progress<string>(Text => CapturesStatus = Text));
+                CapturesStatus = $"Backed up {Item.Name}'s saves ({string.Join(", ", Users.Select(x => x.UserName))}) to {Folder}. " +
+                                 "Saves only load on this console and account; restore them with Apollo Save Tool (Homebrew page).";
+            }
+            catch (Exception ex)
+            {
+                CapturesStatus = "Couldn't back up the saves: " + ex.Message;
+            }
+            finally
+            {
+                CopyingCaptures = false;
+                this.RaisePropertyChanged(nameof(CanCopyCaptures));
+            }
+        }
+
         /// <summary>Reading needs GoldHEN's FTP (or RPI) answering.</summary>
         public bool CanRefresh => !IsLoading && ConsoleStatus.Instance.CanRead;
         public string RefreshTip => ConsoleStatus.Instance.CanRead || IsLoading

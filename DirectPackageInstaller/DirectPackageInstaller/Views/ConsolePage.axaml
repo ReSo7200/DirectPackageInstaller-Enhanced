@@ -84,6 +84,7 @@
                                     <ContextMenu Opening="TileMenuOpening">
                                         <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick" Classes="library"/>
                                         <MenuItem Header="Copy title ID" Tag="{Binding}" Click="MenuCopyIdClick"/>
+                                        <MenuItem Header="Back up saves" Tag="{Binding}" Click="MenuBackupSavesClick" Classes="ftp"/>
                                         <Separator/>
                                         <MenuItem Header="Move to extended storage…" Tag="{Binding}" Click="MenuMoveClick"
                                                   IsVisible="{Binding OnSystem}" Classes="move"/>

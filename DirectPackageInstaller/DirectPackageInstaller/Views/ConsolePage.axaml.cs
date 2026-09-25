@@ -71,6 +71,14 @@ namespace DirectPackageInstaller.Views
                     ToolTip.SetTip(Entry, Why ?? "The console copies it to the other drive and removes the old copy. Nothing is sent from this device.");
                     ToolTip.SetShowOnDisabled(Entry, true);
                 }
+                if (Entry.Classes.Contains("ftp"))
+                {
+                    Entry.IsEnabled = Model.CanCopyCaptures;
+                    ToolTip.SetTip(Entry, Model.CanCopyCaptures
+                        ? $"Copies this game's saved data for every user to {ConsoleSaves.Folder} (read-only on the console)"
+                        : ConsoleStatus.Instance.FtpOpen ? "Another copy is running" : "Needs GoldHEN's FTP server running on the console");
+                    ToolTip.SetShowOnDisabled(Entry, true);
+                }
                 if (Entry.Classes.Contains("library"))
                     Entry.IsEnabled = Entry.Tag is ConsoleTitleItem Item && Item.LibraryPackages > 0;
             }
@@ -89,6 +97,12 @@ namespace DirectPackageInstaller.Views
         }
 
         void MenuUninstallClick(object? sender, RoutedEventArgs e) => Uninstall(ItemOf(sender), "gd");
+
+        async void MenuBackupSavesClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is { } Item)
+                await Model.BackupSavesAsync(Item);
+        }
 
         async void MenuMoveClick(object? sender, RoutedEventArgs e)
         {

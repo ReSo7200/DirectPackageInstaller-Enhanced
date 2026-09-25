@@ -12,6 +12,16 @@ A fork of [marcussacana/DirectPackageInstaller](https://github.com/marcussacana/
 - **Settings page** for everything that used to live in menus; *This PC's address* is picked from your network adapters and never changes on its own.
 - **Fixes** for GoldHEN installs that were silently lost when sending several packages, paths that failed because of `+` in base64, a busy port 9898 reported as success, the archive picker installing the wrong PKG, and more (see the commit history).
 - Pasting a path from Explorer's *Copy as path* works: the quotes are removed.
+- **On PS4 page.** Everything installed on the console (system and extended storage), with a box per drive showing free space and usage (experimental payload), what's running now, uninstall, and:
+  - **Move between system and extended storage** (right-click). Done on the console like Itemzflow's restore: the installed packages are set aside on the same drive, the title is removed with Remote Package Installer, and the payload installs each package from that file on the other drive. Nothing is sent from the PC; the copy set aside is only deleted after the console's task finished, and an interrupted move is found again and can be retried.
+  - **Copy captures:** screenshots and video clips to `Pictures\DPI Captures`, a folder per game.
+  - **Back up saves:** a game's saved data for every console user, zipped to `Documents\DPI Save Backups` (restore with Apollo Save Tool).
+- **Install to** system or extended storage per package (experimental payload): it switches the console's Application Install Location setting around each install and puts it back.
+- **Unlock-key DLC** (no-data licence packages, which the console's downloader refuses) are copied to `/data/pkg` for GoldHEN's Package Installer, and show as installed afterwards.
+- **Check a package for damage** before sending it (recomputes the checksums inside the PKG), **BACKPORT** badges on updates rebuilt for older firmware, split packages (`_0.pkg`, `_1.pkg`, …), official update downloads, library tidy-up (clear names, game folders, duplicates to the Recycle Bin), Explorer right-click menu.
+- **Homebrew page:** free PS4 apps (Apollo Save Tool, ezRemote Client, the Homebrew Store app, GoldHEN Cheat Manager, or any GitHub project you add) downloaded from their authors' releases and sent like any PKG.
+- **Android:** the same pages under bottom tabs, sized for phones.
+- Buttons are only enabled when they can do something, and say why when they can't; pop-ups tell you when sends and moves finish.
 
 ### Build (Windows)
 

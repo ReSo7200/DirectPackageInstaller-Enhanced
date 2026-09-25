@@ -120,6 +120,46 @@ namespace DirectPackageInstaller.Views
 
         public void ShowDirectLink() => NavLink.IsChecked = true;
 
+        /// <summary>Files sent from Explorer go to the queue; folders join the library.</summary>
+        async System.Threading.Tasks.Task HandleShellArgsAsync(string[] Args)
+        {
+            var Library = LibraryPage.DataContext as LibraryViewModel;
+            var Failed = new System.Collections.Generic.List<string>();
+            bool Sent = false;
+
+            foreach (var Command in ShellIntegration.Parse(Args))
+            {
+                if (Command.Kind == ShellCommandKind.AddFolder)
+                {
+                    if (Library != null)
+                        await Library.AddFolderAsync(Command.Path);
+                    NavLibrary.IsChecked = true;
+                    continue;
+                }
+
+                var Entry = await System.Threading.Tasks.Task.Run(() => LibraryService.ReadPackage(Command.Path));
+                if (Entry == null || Entry.Error != null)
+                {
+                    Failed.Add($"{System.IO.Path.GetFileName(Command.Path)}: {Entry?.Error ?? "file not found"}");
+                    continue;
+                }
+
+                SendQueue.Instance.Enqueue(new[] { Entry });
+                Sent = true;
+            }
+
+            if (Sent)
+                NavQueue.IsChecked = true;
+
+            // bring the window forward: the click happened in Explorer
+            if (WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+            Activate();
+
+            if (Failed.Count > 0)
+                await MessageBox.ShowAsync("Couldn't send:\n" + string.Join("\n", Failed), "Send to PS4", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
         /// <summary>Library filtered to one title ID (from "On PS4").</summary>
         public void ShowInLibrary(string TitleId)
         {
@@ -142,6 +182,9 @@ namespace DirectPackageInstaller.Views
 #endif
             // the scan needs no settings; don't make it wait for update checks
             LibraryPage.OnShown();
+
+            // Explorer "Send to PS4 (DPI)" / "Add to DPI library", from this launch or later ones
+            SingleInstance.ArgumentsReceived += Args => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = HandleShellArgsAsync(Args));
 
             await View.OnShown(this);
 

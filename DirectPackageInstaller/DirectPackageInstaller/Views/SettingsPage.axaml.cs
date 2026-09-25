@@ -23,6 +23,18 @@ namespace DirectPackageInstaller.Views
             BtnOpenData.Click += (_, _) => OpenDataFolder();
 
             BtnRefreshAdapters.Click += (_, _) => FillAdapters();
+
+            ShellRow.IsVisible = ShellDivider.IsVisible = Services.ShellIntegration.IsSupported;
+            if (Services.ShellIntegration.IsSupported)
+            {
+                ShellSwitch.IsChecked = Services.ShellIntegration.IsRegistered();
+                ShellSwitch.IsCheckedChanged += (_, _) =>
+                {
+                    bool Ok = ShellSwitch.IsChecked == true ? Services.ShellIntegration.Register() : Services.ShellIntegration.Unregister();
+                    if (!Ok)
+                        ShellSwitch.SetCurrentValue(Avalonia.Controls.Primitives.ToggleButton.IsCheckedProperty, Services.ShellIntegration.IsRegistered());
+                };
+            }
             BtnFindConsoles.Click += async (_, _) => await FindConsolesAsync();
             PcIpPicker.SelectionChanged += (_, _) =>
             {

@@ -174,6 +174,14 @@
                             <ToggleSwitch Grid.Column="1" Name="DhcpSwitch" IsChecked="{Binding DHCPService, Mode=OneWay}" OnContent="" OffContent=""/>
                         </Grid>
                         <Rectangle Classes="divider" Name="DhcpDivider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="ShellRow">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Explorer right-click menu"/>
+                                <TextBlock Classes="hint" Text="Adds &quot;Send to PS4 (DPI)&quot; to .pkg files and &quot;Add to DPI library&quot; to folders (for your Windows user only). Turn it on again if you move this app to another folder."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" Name="ShellSwitch" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider" Name="ShellDivider"/>
                         <Grid Classes="row" ColumnDefinitions="*,Auto">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="Restart the file server"/>

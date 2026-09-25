@@ -26,6 +26,9 @@ namespace DirectPackageInstaller.Services
         public string SystemVersion { get; set; } = "";
         public bool Fake { get; set; }
 
+        /// <summary>Unlock-key DLC (header type AL); null in caches written before this was read.</summary>
+        public bool? UnlockKey { get; set; }
+
         /// <summary>Number of files for a split package (name_0.pkg, name_1.pkg, ...); 1 otherwise.</summary>
         public int Parts { get; set; } = 1;
 
@@ -245,7 +248,8 @@ namespace DirectPackageInstaller.Services
             // "_0.pkg" names are always re-read: later parts can appear (a download finishing)
             // without part 0 changing
             if (!SplitPackages.LooksLikePartZero(File)
-                && Previous.TryGetValue(File, out var Cached) && Cached.Error == null && (Cached.FileLength > 0 ? Cached.FileLength : Cached.Size) == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
+                && Previous.TryGetValue(File, out var Cached) && Cached.Error == null
+                && (Cached.UnlockKey != null || Cached.Kind != "DLC") && (Cached.FileLength > 0 ? Cached.FileLength : Cached.Size) == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
                 && (Cached.IconFile == null || System.IO.File.Exists(Cached.IconFile)))
                 return Cached;
 
@@ -295,6 +299,7 @@ namespace DirectPackageInstaller.Services
                     Entry.AppVersion = Param("VERSION");
                 Entry.SystemVersion = SystemVersion(Param("SYSTEM_VER"));
                 Entry.Fake = Value.FakePackage;
+                Entry.UnlockKey = UnlockKeys.IsUnlockKey(Value);
 
                 if (Value.IconData is { Length: > 0 } Icon)
                     Entry.IconFile = SaveIcon(Icon);

@@ -180,6 +180,7 @@ namespace DirectPackageInstaller.ViewModels
             InstallState.NewerInstalled => Brush("Go"),
             InstallState.UpdateAvailable => Brush("AmberHatch"),
             InstallState.BaseMissing => Brush("Violet"),
+            InstallState.Staged => Brush("AmberHatch"),
             _ => Brush("Line")
         };
 
@@ -206,6 +207,7 @@ namespace DirectPackageInstaller.ViewModels
                     InstallState.NewerInstalled => OnExtended ? "Newer on PS4 · ext" : "Newer on PS4",
                     InstallState.UpdateAvailable => Entry.Kind == "Update" ? "Update not installed" : "Update available",
                     InstallState.BaseMissing => "Needs base game",
+                    InstallState.Staged => "In /data/pkg · install on PS4",
                     InstallState.NotInstalled => InstallingOnConsole && Entry.Kind == "Game" ? "Installing on PS4" : "Not on PS4",
                     _ => UnknownText
                 };
@@ -223,7 +225,7 @@ namespace DirectPackageInstaller.ViewModels
                 return State switch
                 {
                     InstallState.Installed or InstallState.NewerInstalled => Brush("Go"),
-                    InstallState.UpdateAvailable => Brush("Amber"),
+                    InstallState.UpdateAvailable or InstallState.Staged => Brush("Amber"),
                     InstallState.BaseMissing => Brush("Violet"),
                     _ => Brush("Muted")
                 };
@@ -458,7 +460,7 @@ namespace DirectPackageInstaller.ViewModels
                 Snapshot.IsAppsOnly && Snapshot.Apps.Contains(Item.Entry.TitleId) && Item.Entry.Kind is "Update" or "DLC" ? "Game on PS4"
                 : !Snapshot.IsAppsOnly && Item.Entry.Kind == "Update" && Snapshot.Patches.Contains(Item.Entry.TitleId) ? "An update is on PS4"
                 : "";
-            Item.State = Snapshot.StateOf(Item.Entry.Category, Item.Entry.TitleId, Item.Entry.ContentId, Item.Entry.AppVersion);
+            Item.State = Snapshot.StateOf(Item.Entry.Category, Item.Entry.TitleId, Item.Entry.ContentId, Item.Entry.AppVersion, Item.Entry.UnlockKey == true);
         }
 
         /// <summary>Folder chips with availability and PKG counts.</summary>

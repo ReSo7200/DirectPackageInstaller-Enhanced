@@ -6,13 +6,14 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using LibOrbisPkg.SFO;
 
 namespace DirectPackageInstaller.Services
 {
-    public enum InstallState { Unknown, NotInstalled, Installed, UpdateAvailable, NewerInstalled, BaseMissing }
+    public enum InstallState { Unknown, NotInstalled, Installed, UpdateAvailable, NewerInstalled, BaseMissing, Staged }
 
     /// <summary>A point-in-time view of what is installed on the console.</summary>
     public sealed class ConsoleSnapshot
@@ -37,6 +38,15 @@ namespace DirectPackageInstaller.Services
         /// <summary>Registered on extended storage but not installed yet (still downloading).</summary>
         public IReadOnlySet<string> InstallingApps { get; init; } = Empty;
 
+        /// <summary>
+        /// Content IDs the console finished installing through a download task, from its
+        /// notifications. Unlock-key DLC leaves no /user/addcont folder, only this.
+        /// </summary>
+        public IReadOnlySet<string> DownloadedContent { get; init; } = Empty;
+
+        /// <summary>Content IDs of packages waiting in /data/pkg for the Package Installer.</summary>
+        public IReadOnlySet<string> StagedContent { get; init; } = Empty;
+
         /// <summary>True when the snapshot only knows about installed base apps (RPI fallback).</summary>
         public bool IsAppsOnly => Source.Equals("RPI", StringComparison.OrdinalIgnoreCase);
 
@@ -59,7 +69,8 @@ namespace DirectPackageInstaller.Services
         /// <param name="titleId">e.g. CUSA00000</param>
         /// <param name="contentId">e.g. UP0001-CUSA00000_00-ABCDEFGHIJKLMNOP</param>
         /// <param name="pkgAppVersion">APP_VER of the PKG (e.g. "01.10"), if known.</param>
-        public InstallState StateOf(string category, string titleId, string contentId, string? pkgAppVersion)
+        /// <param name="unlockKey">Unlock-key DLC: only the download notifications show it installed.</param>
+        public InstallState StateOf(string category, string titleId, string contentId, string? pkgAppVersion, bool unlockKey = false)
         {
             if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(titleId))
                 return InstallState.Unknown;
@@ -96,11 +107,14 @@ namespace DirectPackageInstaller.Services
                 case "ac":
                 {
                     if (!hasApp) return InstallState.BaseMissing;
+                    var id = contentId?.Trim().TrimEnd('\0') ?? "";
+                    // a deleted data DLC keeps its notification: trust it for unlock keys only
+                    if (unlockKey && DownloadedContent.Contains(id)) return InstallState.Installed;
                     var label = EntitlementLabel(contentId);
                     if (label == null) return InstallState.Unknown;
-                    return AddCont.TryGetValue(tid, out var set) && set.Contains(label)
-                        ? InstallState.Installed
-                        : InstallState.NotInstalled;
+                    if (AddCont.TryGetValue(tid, out var set) && set.Contains(label))
+                        return InstallState.Installed;
+                    return StagedContent.Contains(id) ? InstallState.Staged : InstallState.NotInstalled;
                 }
                 default:
                     return InstallState.Unknown;
@@ -314,13 +328,52 @@ namespace DirectPackageInstaller.Services
                 catch { }
             }
 
+            // unlock-key DLC: installed ones only show in the download notifications,
+            // copied-but-not-installed ones wait in /data/pkg
+            var downloaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ftp.IsConnected)
+                try { downloaded.UnionWith(FinishedDownloads(await ftp.DownloadAsync(NotificationDb, 8 * 1024 * 1024, ct).ConfigureAwait(false))); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { }
+
+            var staged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ftp.IsConnected)
+                try
+                {
+                    foreach (var e in await ftp.ListAsync(UnlockKeys.ConsoleFolder, ct).ConfigureAwait(false))
+                        if (!e.IsDirectory && ContentIdPattern.Match(e.Name) is { Success: true } m)
+                            staged.Add(m.Value);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { }
+
             return new ConsoleSnapshot(appSet, patchSet, addCont, versions)
             {
                 ExtendedApps = extSet,
                 InstallingApps = installingSet,
+                DownloadedContent = downloaded,
+                StagedContent = staged,
                 Source = source,
                 Taken = DateTime.Now
             };
+        }
+
+        const string NotificationDb = "/system_data/priv/mms/notification.db";
+
+        static readonly Regex ContentIdPattern = new(@"[A-Z]{2}\d{4}-[A-Z]{4}\d{5}_\d{2}-[A-Z0-9]{16}", RegexOptions.Compiled);
+
+        // "psdownload:play?taskid=10000006&type=1&subtype=7&errorcode=0&state=3&...&contentid=UP0006-CUSA57220_00-FULLGAMEUNLOCK00"
+        static readonly Regex FinishedDownload = new(@"psdownload:[^\x00'""]*?errorcode=0&[^\x00'""]*?contentid=([A-Z]{2}\d{4}-[A-Z]{4}\d{5}_\d{2}-[A-Z0-9]{16})", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Content IDs of downloads the console finished without an error, read straight
+        /// from the notification database's bytes (the URIs are stored as plain text).
+        /// </summary>
+        public static IEnumerable<string> FinishedDownloads(byte[] NotificationDbBytes)
+        {
+            var Text = Encoding.Latin1.GetString(NotificationDbBytes);
+            foreach (Match m in FinishedDownload.Matches(Text))
+                yield return m.Groups[1].Value;
         }
 
         private static async Task<ConsoleSnapshot?> QueryRpiAsync(string ip, int port, List<string> tids, CancellationToken ct)

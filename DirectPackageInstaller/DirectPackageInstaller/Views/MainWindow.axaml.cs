@@ -41,6 +41,7 @@ namespace DirectPackageInstaller.Views
             NavConsole.IsCheckedChanged += (_, _) => ShowPage();
             NavLink.IsCheckedChanged += (_, _) => ShowPage();
             NavQueue.IsCheckedChanged += (_, _) => ShowPage();
+            NavHomebrew.IsCheckedChanged += (_, _) => ShowPage();
             NavSettings.IsCheckedChanged += (_, _) => ShowPage();
 
             SendQueue.Instance.PropertyChanged += (_, e) =>
@@ -89,6 +90,7 @@ namespace DirectPackageInstaller.Views
             ConsolePage.IsVisible = NavConsole.IsChecked == true;
             View.IsVisible = NavLink.IsChecked == true;
             QueuePage.IsVisible = NavQueue.IsChecked == true;
+            HomebrewPage.IsVisible = NavHomebrew.IsChecked == true;
             SettingsPage.IsVisible = NavSettings.IsChecked == true;
 
             // settings used to be saved only on a clean exit
@@ -102,6 +104,8 @@ namespace DirectPackageInstaller.Views
                 LibraryPage.OnShown();
             if (ConsolePage.IsVisible)
                 ConsolePage.OnShown();
+            if (HomebrewPage.IsVisible)
+                HomebrewPage.OnShown();
         }
 
         void OnKeyDown(object? sender, KeyEventArgs e)
@@ -116,6 +120,7 @@ namespace DirectPackageInstaller.Views
                 Key.D3 or Key.NumPad3 => NavLink,
                 Key.D4 or Key.NumPad4 => NavQueue,
                 Key.D5 or Key.NumPad5 => NavSettings,
+                Key.D6 or Key.NumPad6 => NavHomebrew,
                 _ => null
             };
 

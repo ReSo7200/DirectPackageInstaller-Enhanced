@@ -49,6 +49,7 @@ namespace DirectPackageInstaller.Views
             TabConsole.IsCheckedChanged += (_, _) => ShowPage();
             TabLink.IsCheckedChanged += (_, _) => ShowPage();
             TabQueue.IsCheckedChanged += (_, _) => ShowPage();
+            TabHomebrew.IsCheckedChanged += (_, _) => ShowPage();
             TabSettings.IsCheckedChanged += (_, _) => ShowPage();
 
             SendQueue.Instance.PropertyChanged += (_, e) =>
@@ -80,6 +81,7 @@ namespace DirectPackageInstaller.Views
             ConsolePage.IsVisible = TabConsole.IsChecked == true;
             LinkHost.IsVisible = TabLink.IsChecked == true;
             QueuePage.IsVisible = TabQueue.IsChecked == true;
+            HomebrewPage.IsVisible = TabHomebrew.IsChecked == true;
             SettingsPage.IsVisible = TabSettings.IsChecked == true;
 
             if (LeavingSettings)
@@ -92,6 +94,8 @@ namespace DirectPackageInstaller.Views
                 LibraryPage.OnShown();
             if (ConsolePage.IsVisible)
                 ConsolePage.OnShown();
+            if (HomebrewPage.IsVisible)
+                HomebrewPage.OnShown();
         }
 
         public void ShowInLibrary(string TitleId)

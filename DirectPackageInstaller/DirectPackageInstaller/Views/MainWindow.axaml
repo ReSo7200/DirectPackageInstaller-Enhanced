@@ -24,9 +24,10 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <RadioButton Classes="nav" GroupName="nav" Name="NavLibrary" IsChecked="True" Content="Library"
                                  ToolTip.Tip="Ctrl+1"/>
-                    <RadioButton Classes="nav" GroupName="nav" Name="NavLink" Content="Direct link" ToolTip.Tip="Ctrl+2"/>
-                    <RadioButton Classes="nav" GroupName="nav" Name="NavQueue" Content="Queue" ToolTip.Tip="Ctrl+3"/>
-                    <RadioButton Classes="nav" GroupName="nav" Name="NavSettings" Content="Settings" ToolTip.Tip="Ctrl+4"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavConsole" Content="On PS4" ToolTip.Tip="Ctrl+2"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavLink" Content="Direct link" ToolTip.Tip="Ctrl+3"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavQueue" Content="Queue" ToolTip.Tip="Ctrl+4"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavSettings" Content="Settings" ToolTip.Tip="Ctrl+5"/>
                 </StackPanel>
 
                 <!-- console status pill: click to re-check -->
@@ -51,6 +52,7 @@
 
         <Panel Grid.Row="1">
             <views:LibraryPage Name="LibraryPage"/>
+            <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
             <views:MainView Name="View" IsVisible="False"/>
             <views:QueuePage Name="QueuePage" IsVisible="False"/>
             <views:SettingsPage Name="SettingsPage" IsVisible="False"/>

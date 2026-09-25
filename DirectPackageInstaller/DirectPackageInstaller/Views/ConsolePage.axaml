@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             x:Class="DirectPackageInstaller.Views.ConsolePage"
+             x:DataType="vm:ConsoleViewModel"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Grid ColumnDefinitions="*,Auto" Margin="28,22,28,14">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="h1" Text="On PS4"/>
+                <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}" TextWrapping="Wrap"/>
+            </StackPanel>
+            <Button Grid.Column="1" Name="BtnRefresh" Classes="primary" VerticalAlignment="Center" MinWidth="110"
+                    IsEnabled="{Binding !IsLoading}" Content="{Binding RefreshText}"
+                    ToolTip.Tip="Read what's installed on the console (GoldHEN FTP)"/>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="28,0,28,12" IsVisible="{Binding Loaded}">
+            <TextBox Width="290" Text="{Binding Search}" Watermark="Search title or CUSA ID" Margin="0,0,8,0"/>
+            <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterAll" IsChecked="True" VerticalAlignment="Center">All</RadioButton>
+            <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterGames" VerticalAlignment="Center">Games</RadioButton>
+            <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterApps" VerticalAlignment="Center">Apps</RadioButton>
+            <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterExt" VerticalAlignment="Center">Extended storage</RadioButton>
+        </StackPanel>
+
+        <Panel Grid.Row="2">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Items}" Margin="28,4,14,20">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ConsoleTitleItem">
+                            <StackPanel Width="176" Margin="0,0,16,20" ToolTip.Tip="{Binding Tooltip}" Background="Transparent">
+                                <StackPanel.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick"/>
+                                        <MenuItem Header="Copy title ID" Tag="{Binding}" Click="MenuCopyIdClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Uninstall update…" Tag="{Binding}" Click="MenuUninstallUpdateClick"
+                                                  IsVisible="{Binding CanUninstallUpdate}"/>
+                                        <MenuItem Header="Uninstall…" Tag="{Binding}" Click="MenuUninstallClick"/>
+                                    </ContextMenu>
+                                </StackPanel.ContextMenu>
+                                <Panel Width="176" Height="176">
+                                    <Border CornerRadius="7" ClipToBounds="True" Background="{StaticResource Raised}">
+                                        <Panel>
+                                            <TextBlock Classes="mono" FontSize="13" Text="{Binding TitleId}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding !HasCover}"/>
+                                            <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                        </Panel>
+                                    </Border>
+                                    <Border Classes="kind" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8">
+                                        <TextBlock Text="{Binding KindText}" Foreground="{Binding KindBrush}"/>
+                                    </Border>
+                                    <Border Classes="kind" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                                            IsVisible="{Binding ShowStorage}">
+                                        <TextBlock Text="{Binding StorageText}" Foreground="{Binding StorageBrush}"/>
+                                    </Border>
+                                </Panel>
+                                <Border Height="4" Margin="2,7,2,0" CornerRadius="2" Background="{Binding RailBrush}"/>
+                                <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                           FontSize="16.5" LineHeight="19" MaxLines="2" TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis" Margin="2,8,2,2" Height="38"/>
+                                <TextBlock Classes="mono" Margin="2,0">
+                                    <Run Text="{Binding TitleId}"/>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding VersionText}"/>
+                                </TextBlock>
+                                <TextBlock Text="{Binding DetailText}" Classes="muted" FontSize="11.5" Margin="2,3,2,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel IsVisible="{Binding ShowIntro}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="10" MaxWidth="440">
+                <TextBlock Classes="h2" Text="See everything installed on the console" TextAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Games, apps, installed updates and DLC on system and extended storage, read from the console with GoldHEN's FTP server. Works without a library."/>
+                <Button Name="BtnRefreshIntro" Classes="primary" HorizontalAlignment="Center" Margin="0,6,0,0">Read the console</Button>
+            </StackPanel>
+        </Panel>
+    </Grid>
+</UserControl>

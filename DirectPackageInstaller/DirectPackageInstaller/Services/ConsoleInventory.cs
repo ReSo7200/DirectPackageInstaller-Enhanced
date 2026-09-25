@@ -34,6 +34,9 @@ namespace DirectPackageInstaller.Services
         /// <summary>Title IDs installed on extended storage (/mnt/ext0/user/app); also in Apps.</summary>
         public IReadOnlySet<string> ExtendedApps { get; init; } = Empty;
 
+        /// <summary>Registered on extended storage but not installed yet (still downloading).</summary>
+        public IReadOnlySet<string> InstallingApps { get; init; } = Empty;
+
         /// <summary>True when the snapshot only knows about installed base apps (RPI fallback).</summary>
         public bool IsAppsOnly => Source.Equals("RPI", StringComparison.OrdinalIgnoreCase);
 
@@ -233,6 +236,14 @@ namespace DirectPackageInstaller.Services
                 catch { }
             appSet.UnionWith(extSet);
 
+            // an install to extended storage registers its metadata here first
+            var installingSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ftp.IsConnected)
+                try { installingSet.UnionWith(DirNames(await ftp.ListAsync("/system_data/priv/appmeta/external", ct).ConfigureAwait(false)).Where(IsTitleId)); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { }
+            installingSet.ExceptWith(appSet);
+
             var patchSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var addContTids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var addContRoots = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -306,6 +317,7 @@ namespace DirectPackageInstaller.Services
             return new ConsoleSnapshot(appSet, patchSet, addCont, versions)
             {
                 ExtendedApps = extSet,
+                InstallingApps = installingSet,
                 Source = source,
                 Taken = DateTime.Now
             };

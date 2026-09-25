@@ -27,7 +27,10 @@ namespace DirectPackageInstaller.Views
             ConsolePill.DataContext = ConsoleStatus.Instance;
             ConsolePill.Click += async (_, _) => await ConsoleStatus.Instance.RefreshAsync();
 
+            ConsolePage.Attach(() => (LibraryPage.DataContext as LibraryViewModel)?.Entries ?? Array.Empty<LibraryEntry>());
+
             NavLibrary.IsCheckedChanged += (_, _) => ShowPage();
+            NavConsole.IsCheckedChanged += (_, _) => ShowPage();
             NavLink.IsCheckedChanged += (_, _) => ShowPage();
             NavQueue.IsCheckedChanged += (_, _) => ShowPage();
             NavSettings.IsCheckedChanged += (_, _) => ShowPage();
@@ -75,6 +78,7 @@ namespace DirectPackageInstaller.Views
             bool LeavingSettings = SettingsPage.IsVisible && NavSettings.IsChecked != true;
 
             LibraryPage.IsVisible = NavLibrary.IsChecked == true;
+            ConsolePage.IsVisible = NavConsole.IsChecked == true;
             View.IsVisible = NavLink.IsChecked == true;
             QueuePage.IsVisible = NavQueue.IsChecked == true;
             SettingsPage.IsVisible = NavSettings.IsChecked == true;
@@ -88,6 +92,8 @@ namespace DirectPackageInstaller.Views
 
             if (LibraryPage.IsVisible)
                 LibraryPage.OnShown();
+            if (ConsolePage.IsVisible)
+                ConsolePage.OnShown();
         }
 
         void OnKeyDown(object? sender, KeyEventArgs e)
@@ -98,9 +104,10 @@ namespace DirectPackageInstaller.Views
             RadioButton? Target = e.Key switch
             {
                 Key.D1 or Key.NumPad1 => NavLibrary,
-                Key.D2 or Key.NumPad2 => NavLink,
-                Key.D3 or Key.NumPad3 => NavQueue,
-                Key.D4 or Key.NumPad4 => NavSettings,
+                Key.D2 or Key.NumPad2 => NavConsole,
+                Key.D3 or Key.NumPad3 => NavLink,
+                Key.D4 or Key.NumPad4 => NavQueue,
+                Key.D5 or Key.NumPad5 => NavSettings,
                 _ => null
             };
 
@@ -112,6 +119,14 @@ namespace DirectPackageInstaller.Views
         }
 
         public void ShowDirectLink() => NavLink.IsChecked = true;
+
+        /// <summary>Library filtered to one title ID (from "On PS4").</summary>
+        public void ShowInLibrary(string TitleId)
+        {
+            NavLibrary.IsChecked = true;
+            if (LibraryPage.DataContext is LibraryViewModel Library)
+                Library.Search = TitleId;
+        }
 
         /// <summary>Show a file's full package details on the Direct link page.</summary>
         public void OpenInDirectLink(string Source)

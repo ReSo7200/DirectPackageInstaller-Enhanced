@@ -191,7 +191,7 @@ namespace DirectPackageInstaller.ViewModels
                     InstallState.NewerInstalled => OnExtended ? "Newer on PS4 · ext" : "Newer on PS4",
                     InstallState.UpdateAvailable => Entry.Kind == "Update" ? "Update not installed" : "Update available",
                     InstallState.BaseMissing => "Needs base game",
-                    InstallState.NotInstalled => "Not on PS4",
+                    InstallState.NotInstalled => InstallingOnConsole && Entry.Kind == "Game" ? "Installing on PS4" : "Not on PS4",
                     _ => UnknownText
                 };
             }
@@ -222,6 +222,9 @@ namespace DirectPackageInstaller.ViewModels
             get => _IsDuplicate;
             set => this.RaiseAndSetIfChanged(ref _IsDuplicate, value);
         }
+
+        /// <summary>The console is still installing this title (e.g. to extended storage).</summary>
+        public bool InstallingOnConsole { get; set; }
 
         /// <summary>The title is installed on extended storage (USB), not the internal drive.</summary>
         public bool OnExtended { get; set; }
@@ -256,6 +259,9 @@ namespace DirectPackageInstaller.ViewModels
         readonly List<LibraryItem> All = new();
 
         public ObservableCollection<LibraryItem> Items { get; } = new();
+
+        /// <summary>Every scanned package (for other pages, e.g. "On PS4").</summary>
+        public IReadOnlyList<LibraryEntry> Entries => All.Select(x => x.Entry).ToList();
         public ObservableCollection<LibraryItem> Selected { get; } = new();
         public ObservableCollection<LibraryFolder> Folders { get; } = new();
 
@@ -432,6 +438,7 @@ namespace DirectPackageInstaller.ViewModels
         {
             Item.PatchOnConsole = !Snapshot.IsAppsOnly && Snapshot.Patches.Contains(Item.Entry.TitleId);
             Item.OnExtended = Snapshot.ExtendedApps.Contains(Item.Entry.TitleId);
+            Item.InstallingOnConsole = Snapshot.InstallingApps.Contains(Item.Entry.TitleId);
             Item.UnknownText =
                 Snapshot.IsAppsOnly && Snapshot.Apps.Contains(Item.Entry.TitleId) && Item.Entry.Kind is "Update" or "DLC" ? "Game on PS4"
                 : !Snapshot.IsAppsOnly && Item.Entry.Kind == "Update" && Snapshot.Patches.Contains(Item.Entry.TitleId) ? "An update is on PS4"

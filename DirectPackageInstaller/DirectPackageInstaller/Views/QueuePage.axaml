@@ -17,6 +17,39 @@
 
         <Panel Grid.Row="1">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <StackPanel>
+                <StackPanel Name="DownloadsPanel" Margin="28,0,28,8" IsVisible="False">
+                    <TextBlock Classes="eyebrow" Text="DOWNLOADS FROM PLAYSTATION NETWORK" Margin="0,0,0,8"/>
+                    <ItemsControl Name="DownloadsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="svc:UpdateDownload">
+                                <Border Classes="card" Padding="14,12" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="17"/>
+                                            <TextBlock Classes="mono" Text="{Binding Detail}" TextTrimming="CharacterEllipsis"/>
+                                            <ProgressBar Classes="rail" Value="{Binding Progress}" Maximum="100" Margin="0,5,0,1"/>
+                                            <TextBlock Text="{Binding Message}" Classes="muted" FontSize="12.5" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="12.5" HorizontalAlignment="Right"
+                                                       Foreground="{StaticResource Signal}"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                                <Button Classes="ghost danger" Padding="10,4" Content="Cancel" IsVisible="{Binding CanCancel}"
+                                                        Tag="{Binding}" Click="CancelDownloadClick"/>
+                                                <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding IsFinished}"
+                                                        Tag="{Binding}" Click="RetryDownloadClick"/>
+                                                <Button Classes="ghost" Padding="10,4" Content="Remove" IsVisible="{Binding IsFinished}"
+                                                        Tag="{Binding}" Click="RemoveDownloadClick"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="eyebrow" Text="SENDING TO THE CONSOLE" Margin="0,8,0,0"/>
+                </StackPanel>
                 <ItemsControl ItemsSource="{Binding Items}" Margin="28,0,28,24">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="svc:QueueItem">
@@ -63,6 +96,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+              </StackPanel>
             </ScrollViewer>
 
             <StackPanel Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="380">

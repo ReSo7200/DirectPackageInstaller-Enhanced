@@ -70,6 +70,34 @@ namespace DirectPackageInstaller.Views
                     "Send what's missing", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        /// <summary>Download the latest official update from Sony next to the title's newest PKG.</summary>
+        async void MenuDownloadUpdateClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item || string.IsNullOrEmpty(Item.Entry.TitleId))
+                return;
+
+            var Patch = await UpdateDownloads.LatestAsync(Item.Entry.TitleId);
+            if (Patch == null)
+            {
+                await MessageBox.ShowAsync("Couldn't get the update from Sony's server. Check your internet connection and try again.",
+                    "Download official update", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var Folder = Path.GetDirectoryName(Item.Entry.Path) ?? "";
+            var Reply = await MessageBox.ShowAsync(
+                $"Download {Item.Entry.Title} update {Patch.Version} from PlayStation Network?\n\n" +
+                $"Size: {Host.TransferProgressInfo.FormatBytes(Patch.Size)}\n" +
+                (Patch.SystemVersion.Length > 0 ? $"Needs console firmware {Patch.SystemVersion} or newer (or a backported base game).\n" : "") +
+                $"Saved to: {Folder}\n\nOfficial updates only install over a matching base game.",
+                "Download official update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (Reply != DialogResult.Yes)
+                return;
+
+            UpdateDownloads.Instance.Start(Patch, Item.Entry.Title, Folder);
+            MainWindow.Instance?.ShowQueue();
+        }
+
         void MenuInspectClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)

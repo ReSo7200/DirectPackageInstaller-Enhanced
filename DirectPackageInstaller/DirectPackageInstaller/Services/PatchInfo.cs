@@ -29,6 +29,8 @@ namespace DirectPackageInstaller.Services
         sealed class CacheEntry
         {
             public string Version { get; set; } = ""; // "" = no updates published
+            /// <summary>Firmware the update needs ("13.52"), from system_ver.</summary>
+            public string Firmware { get; set; } = "";
             public DateTime Checked { get; set; }
         }
 
@@ -60,27 +62,27 @@ namespace DirectPackageInstaller.Services
                 LoadCache();
                 foreach (var Tid in Wanted)
                 {
-                    if (Cache!.TryGetValue(Tid, out var Hit) && DateTime.UtcNow - Hit.Checked < CacheLife)
+                    if (Cache!.TryGetValue(Tid, out var Hit) && DateTime.UtcNow - Hit.Checked < CacheLife && (Hit.Version.Length == 0 || !string.IsNullOrEmpty(Hit.Firmware)))
                         Result[Tid] = Hit.Version;
                     else
                         Stale.Add(Tid);
                 }
             }
 
-            var Fetched = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var Fetched = new System.Collections.Concurrent.ConcurrentDictionary<string, (string Version, string Firmware)>(StringComparer.OrdinalIgnoreCase);
             await Parallel.ForEachAsync(Stale, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = Token }, async (Tid, ct) =>
             {
-                var Version = await FetchAsync(Tid, ct);
-                if (Version != null)
-                    Fetched[Tid] = Version;
+                var Found = await FetchAsync(Tid, ct);
+                if (Found != null)
+                    Fetched[Tid] = Found.Value;
             });
 
             lock (Sync)
             {
-                foreach (var (Tid, Version) in Fetched)
+                foreach (var (Tid, Found) in Fetched)
                 {
-                    Result[Tid] = Version;
-                    Cache![Tid] = new CacheEntry { Version = Version, Checked = DateTime.UtcNow };
+                    Result[Tid] = Found.Version;
+                    Cache![Tid] = new CacheEntry { Version = Found.Version, Firmware = Found.Firmware, Checked = DateTime.UtcNow };
                 }
                 SaveCache();
             }
@@ -89,20 +91,38 @@ namespace DirectPackageInstaller.Services
         }
 
         /// <summary>Version string, "" when no updates exist, null when the lookup failed.</summary>
-        static async Task<string?> FetchAsync(string TitleId, CancellationToken Token)
+        /// <summary>Firmware the latest update needs ("13.52"), when known from a lookup.</summary>
+        public static string FirmwareFor(string TitleId)
+        {
+            lock (Sync)
+            {
+                LoadCache();
+                return Cache!.TryGetValue(TitleId, out var Hit) ? Hit.Firmware ?? "" : "";
+            }
+        }
+
+        /// <summary>(version, firmware); version "" when no updates exist; null when the lookup failed.</summary>
+        static async Task<(string Version, string Firmware)?> FetchAsync(string TitleId, CancellationToken Token)
         {
             try
             {
                 using var Response = await Http.GetAsync(UrlFor(TitleId), Token);
                 if (Response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    return "";
+                    return ("", "");
                 if (!Response.IsSuccessStatusCode)
                     return null;
 
                 var Xml = await Response.Content.ReadAsStringAsync(Token);
                 // <titlepatch><tag ...><package version="03.49" .../>
                 var Match = Regex.Match(Xml, "<package\\b[^>]*\\bversion=\"([0-9]+\\.[0-9]+)\"");
-                return Match.Success ? Match.Groups[1].Value : "";
+                if (!Match.Success)
+                    return ("", "");
+
+                var SystemVer = Regex.Match(Match.Value.Length > 0 ? Xml.Substring(Match.Index) : Xml, "\\bsystem_ver=\"([0-9]+)\"");
+                var Firmware = "";
+                if (SystemVer.Success && uint.TryParse(SystemVer.Groups[1].Value, out var Raw) && Raw != 0)
+                    Firmware = $"{(Raw >> 24) & 0xFF:X}.{(Raw >> 16) & 0xFF:X2}";
+                return (Match.Groups[1].Value, Firmware);
             }
             catch (OperationCanceledException) when (Token.IsCancellationRequested)
             {

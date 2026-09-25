@@ -27,6 +27,13 @@ namespace DirectPackageInstaller.Views
             ConsolePill.DataContext = ConsoleStatus.Instance;
             ConsolePill.Click += async (_, _) => await ConsoleStatus.Instance.RefreshAsync();
 
+            // a finished official update download shows up in the library
+            UpdateDownloads.Instance.Finished += Download =>
+            {
+                if (LibraryPage.DataContext is LibraryViewModel Library)
+                    _ = Library.ScanAsync();
+            };
+
             ConsolePage.Attach(() => (LibraryPage.DataContext as LibraryViewModel)?.Entries ?? Array.Empty<LibraryEntry>());
 
             NavLibrary.IsCheckedChanged += (_, _) => ShowPage();
@@ -119,6 +126,8 @@ namespace DirectPackageInstaller.Views
         }
 
         public void ShowDirectLink() => NavLink.IsChecked = true;
+
+        public void ShowQueue() => NavQueue.IsChecked = true;
 
         /// <summary>Files sent from Explorer go to the queue; folders join the library.</summary>
         async System.Threading.Tasks.Task HandleShellArgsAsync(string[] Args)

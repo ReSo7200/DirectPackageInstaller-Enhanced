@@ -118,11 +118,22 @@ namespace DirectPackageInstaller.ViewModels
                 this.RaiseAndSetIfChanged(ref _NewerOfficial, value);
                 this.RaisePropertyChanged(nameof(HasNewerOfficial));
                 this.RaisePropertyChanged(nameof(NewerOfficialText));
+                this.RaisePropertyChanged(nameof(DownloadOfficialText));
                 this.RaisePropertyChanged(nameof(Tooltip));
             }
         }
         public bool HasNewerOfficial => NewerOfficial.Length > 0;
-        public string NewerOfficialText => HasNewerOfficial ? $"Update {NewerOfficial} is out" : "";
+        public string NewerOfficialText
+        {
+            get
+            {
+                if (!HasNewerOfficial)
+                    return "";
+                var Firmware = PatchInfo.FirmwareFor(Entry.TitleId);
+                return Firmware.Length > 0 ? $"Update {NewerOfficial} is out · FW {Firmware}" : $"Update {NewerOfficial} is out";
+            }
+        }
+        public string DownloadOfficialText => $"Download official update {NewerOfficial}…";
 
         /// <summary>Shown when the state can't be known (RPI can't see update versions or DLC).</summary>
         public string UnknownText { get; set; } = "";

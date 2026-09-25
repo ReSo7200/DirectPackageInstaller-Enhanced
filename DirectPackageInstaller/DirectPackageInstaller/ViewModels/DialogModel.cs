@@ -15,6 +15,7 @@ namespace DirectPackageInstaller.ViewModels
         public MessageBoxButtons Buttons = MessageBoxButtons.OK;
         public MessageBoxIcon Icon = MessageBoxIcon.None;
         
-        public DialogResult Result;
+        // closing a dialog with the window X must not read as OK
+        public DialogResult Result = DialogResult.Cancel;
     }
 }

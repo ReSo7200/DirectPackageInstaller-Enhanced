@@ -29,9 +29,14 @@ namespace DirectPackageInstaller.Tasks
 
         public static string? EntryFileName;
 
-        private static bool ForceProxy;
-
         public static PayloadService Payload = new PayloadService();
+
+        /// <summary>
+        /// Base64 value for a ?b64= query parameter. Escaped because
+        /// ParseQueryString turns a raw '+' into a space, which breaks decoding.
+        /// </summary>
+        public static string B64Query(string Value) =>
+            Uri.EscapeDataString(Convert.ToBase64String(Encoding.UTF8.GetBytes(Value)));
 
         public static async Task<bool> PushPackage(Settings Config, Source InputType, Stream? PKGStream, string URL, IArchive? Decompressor, DecompressorHelperStream[]? DecompressorStreams, Func<string, Task> SetStatus, Func<string> GetStatus, bool Silent)
         {
@@ -47,7 +52,11 @@ namespace DirectPackageInstaller.Tasks
                 return false;
             }
 
-            await StartServer(Config.PCIP);
+            if (!await StartServer(Config.PCIP))
+                return false;
+
+            // per push: a non-direct link must not force proxy mode on every later install
+            bool ForceProxy = false;
 
             if (PKGStream is FileHostStream)
             {
@@ -151,6 +160,12 @@ namespace DirectPackageInstaller.Tasks
 
                     while (DecompressTask.SafeTotalDecompressed < LastResource)
                     {
+                        if (DecompressTask.Failed || DecompressTask.Error != null)
+                        {
+                            await SetStatus(OriStatus);
+                            await MessageBox.ShowAsync("Failed to decompress the package:\n" + (DecompressTask.Error?.Message ?? "unknown error"), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return false;
+                        }
                         await SetStatus($"Preloading Compressed PKG... ({(double)DecompressTask.SafeTotalDecompressed / LastResource:P})");
                         await Task.Delay(100);
                     }
@@ -169,24 +184,30 @@ namespace DirectPackageInstaller.Tasks
                     OriStatus = GetStatus();
                     while (CacheTask.SafeReadyLength < LastResource)
                     {
+                        if (CacheTask.Failed || CacheTask.Error != null)
+                        {
+                            await SetStatus(OriStatus);
+                            await MessageBox.ShowAsync("Failed to download the package:\n" + (CacheTask.Error?.Message ?? "unknown error"), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return false;
+                        }
                         await SetStatus($"Preloading PKG... ({(double)(CacheTask.SafeReadyLength) / LastResource:P})");
                         await Task.Delay(100);
                     }
                     await SetStatus(OriStatus);
 
-                    URL = $"http://{Config.PCIP}:{ServerPort}/cache/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/cache/?b64={Installer.B64Query(URL)}";
                     break;
 
                 case Source.URL | Source.Proxy:
-                    URL = $"http://{Config.PCIP}:{ServerPort}/proxy/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/proxy/?b64={Installer.B64Query(URL)}";
                     break;
 
                 case Source.JSON:
-                    URL = $"http://{Config.PCIP}:{ServerPort}/merge/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/merge/?b64={Installer.B64Query(URL)}";
                     break;
                 
                 case Source.File:
-                    URL = $"http://{Config.PCIP}:{ServerPort}/file/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/file/?b64={Installer.B64Query(URL)}";
                     break;
 
                 case Source.URL:
@@ -347,31 +368,39 @@ namespace DirectPackageInstaller.Tasks
         #endregion
 
         #region DirectPackageInstaller
-        public static async Task StartServer(string LocalIP)
+        /// <summary>
+        /// Start the PKG HTTP server once. Server is only set after Start()
+        /// succeeds, so a busy port 9898 is retried on the next push instead of
+        /// handing the console URLs that nobody serves.
+        /// </summary>
+        public static async Task<bool> StartServer(string LocalIP)
         {
+            if (Server != null)
+                return true;
+
             if (string.IsNullOrEmpty(LocalIP))
                 LocalIP = "0.0.0.0";
-            
-            try
+
+            Exception? LastError = null;
+            foreach (var BindIP in new[] { LocalIP, "0.0.0.0" }.Distinct())
             {
-                if (Server == null)
-                {
-                    Server = new PS4Server(LocalIP, ServerPort);
-                    Server.Start();
-                }
-            }
-            catch
-            {
+                PS4Server? NewServer = null;
                 try
                 {
-                    Server = new PS4Server("0.0.0.0", ServerPort);
-                    Server.Start();
+                    NewServer = new PS4Server(BindIP, ServerPort);
+                    NewServer.Start();
+                    Server = NewServer;
+                    return true;
                 }
                 catch (Exception ex)
                 {
-                    await MessageBox.ShowAsync($"Failed to Open the Http Server\n{ex}", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    LastError = ex;
+                    NewServer?.Stop();
                 }
             }
+
+            await MessageBox.ShowAsync($"Failed to open the HTTP server on port {ServerPort}.\nIs another DirectPackageInstaller or PKG sender already running?\n\n{LastError?.Message}", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
         }
 
         #endregion

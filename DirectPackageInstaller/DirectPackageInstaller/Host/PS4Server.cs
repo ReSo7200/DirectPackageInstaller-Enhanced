@@ -60,7 +60,7 @@ namespace DirectPackageInstaller.Host
 
             Server.Logger = (str) => LOG(str);
 #else
-            if (App.Config.ShowError)
+            if (App.Config.ShowError && LOGWRITER == null)
                 LOGWRITER = System.IO.File.CreateText(Path.Combine(App.WorkingDirectory, "DPIServer.log"));
 #endif
 
@@ -233,8 +233,15 @@ namespace DirectPackageInstaller.Host
 
             var Length = (Stream as SegmentedStream)?.Length ?? Task.SafeLength;
 
-            while (Length == 0)
+            // the length arrives with the first upstream response; don't spin forever
+            for (int Waited = 0; Length == 0; Waited += 100)
+            {
+                if (Task.Failed || Task.Error != null || Waited >= TransferTuning.UpstreamConnectTimeoutMs)
+                    throw new IOException("Upstream download did not start: " + (Task.Error?.Message ?? "timeout"));
+
                 await System.Threading.Tasks.Task.Delay(100);
+                Length = (Stream as SegmentedStream)?.Length ?? Task.SafeLength;
+            }
 
             if (FromPS4)
             {
@@ -587,7 +594,7 @@ namespace DirectPackageInstaller.Host
                         {
                             fileOffset = Offset,
                             fileSize = PieceSize,
-                            url = $"http://{PCIP}:{Installer.ServerPort}/split/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}&offset={Offset}&size={PieceSize}",
+                            url = $"http://{PCIP}:{Installer.ServerPort}/split/?b64={Installer.B64Query(URL)}&offset={Offset}&size={PieceSize}",
                             hashValue = "0000000000000000000000000000000000000000"
                         });
 

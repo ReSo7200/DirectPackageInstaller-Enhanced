@@ -332,7 +332,7 @@ namespace DirectPackageInstaller.Desktop
                     {
                         Proxy = true;
                         PKG = new FileStream(DirectURL, FileMode.Open);
-                        URL = $"http://{Server}:{PSServer.Port}/file/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                        URL = $"http://{Server}:{PSServer.Port}/file/?b64={Installer.B64Query(URL)}";
                     }
                     else
                     {
@@ -344,7 +344,7 @@ namespace DirectPackageInstaller.Desktop
                         if ((!HostStream.DirectLink || Proxy) && !HostStream.SingleConnection)
                         {
                             Proxy = true;
-                            URL = $"http://{Server}:{PSServer.Port}/proxy/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                            URL = $"http://{Server}:{PSServer.Port}/proxy/?b64={Installer.B64Query(URL)}";
                         }
 
                         if (HostStream.SingleConnection)
@@ -382,7 +382,7 @@ namespace DirectPackageInstaller.Desktop
                         while (DownTask?.SafeReadyLength < Info?.PreloadLength)
                             Task.Delay(1000).ConfigureAwait(false).GetAwaiter().GetResult();
 
-                        URL = $"http://{Server}:{PSServer.Port}/cache/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                        URL = $"http://{Server}:{PSServer.Port}/cache/?b64={Installer.B64Query(URL)}";
                     }
                     else
                     {
@@ -446,6 +446,7 @@ namespace DirectPackageInstaller.Desktop
         public static AppBuilder BuildAvaloniaApp()
             => AppBuilder.Configure<App>()
                 .UsePlatformDetect()
+                .WithInterFont()
                 .LogToTrace();
 
         static bool FillBuffer(Stream stream, byte[] buffer, int count, out int read)

@@ -145,11 +145,16 @@
                                     <TextBlock Text="✓" FontWeight="Bold" FontSize="13" Foreground="#0B1220"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-                                <Border Classes="kind" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
-                                        IsVisible="{Binding IsDuplicate}" Background="#E612141C"
-                                        ToolTip.Tip="Another file in the library is this same package">
-                                    <TextBlock Text="DUPLICATE" Foreground="{StaticResource Amber}"/>
-                                </Border>
+                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8" Spacing="4">
+                                    <Border Classes="kind" IsVisible="{Binding IsBackport}" Background="#E612141C"
+                                            ToolTip.Tip="An update rebuilt to run on older firmware than Sony's original">
+                                        <TextBlock Text="BACKPORT" Foreground="{StaticResource Violet}"/>
+                                    </Border>
+                                    <Border Classes="kind" IsVisible="{Binding IsDuplicate}" Background="#E612141C"
+                                            ToolTip.Tip="Another file in the library is this same package">
+                                        <TextBlock Text="DUPLICATE" Foreground="{StaticResource Amber}"/>
+                                    </Border>
+                                </StackPanel>
                                 <Border Classes="kind" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8"
                                         IsVisible="{Binding HasError}" Background="{StaticResource AlarmSoft}">
                                     <TextBlock Text="UNREADABLE" Foreground="{StaticResource Alarm}"/>

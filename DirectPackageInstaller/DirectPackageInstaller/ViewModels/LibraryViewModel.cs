@@ -127,6 +127,18 @@ namespace DirectPackageInstaller.ViewModels
             }
         }
         public bool HasNewerOfficial => NewerOfficial.Length > 0;
+
+        bool _OfficialBackport;
+        /// <summary>Sony's update of this same version needs newer firmware than this PKG does.</summary>
+        public bool OfficialBackport
+        {
+            get => _OfficialBackport;
+            set { this.RaiseAndSetIfChanged(ref _OfficialBackport, value); this.RaisePropertyChanged(nameof(IsBackport)); }
+        }
+
+        /// <summary>An update rebuilt for older firmware: named so, or lower firmware than Sony's same version.</summary>
+        public bool IsBackport => Entry.Kind == "Update" && (OfficialBackport
+            || System.Text.RegularExpressions.Regex.IsMatch(System.IO.Path.GetFileName(Entry.Path), @"backport|[\W_]BP[\W_]", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
         public string NewerOfficialText
         {
             get
@@ -795,11 +807,20 @@ namespace DirectPackageInstaller.ViewModels
                 {
                     var Newest = Family.OrderByDescending(x => x.Entry.AppVersion, Comparer<string>.Create(PatchInfo.Compare)).First();
                     foreach (var Item in Family)
-                        Item.NewerOfficial = Item == Newest
-                                             && Latest.TryGetValue(Family.Key, out var Version) && Version.Length > 0
+                    {
+                        Latest.TryGetValue(Family.Key, out var Version);
+                        Item.NewerOfficial = Item == Newest && Version is { Length: > 0 }
                                              && PatchInfo.Compare(Version, Item.Entry.AppVersion) > 0
                             ? Version
                             : "";
+
+                        // the official update of this version needs newer firmware than this PKG: rebuilt lower
+                        Item.OfficialBackport = Item.Entry.Kind == "Update" && Version is { Length: > 0 }
+                                                && PatchInfo.Compare(Version, Item.Entry.AppVersion) == 0
+                                                && System.Version.TryParse(PatchInfo.FirmwareFor(Family.Key), out var Official)
+                                                && System.Version.TryParse(Item.Entry.SystemVersion, out var Needs)
+                                                && Needs < Official;
+                    }
                 }
             }
             catch

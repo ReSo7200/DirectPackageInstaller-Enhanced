@@ -31,6 +31,9 @@ namespace DirectPackageInstaller.Services
         /// <summary>TID -> APP_VER (e.g. "01.06") from /system_data/priv/appmeta/&lt;TID&gt;/param.sfo.</summary>
         public IReadOnlyDictionary<string, string> AppVersions { get; }
 
+        /// <summary>Title IDs installed on extended storage (/mnt/ext0/user/app); also in Apps.</summary>
+        public IReadOnlySet<string> ExtendedApps { get; init; } = Empty;
+
         /// <summary>True when the snapshot only knows about installed base apps (RPI fallback).</summary>
         public bool IsAppsOnly => Source.Equals("RPI", StringComparison.OrdinalIgnoreCase);
 
@@ -134,6 +137,9 @@ namespace DirectPackageInstaller.Services
         public static readonly int[] FtpPorts = { 2121, 1337, 21 };
         public const int RpiPort = 12800;
 
+        /// <summary>Where the PS4 mounts extended storage.</summary>
+        public const string ExtRoot = "/mnt/ext0";
+
         /// <summary>Connection attempts per FTP port (GoldHEN's server drops some).</summary>
         public const int FtpAttempts = 3;
         public const int MaxAppMetaDownloads = 60;
@@ -218,20 +224,38 @@ namespace DirectPackageInstaller.Services
 
             var appSet = DirNames(apps).Where(IsTitleId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            // Extended storage (USB drive formatted as extended storage) mirrors the
+            // layout under /mnt/ext0/user. Missing when no drive is attached: ignore.
+            var extSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ftp.IsConnected)
+                try { extSet.UnionWith(DirNames(await ftp.ListAsync(ExtRoot + "/user/app", ct).ConfigureAwait(false)).Where(IsTitleId)); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { }
+            appSet.UnionWith(extSet);
+
             var patchSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var addContTids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addContRoots = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             var addCont = new Dictionary<string, IEnumerable<string>>(StringComparer.OrdinalIgnoreCase);
             var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            if (ftp.IsConnected)
-                try { patchSet.UnionWith(DirNames(await ftp.ListAsync("/user/patch", ct).ConfigureAwait(false)).Where(IsTitleId)); }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                catch { }
+            foreach (var Root in new[] { "", ExtRoot })
+            {
+                if (ftp.IsConnected)
+                    try { patchSet.UnionWith(DirNames(await ftp.ListAsync(Root + "/user/patch", ct).ConfigureAwait(false)).Where(IsTitleId)); }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                    catch { }
 
-            if (ftp.IsConnected)
-                try { addContTids.UnionWith(DirNames(await ftp.ListAsync("/user/addcont", ct).ConfigureAwait(false))); }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                catch { }
+                if (ftp.IsConnected)
+                    try
+                    {
+                        foreach (var Tid in DirNames(await ftp.ListAsync(Root + "/user/addcont", ct).ConfigureAwait(false)))
+                            addContRoots[Tid] = addContRoots.TryGetValue(Tid, out var Existing) ? Existing.Append(Root).ToList() : new List<string> { Root };
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                    catch { }
+            }
+            addContTids.UnionWith(addContRoots.Keys);
 
             foreach (var tid in tids)
             {
@@ -239,9 +263,11 @@ namespace DirectPackageInstaller.Services
                 if (!addContTids.Contains(tid)) continue;
                 try
                 {
-                    var entries = await ftp.ListAsync($"/user/addcont/{tid}", ct).ConfigureAwait(false);
                     // Entitlement folders; accept any entry type in case the server misreports it.
-                    addCont[tid] = entries.Select(e => e.Name).ToList();
+                    var names = new List<string>();
+                    foreach (var Root in addContRoots.TryGetValue(tid, out var Roots) ? Roots : new List<string> { "" })
+                        names.AddRange((await ftp.ListAsync($"{Root}/user/addcont/{tid}", ct).ConfigureAwait(false)).Select(e => e.Name));
+                    addCont[tid] = names;
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch { }
@@ -258,9 +284,20 @@ namespace DirectPackageInstaller.Services
                 downloads++;
                 try
                 {
-                    var data = await ftp.DownloadAsync($"/system_data/priv/appmeta/{tid}/param.sfo", 1024 * 1024, ct).ConfigureAwait(false);
-                    var ver = ReadAppVer(data);
-                    if (ver != null) versions[tid] = ver;
+                    // games on extended storage keep their metadata there; fall back to internal
+                    var paths = extSet.Contains(tid)
+                        ? new[] { $"{ExtRoot}/user/appmeta/{tid}/param.sfo", $"/system_data/priv/appmeta/{tid}/param.sfo" }
+                        : new[] { $"/system_data/priv/appmeta/{tid}/param.sfo" };
+                    foreach (var path in paths)
+                    {
+                        try
+                        {
+                            var ver = ReadAppVer(await ftp.DownloadAsync(path, 1024 * 1024, ct).ConfigureAwait(false));
+                            if (ver != null) { versions[tid] = ver; break; }
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                        catch when (ftp.IsConnected) { }
+                    }
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch { }
@@ -268,6 +305,7 @@ namespace DirectPackageInstaller.Services
 
             return new ConsoleSnapshot(appSet, patchSet, addCont, versions)
             {
+                ExtendedApps = extSet,
                 Source = source,
                 Taken = DateTime.Now
             };

@@ -187,8 +187,8 @@ namespace DirectPackageInstaller.ViewModels
 
                 return State switch
                 {
-                    InstallState.Installed => "On PS4",
-                    InstallState.NewerInstalled => "Newer on PS4",
+                    InstallState.Installed => OnExtended ? "On PS4 · ext storage" : "On PS4",
+                    InstallState.NewerInstalled => OnExtended ? "Newer on PS4 · ext" : "Newer on PS4",
                     InstallState.UpdateAvailable => Entry.Kind == "Update" ? "Update not installed" : "Update available",
                     InstallState.BaseMissing => "Needs base game",
                     InstallState.NotInstalled => "Not on PS4",
@@ -222,6 +222,9 @@ namespace DirectPackageInstaller.ViewModels
             get => _IsDuplicate;
             set => this.RaiseAndSetIfChanged(ref _IsDuplicate, value);
         }
+
+        /// <summary>The title is installed on extended storage (USB), not the internal drive.</summary>
+        public bool OnExtended { get; set; }
 
         /// <summary>The last PS4 check saw some update installed for this title.</summary>
         public bool PatchOnConsole { get; set; }
@@ -428,6 +431,7 @@ namespace DirectPackageInstaller.ViewModels
         static void Apply(LibraryItem Item, ConsoleSnapshot Snapshot)
         {
             Item.PatchOnConsole = !Snapshot.IsAppsOnly && Snapshot.Patches.Contains(Item.Entry.TitleId);
+            Item.OnExtended = Snapshot.ExtendedApps.Contains(Item.Entry.TitleId);
             Item.UnknownText =
                 Snapshot.IsAppsOnly && Snapshot.Apps.Contains(Item.Entry.TitleId) && Item.Entry.Kind is "Update" or "DLC" ? "Game on PS4"
                 : !Snapshot.IsAppsOnly && Item.Entry.Kind == "Update" && Snapshot.Patches.Contains(Item.Entry.TitleId) ? "An update is on PS4"
@@ -643,10 +647,11 @@ namespace DirectPackageInstaller.ViewModels
 
                 int OnConsole = All.Count(x => x.State is InstallState.Installed or InstallState.NewerInstalled);
                 int Updates = All.Count(x => x.State == InstallState.UpdateAvailable);
+                int OnExt = All.Where(x => x.Entry.Kind == "Game" && x.OnExtended).Select(x => x.Entry.TitleId).Distinct().Count();
                 ConsoleSummary = Result.IsAppsOnly
                     // RPI can only say which games are installed
                     ? $"{OnConsole} games on PS4 (via RPI at {Result.Taken.ToLocalTime():HH:mm}). Update and DLC status needs GoldHEN's FTP server on port 2121: turn it off and on in GoldHEN settings, then Check PS4."
-                    : $"{OnConsole} on PS4  ·  {Updates} updates to install  ·  via {Result.Source} at {Result.Taken.ToLocalTime():HH:mm}";
+                    : $"{OnConsole} on PS4{(OnExt > 0 ? $" ({OnExt} games on extended storage)" : "")}  ·  {Updates} updates to install  ·  via {Result.Source} at {Result.Taken.ToLocalTime():HH:mm}";
                 ApplyFilter();
             }
             catch (Exception ex)

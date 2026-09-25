@@ -298,10 +298,13 @@
             <Setter Property="Grid.Column" Value="1"/>
             <Setter Property="Margin" Value="14,0,0,0"/>
         </Style>
+        <!-- the PS4 line under the filters: beside them it got squeezed to nothing -->
         <Style Selector="TextBlock.summary">
-            <Setter Property="Grid.Column" Value="2"/>
-            <Setter Property="TextAlignment" Value="Right"/>
-            <Setter Property="Margin" Value="16,0,0,0"/>
+            <Setter Property="Grid.Row" Value="2"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
         </Style>
         <Style Selector="TextBlock.folderlabel">
             <Setter Property="MaxWidth" Value="460"/>

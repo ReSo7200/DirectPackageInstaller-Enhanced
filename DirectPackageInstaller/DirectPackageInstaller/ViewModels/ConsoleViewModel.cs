@@ -386,6 +386,7 @@ namespace DirectPackageInstaller.ViewModels
             }
 
             IsLoading = true;
+            Summary = "Reading the console…";
             this.RaisePropertyChanged(nameof(ShowIntro));
             try
             {

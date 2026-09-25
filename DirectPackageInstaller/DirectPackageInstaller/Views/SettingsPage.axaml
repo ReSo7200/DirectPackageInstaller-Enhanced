@@ -81,7 +81,7 @@
                         <Rectangle Classes="divider"/>
                         <StackPanel Classes="note">
                             <TextBlock Classes="label" Text="Where games install"/>
-                            <TextBlock Classes="hint" Text="The console decides: Settings › Storage › Options › Application Install Location on the PS4 (system storage or extended storage). This app can't choose it for a single package, and it can't read the console's free space. If an install fails with not enough space, free some up and send it again."/>
+                            <TextBlock Classes="hint" Text="By default the console decides (Settings › Storage › Options › Application Install Location on the PS4). With the experimental payload below, Install to picks the drive for each package, On PS4 shows each drive's free space, and installed games can be moved between drives (right-click › Move)."/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

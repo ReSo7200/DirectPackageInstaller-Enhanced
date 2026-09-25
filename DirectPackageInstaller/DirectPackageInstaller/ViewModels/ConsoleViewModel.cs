@@ -38,6 +38,9 @@ namespace DirectPackageInstaller.ViewModels
 
         public string VersionText => Title.Version.Length == 0 ? "" : $"v{Title.Version}";
 
+        public bool OnExtended => Title.OnExtended;
+        public bool OnSystem => !Title.OnExtended;
+
         public string StorageText => Title.Installing ? "INSTALLING · EXT" : Title.OnExtended ? "EXT STORAGE" : "";
         public bool ShowStorage => StorageText.Length > 0;
         public IBrush StorageBrush => LibraryItem.Brush(Title.Installing ? "Signal" : "Violet");

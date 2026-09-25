@@ -78,10 +78,23 @@ namespace DirectPackageInstaller.Views
                     Enabled &= Entry.Tag is LibraryItem Item && Model.MissingFor(Item.Entry.TitleId).Count > 0;
                 if (Entry.Classes.Contains("rpi"))
                     Enabled &= Console.HasRpi;
+                if (Entry.Classes.Contains("move"))
+                {
+                    var Why = ConsoleMove.WhyNot();
+                    Enabled &= Why == null;
+                    ToolTip.SetTip(Entry, Why ?? "The console copies it to the other drive and removes the old copy. Nothing is sent from this device.");
+                    ToolTip.SetShowOnDisabled(Entry, true);
+                }
                 if (Entry.Classes.Contains("recycle"))
                     Enabled &= OperatingSystem.IsWindows();
                 Entry.IsEnabled = Enabled;
             }
+        }
+
+        async void MenuMoveClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is { } Item)
+                await MoveDialog.AskAndStartAsync(Item.Entry.TitleId, Item.Entry.Title, !Item.OnExtended);
         }
 
         async void MenuSendMissingClick(object? sender, RoutedEventArgs e)

@@ -79,6 +79,11 @@
                                         <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick" Classes="library"/>
                                         <MenuItem Header="Copy title ID" Tag="{Binding}" Click="MenuCopyIdClick"/>
                                         <Separator/>
+                                        <MenuItem Header="Move to extended storage…" Tag="{Binding}" Click="MenuMoveClick"
+                                                  IsVisible="{Binding OnSystem}" Classes="move"/>
+                                        <MenuItem Header="Move to system storage…" Tag="{Binding}" Click="MenuMoveClick"
+                                                  IsVisible="{Binding OnExtended}" Classes="move"/>
+                                        <Separator/>
                                         <MenuItem Header="Uninstall update…" Tag="{Binding}" Click="MenuUninstallUpdateClick"
                                                   IsVisible="{Binding CanUninstallUpdate}" Classes="rpi"/>
                                         <MenuItem Header="Uninstall…" Tag="{Binding}" Click="MenuUninstallClick" Classes="rpi"/>

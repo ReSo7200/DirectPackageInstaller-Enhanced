@@ -23,6 +23,8 @@ namespace DirectPackageInstaller.Views
                     UpdateEmpty();
             };
             DownloadsList.ItemsSource = UpdateDownloads.Instance.Items;
+            MovesList.ItemsSource = ConsoleMove.Jobs;
+            ConsoleMove.Jobs.CollectionChanged += (_, _) => UpdateEmpty();
             UpdateDownloads.Instance.Items.CollectionChanged += (_, _) => UpdateEmpty();
             UpdateEmpty();
         }
@@ -30,8 +32,23 @@ namespace DirectPackageInstaller.Views
         void UpdateEmpty()
         {
             DownloadsPanel.IsVisible = UpdateDownloads.Instance.Items.Count > 0;
-            EmptyState.IsVisible = SendQueue.Instance.Items.Count == 0 && UpdateDownloads.Instance.Items.Count == 0;
+            MovesPanel.IsVisible = ConsoleMove.Jobs.Count > 0;
+            // the downloads section has this heading already
+            MovesSendingLabel.IsVisible = !DownloadsPanel.IsVisible;
+            EmptyState.IsVisible = SendQueue.Instance.Items.Count == 0 && UpdateDownloads.Instance.Items.Count == 0 && ConsoleMove.Jobs.Count == 0;
             BtnClearFinished.IsEnabled = SendQueue.Instance.Items.Count > SendQueue.Instance.PendingCount;
+        }
+
+        void RetryMoveClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is MoveJob Job)
+                ConsoleMove.Retry(Job);
+        }
+
+        void RemoveMoveClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is MoveJob Job)
+                ConsoleMove.Remove(Job);
         }
 
         void CancelDownloadClick(object? sender, RoutedEventArgs e)

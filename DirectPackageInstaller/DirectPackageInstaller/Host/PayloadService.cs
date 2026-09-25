@@ -97,6 +97,61 @@ namespace DirectPackageInstaller.Host
             }
         }
 
+        /// <summary>
+        /// Install a package that is already on the console (an absolute path there) to
+        /// the given storage. Experimental payload only: it installs from the file with
+        /// BGFT's ByStorage registration. Sets Installer.LastError on failure.
+        /// </summary>
+        public async Task<bool> SendLocalPackageAsync(string PS4IP, string PCIP, string ConsolePath, PKGHelper.PKGInfo Info, int Storage)
+        {
+            if (!App.Config.ExperimentalPayload)
+            {
+                Installer.LastError = "Needs the experimental GoldHEN payload (Settings › Experimental).";
+                return false;
+            }
+
+            byte[] Data;
+            try
+            {
+                Data = ExperimentalPayloadProtocol.BuildPackageV2(ConsolePath, Info.FriendlyName, Info.ContentID,
+                    Info.BGFTContentType, Info.PackageSize, Info.IconData, Storage);
+            }
+            catch (ArgumentException ex)
+            {
+                Installer.LastError = ex.Message;
+                return false;
+            }
+
+            await SendLock.WaitAsync();
+            try
+            {
+                // a resident default payload doesn't know local files or storages: replace it
+                if (!ResidentExperimental)
+                    await ReleaseResidentLockedAsync();
+
+                for (int Attempt = 0; Attempt < 3; Attempt++)
+                {
+                    var Connection = await GetConnectionAsync(PS4IP, PCIP);
+                    if (Connection == null)
+                        return false;
+                    if (!ResidentExperimental)
+                    {
+                        Installer.LastError = "The experimental GoldHEN payload didn't start on the console.";
+                        return false;
+                    }
+                    if (await TrySend(Connection, Data))
+                        return true;
+                }
+
+                Installer.LastError = "The PS4 payload connection kept dropping. Try again.";
+                return false;
+            }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
+
         byte[]? PKGInfoV2;
 
         DateTime LastInject = DateTime.MinValue;

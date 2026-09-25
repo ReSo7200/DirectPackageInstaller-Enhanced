@@ -116,6 +116,10 @@
                                               IsVisible="{Binding CanRename}"/>
                                     <MenuItem Header="Move this copy to the Recycle Bin…" Tag="{Binding}" Click="MenuRecycleClick"
                                               IsVisible="{Binding IsDuplicate}" Classes="recycle"/>
+                                    <MenuItem Header="Move to extended storage on the PS4…" Tag="{Binding}" Click="MenuMoveClick"
+                                              IsVisible="{Binding CanMoveToExtended}" Classes="move"/>
+                                    <MenuItem Header="Move to system storage on the PS4…" Tag="{Binding}" Click="MenuMoveClick"
+                                              IsVisible="{Binding CanMoveToSystem}" Classes="move"/>
                                     <Separator IsVisible="{Binding CanUninstall}"/>
                                     <MenuItem Header="Uninstall from PS4…" Tag="{Binding}" Click="MenuUninstallClick"
                                               IsVisible="{Binding CanUninstall}" Classes="rpi"/>

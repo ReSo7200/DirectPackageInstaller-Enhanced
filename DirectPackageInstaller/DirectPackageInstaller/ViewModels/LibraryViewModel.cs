@@ -251,9 +251,15 @@ namespace DirectPackageInstaller.ViewModels
                                     // an update of this title is installed, even if not this version
                                     || (Entry.Kind == "Update" && PatchOnConsole && State is InstallState.UpdateAvailable or InstallState.Unknown);
 
+        /// <summary>A game the last PS4 check found installed: it can be moved to the other drive.</summary>
+        public bool CanMoveToExtended => Entry.Kind == "Game" && State is InstallState.Installed or InstallState.NewerInstalled && !OnExtended;
+        public bool CanMoveToSystem => Entry.Kind == "Game" && State is InstallState.Installed or InstallState.NewerInstalled && OnExtended;
+
         void RaiseRail()
         {
             this.RaisePropertyChanged(nameof(CanUninstall));
+            this.RaisePropertyChanged(nameof(CanMoveToExtended));
+            this.RaisePropertyChanged(nameof(CanMoveToSystem));
             this.RaisePropertyChanged(nameof(RailBrush));
             this.RaisePropertyChanged(nameof(RailFill));
             this.RaisePropertyChanged(nameof(ShowRailFill));

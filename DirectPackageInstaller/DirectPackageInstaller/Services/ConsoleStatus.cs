@@ -72,6 +72,14 @@ namespace DirectPackageInstaller.Services
             private set { this.RaiseAndSetIfChanged(ref _HasRpi, value); this.RaisePropertyChanged(nameof(CanRead)); }
         }
 
+        bool _HasBinLoader;
+        /// <summary>GoldHEN's BinLoader answers (the DPI payload can be sent).</summary>
+        public bool HasBinLoader
+        {
+            get => _HasBinLoader;
+            private set => this.RaiseAndSetIfChanged(ref _HasBinLoader, value);
+        }
+
         /// <summary>What's installed can be read (FTP, or RPI for games only).</summary>
         public bool CanRead => FtpOpen || HasRpi;
         public bool IsOffline => Link is ConsoleLink.Offline or ConsoleLink.NoAddress;
@@ -174,7 +182,7 @@ namespace DirectPackageInstaller.Services
                 {
                     Link = ConsoleLink.NoAddress;
                     Mode = "Set the PS IP in Settings";
-                    FtpOpen = HasRpi = false;
+                    FtpOpen = HasRpi = HasBinLoader = false;
                     return;
                 }
 
@@ -184,6 +192,7 @@ namespace DirectPackageInstaller.Services
                 string? Found = null;
                 bool Rpi = await IPHelper.IsRPIOnline(IP);
                 bool Ftp = await Opens(IP, 2121);
+                bool BinLoader = Installer.Payload.ClientRunning || await IPHelper.IsGoldHENOnline(IP);
                 if (Rpi)
                     Found = "Remote Package Installer";
                 else if (await IPHelper.IsEtaHenOnline(IP))
@@ -202,6 +211,7 @@ namespace DirectPackageInstaller.Services
 
                 HasRpi = Rpi;
                 FtpOpen = Ftp;
+                HasBinLoader = BinLoader;
                 Link = Found != null ? ConsoleLink.Online : ConsoleLink.Offline;
                 Mode = Found ?? await WhyNotAsync(IP, Ftp);
             }

@@ -63,6 +63,13 @@ namespace DirectPackageInstaller.Views
                     ToolTip.SetTip(Entry, ConsoleStatus.Instance.HasRpi ? null : "Needs Remote Package Installer open on the console");
                     ToolTip.SetShowOnDisabled(Entry, true);
                 }
+                if (Entry.Classes.Contains("move"))
+                {
+                    var Why = Entry.Tag is ConsoleTitleItem { Title.Installing: true } ? "Still installing on the console" : ConsoleMove.WhyNot();
+                    Entry.IsEnabled = Why == null;
+                    ToolTip.SetTip(Entry, Why ?? "The console copies it to the other drive and removes the old copy. Nothing is sent from this device.");
+                    ToolTip.SetShowOnDisabled(Entry, true);
+                }
                 if (Entry.Classes.Contains("library"))
                     Entry.IsEnabled = Entry.Tag is ConsoleTitleItem Item && Item.LibraryPackages > 0;
             }
@@ -81,6 +88,12 @@ namespace DirectPackageInstaller.Views
         }
 
         void MenuUninstallClick(object? sender, RoutedEventArgs e) => Uninstall(ItemOf(sender), "gd");
+
+        async void MenuMoveClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is { } Item)
+                await MoveDialog.AskAndStartAsync(Item.TitleId, Item.Name, !Item.OnExtended);
+        }
 
         void MenuUninstallUpdateClick(object? sender, RoutedEventArgs e) => Uninstall(ItemOf(sender), "gp");
 

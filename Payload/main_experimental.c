@@ -14,6 +14,7 @@ asm("clear_stack:\nmov $0x800,%ecx\nxor %rax, %rax\n.L1:\npush %rax\nloop .L1\na
 void clear_stack(void);
 
 typedef int (*register_task_fn)(struct bgft_download_param*, int*);
+typedef int (*register_task_ex_fn)(struct bgft_download_param_ex*, int*);
 typedef int (*reg_get_int_fn)(int, int*);
 typedef int (*reg_set_int_fn)(int, int);
 
@@ -93,6 +94,12 @@ int main()
 	register_task_fn sceBgftDownloadRegisterTask = dlsym(bgft, "sceBgftServiceDownloadRegisterTask");
 	register_task_fn sceBgftDebugDownloadRegisterTask = dlsym(bgft, "sceBgftServiceIntDebugDownloadRegisterPkg");
 	int(*sceBgftDownloadStartTask)(int) = dlsym(bgft, "sceBgftServiceIntDownloadStartTask");
+
+	/*
+	 * A "URL" that is a path on the console (starts with '/') is installed from
+	 * that file, as Itemzflow does: used to move installed titles between drives.
+	 */
+	register_task_ex_fn sceBgftRegisterTaskByStorageEx = dlsym(bgft, "sceBgftServiceIntDownloadRegisterTaskByStorageEx");
 
 	/* only used when the PC asks for a storage */
 	void* regmgr = dlopen("/system/common/lib/libSceRegMgr.sprx", 0);
@@ -188,9 +195,21 @@ int main()
 			}
 		}
 
-		rv = sceBgftDownloadRegisterTask(&bgft_params, &task);
-		if (rv == 0x80990088 || task == BGFT_INVALID_TASK_ID)
-			rv = sceBgftDebugDownloadRegisterTask(&bgft_params, &task);
+		if (bgft_params.content_url[0] == '/') {
+			if (!sceBgftRegisterTaskByStorageEx) {
+				rv = -1;
+				notify(222, "DPI: This console can't install from a local file");
+			} else {
+				struct bgft_download_param_ex ex;
+				ex.param = bgft_params;
+				ex.slot = 0;
+				rv = sceBgftRegisterTaskByStorageEx(&ex, &task);
+			}
+		} else {
+			rv = sceBgftDownloadRegisterTask(&bgft_params, &task);
+			if (rv == 0x80990088 || task == BGFT_INVALID_TASK_ID)
+				rv = sceBgftDebugDownloadRegisterTask(&bgft_params, &task);
+		}
 
 		int registered = rv != 0x80990088 && task != BGFT_INVALID_TASK_ID;
 		if (registered)

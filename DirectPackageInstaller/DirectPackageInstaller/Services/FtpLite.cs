@@ -17,13 +17,20 @@ namespace DirectPackageInstaller.Services
         public override string ToString() => $"{Code} {Text}";
     }
 
-    /// <summary>A directory entry parsed from a LIST response.</summary>
-    public readonly record struct FtpEntry(string Name, bool IsDirectory);
+    /// <summary>A directory entry parsed from a LIST response (Size -1 when the listing doesn't give it).</summary>
+    public readonly record struct FtpEntry(string Name, bool IsDirectory, long Size = -1);
 
-    public sealed class FtpException : Exception
+    public class FtpException : Exception
     {
         public FtpReply? Reply { get; }
         public FtpException(string message, FtpReply? reply = null) : base(message) { Reply = reply; }
+    }
+
+    /// <summary>A transfer cut off at its size limit; Head holds the bytes up to it.</summary>
+    public sealed class FtpHeadException : FtpException
+    {
+        public byte[] Head { get; }
+        public FtpHeadException(string message, byte[] head) : base(message) { Head = head; }
     }
 
     /// <summary>
@@ -154,6 +161,53 @@ namespace DirectPackageInstaller.Services
         public Task<byte[]> DownloadAsync(string path, int maxBytes = DefaultMaxDownload, CancellationToken ct = default)
             => TransferAsync("RETR " + path, maxBytes, ct);
 
+        /// <summary>RNFR/RNTO. Only within one drive on the PS4 (no copy across drives).</summary>
+        public async Task RenameAsync(string from, string to, CancellationToken ct = default)
+        {
+            var r = await CommandAsync("RNFR " + from, ct).ConfigureAwait(false);
+            if (r.Code != 350) throw new FtpException($"Can't rename '{from}'", r);
+            r = await CommandAsync("RNTO " + to, ct).ConfigureAwait(false);
+            if (r.Code != 250) throw new FtpException($"Can't rename '{from}' to '{to}'", r);
+        }
+
+        public async Task DeleteAsync(string path, CancellationToken ct = default)
+        {
+            var r = await CommandAsync("DELE " + path, ct).ConfigureAwait(false);
+            if (r.Code != 250) throw new FtpException($"Can't delete '{path}'", r);
+        }
+
+        /// <summary>MKD; an existing folder is fine.</summary>
+        public async Task MakeDirAsync(string path, CancellationToken ct = default)
+            => await CommandAsync("MKD " + path, ct).ConfigureAwait(false);
+
+        public async Task<bool> RemoveDirAsync(string path, CancellationToken ct = default)
+            => (await CommandAsync("RMD " + path, ct).ConfigureAwait(false)).Code == 250;
+
+        /// <summary>Size of a file from its folder's listing, or -1 when it isn't there.</summary>
+        public async Task<long> FileSizeAsync(string path, CancellationToken ct = default)
+        {
+            int slash = path.LastIndexOf('/');
+            var dir = slash <= 0 ? "/" : path.Substring(0, slash);
+            var name = path.Substring(slash + 1);
+            foreach (var e in await ListAsync(dir, ct).ConfigureAwait(false))
+                if (!e.IsDirectory && e.Name == name)
+                    return e.Size;
+            return -1;
+        }
+
+        /// <summary>The first Count bytes of a file (e.g. a PKG header); the transfer is cut off after them.</summary>
+        public async Task<byte[]> ReadHeadAsync(string path, int Count, CancellationToken ct = default)
+        {
+            try
+            {
+                return await DownloadAsync(path, Count, ct).ConfigureAwait(false);
+            }
+            catch (FtpHeadException ex)
+            {
+                return ex.Head;
+            }
+        }
+
         /// <summary>STOR the rest of Source to path. Progress gets the bytes sent so far.</summary>
         public async Task UploadAsync(string path, Stream Source, Action<long>? Progress = null, CancellationToken ct = default)
         {
@@ -280,6 +334,8 @@ namespace DirectPackageInstaller.Services
                 if (n <= 0) break;
                 if (ms.Length + n > maxBytes)
                 {
+                    // keep what fits: ReadHeadAsync wants exactly the first maxBytes
+                    ms.Write(chunk, 0, (int)(maxBytes - ms.Length));
                     // Abort: drop the data connection and resync the control channel.
                     try { data.Client.Close(); } catch { }
                     try
@@ -288,7 +344,7 @@ namespace DirectPackageInstaller.Services
                         await ReadReplyAsync(rc.Token).ConfigureAwait(false);
                     }
                     catch { Abort(); }
-                    throw new FtpException($"'{command}' exceeds size limit of {maxBytes} bytes");
+                    throw new FtpHeadException($"'{command}' exceeds size limit of {maxBytes} bytes", ms.ToArray());
                 }
                 ms.Write(chunk, 0, n);
             }
@@ -444,11 +500,15 @@ namespace DirectPackageInstaller.Services
             {
                 // Skip 8 whitespace-separated fields (perms, links, owner, group, size, month, day, time/year).
                 int pos = 0, fields = 0;
+                long size = -1;
                 while (fields < 8)
                 {
                     while (pos < line.Length && IsWs(line[pos])) pos++;
                     if (pos >= line.Length) break;
+                    int start = pos;
                     while (pos < line.Length && !IsWs(line[pos])) pos++;
+                    if (fields == 4 && long.TryParse(line.AsSpan(start, pos - start), NumberStyles.None, CultureInfo.InvariantCulture, out var n))
+                        size = n;
                     fields++;
                 }
                 if (fields < 8) return false;
@@ -462,7 +522,7 @@ namespace DirectPackageInstaller.Services
                     if (arrow > 0) name = name.Substring(0, arrow);
                 }
                 if (name.Length == 0) return false;
-                entry = new FtpEntry(name, t == 'd');
+                entry = new FtpEntry(name, t == 'd', size);
                 return true;
             }
 

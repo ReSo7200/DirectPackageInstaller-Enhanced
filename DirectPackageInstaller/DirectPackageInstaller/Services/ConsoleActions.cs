@@ -21,7 +21,8 @@ namespace DirectPackageInstaller.Services
         public static async Task<string?> UninstallAsync(string ConsoleIP, LibraryEntry Entry)
         {
             if (!await IPHelper.IsRPIOnline(ConsoleIP))
-                return "Uninstalling needs Remote Package Installer open on the console.";
+                return "Uninstalling needs Remote Package Installer running on the console, and nothing answers on its port (12800). " +
+                       "If it's already open, close it completely and start it again. Or delete the item on the PS4 itself (Options › Delete).";
 
             string Endpoint, Body;
             switch (Entry.Kind)

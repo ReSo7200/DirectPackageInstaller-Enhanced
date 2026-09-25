@@ -297,6 +297,19 @@ namespace DirectPackageInstaller.ViewModels
             };
 
             SendQueue.Instance.Items.CollectionChanged += (_, _) => LinkQueue();
+
+            // re-check the console after installs, once a batch settles
+            var Recheck = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            Recheck.Tick += async (_, _) =>
+            {
+                Recheck.Stop();
+                await CheckConsoleAsync();
+            };
+            SendQueue.Instance.Installed += _ =>
+            {
+                Recheck.Stop();
+                Recheck.Start();
+            };
         }
 
         public bool HasFolders => Folders.Count > 0;

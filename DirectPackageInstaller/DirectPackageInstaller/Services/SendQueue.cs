@@ -122,7 +122,7 @@ namespace DirectPackageInstaller.Services
             QueueState.Pushing => "Sending to PS4",
             QueueState.Queued => "Queued on PS4",
             QueueState.Downloading => "Downloading",
-            QueueState.Done => "Downloaded",
+            QueueState.Done => TaskId != null ? "Installed" : "Downloaded",
             QueueState.Failed => "Failed",
             _ => ""
         };
@@ -187,6 +187,9 @@ namespace DirectPackageInstaller.Services
     public sealed class SendQueue : ReactiveObject
     {
         public static SendQueue Instance { get; } = new SendQueue();
+
+        /// <summary>The console reported a package installed (RPI task finished).</summary>
+        public event Action<QueueItem>? Installed;
 
         public ObservableCollection<QueueItem> Items { get; } = new();
 
@@ -477,9 +480,11 @@ namespace DirectPackageInstaller.Services
                 {
                     Ui(() =>
                     {
+                        // a finished BGFT task is installed, not just downloaded
                         Item.State = QueueState.Done;
                         Item.Progress = 100;
-                        Item.Message = "Downloaded. The console is installing it.";
+                        Item.Message = "Installed on the console.";
+                        Installed?.Invoke(Item);
                     });
                     return;
                 }

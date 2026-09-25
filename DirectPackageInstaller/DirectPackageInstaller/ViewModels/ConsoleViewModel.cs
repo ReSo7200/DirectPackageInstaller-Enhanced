@@ -132,6 +132,21 @@ namespace DirectPackageInstaller.ViewModels
         {
             this.LibraryEntries = LibraryEntries;
 
+            // installs and uninstalls: read again once things settle (only if already shown)
+            var Reread = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            Reread.Tick += async (_, _) =>
+            {
+                Reread.Stop();
+                await RefreshAsync();
+            };
+            ConsoleStatus.Instance.ContentsChanged += () =>
+            {
+                if (!Loaded)
+                    return;
+                Reread.Stop();
+                Reread.Start();
+            };
+
             ConsoleStatus.Instance.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(ConsoleStatus.CanRead))

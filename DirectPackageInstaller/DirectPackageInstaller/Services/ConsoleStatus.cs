@@ -92,6 +92,20 @@ namespace DirectPackageInstaller.Services
             private set => this.RaiseAndSetIfChanged(ref _Mode, value);
         }
 
+        /// <summary>
+        /// Something was installed or uninstalled: pages showing the console's contents
+        /// read it again. Raised now and once more a little later, because the console
+        /// finishes deleting or installing after the request returns.
+        /// </summary>
+        public event Action? ContentsChanged;
+
+        public async void NotifyContentsChanged()
+        {
+            ContentsChanged?.Invoke();
+            await Task.Delay(TimeSpan.FromSeconds(20));
+            ContentsChanged?.Invoke();
+        }
+
         int RefreshAgain;
 
         public async Task RefreshAsync()

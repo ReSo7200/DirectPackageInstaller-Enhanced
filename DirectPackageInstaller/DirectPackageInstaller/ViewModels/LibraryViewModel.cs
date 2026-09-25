@@ -315,7 +315,7 @@ namespace DirectPackageInstaller.ViewModels
                 Recheck.Stop();
                 await CheckConsoleAsync();
             };
-            SendQueue.Instance.Installed += _ =>
+            ConsoleStatus.Instance.ContentsChanged += () =>
             {
                 Recheck.Stop();
                 Recheck.Start();

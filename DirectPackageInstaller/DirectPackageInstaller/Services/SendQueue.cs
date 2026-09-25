@@ -188,8 +188,6 @@ namespace DirectPackageInstaller.Services
     {
         public static SendQueue Instance { get; } = new SendQueue();
 
-        /// <summary>The console reported a package installed (RPI task finished).</summary>
-        public event Action<QueueItem>? Installed;
 
         public ObservableCollection<QueueItem> Items { get; } = new();
 
@@ -254,8 +252,12 @@ namespace DirectPackageInstaller.Services
                 var Item = new QueueItem(Entry);
                 Item.PropertyChanged += (_, e) =>
                 {
-                    if (e.PropertyName == nameof(QueueItem.State))
-                        this.RaisePropertyChanged(nameof(PendingCount));
+                    if (e.PropertyName != nameof(QueueItem.State))
+                        return;
+                    this.RaisePropertyChanged(nameof(PendingCount));
+                    // sent, installed or copied: the console's contents changed
+                    if (Item.State == QueueState.Done)
+                        ConsoleStatus.Instance.NotifyContentsChanged();
                 };
                 Items.Add(Item);
             }
@@ -484,7 +486,6 @@ namespace DirectPackageInstaller.Services
                         Item.State = QueueState.Done;
                         Item.Progress = 100;
                         Item.Message = "Installed on the console.";
-                        Installed?.Invoke(Item);
                     });
                     return;
                 }

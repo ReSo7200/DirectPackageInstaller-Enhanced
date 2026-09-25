@@ -171,7 +171,9 @@ namespace DirectPackageInstaller.Views
                 return;
             }
 
-            await Model.CheckConsoleAsync();
+            // show it gone now; the re-check (the console deletes in the background) confirms
+            Item.State = InstallState.NotInstalled;
+            ConsoleStatus.Instance.NotifyContentsChanged();
         }
 
         async void MenuRenameClick(object? sender, RoutedEventArgs e)

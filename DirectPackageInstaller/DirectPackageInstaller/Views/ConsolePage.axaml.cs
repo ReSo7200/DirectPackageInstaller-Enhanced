@@ -110,7 +110,7 @@ namespace DirectPackageInstaller.Views
                 return;
             }
 
-            await Model.RefreshAsync();
+            ConsoleStatus.Instance.NotifyContentsChanged();
         }
     }
 }

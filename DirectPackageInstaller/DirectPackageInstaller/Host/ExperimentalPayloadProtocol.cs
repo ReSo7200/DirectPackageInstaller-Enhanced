@@ -36,6 +36,12 @@ namespace DirectPackageInstaller.Host
 
         /// <summary>Console default storage (same registration path as cmd 1).</summary>
         public const int StorageDefault = -1;
+
+        /// <summary>
+        /// Off: on a real PS4 (Sep 2026) the task registered fine but installed to the
+        /// console's own location whatever slot was sent, so the choice is never sent.
+        /// </summary>
+        public const bool StorageChoiceWorks = false;
         /// <summary>EXPERIMENTAL: sent to BGFT as SceBgftDownloadParamEx.slot = 0.</summary>
         public const int StorageInternal = 0;
         /// <summary>EXPERIMENTAL: sent to BGFT as SceBgftDownloadParamEx.slot = 1.</summary>

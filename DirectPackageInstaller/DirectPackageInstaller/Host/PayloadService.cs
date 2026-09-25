@@ -58,7 +58,7 @@ namespace DirectPackageInstaller.Host
             {
                 PKGInfo = BuildPkgInfo(URL);
                 // experimental payload + a chosen storage: "package v2" carries it
-                if (App.Config.ExperimentalPayload && App.Config.InstallStorage != ExperimentalPayloadProtocol.StorageDefault)
+                if (App.Config.ExperimentalPayload && ExperimentalPayloadProtocol.StorageChoiceWorks && App.Config.InstallStorage != ExperimentalPayloadProtocol.StorageDefault)
                     PKGInfoV2 = ExperimentalPayloadProtocol.BuildPackageV2(URL, Installer.CurrentPKG.FriendlyName, Installer.CurrentPKG.ContentID,
                         Installer.CurrentPKG.BGFTContentType, Installer.CurrentPKG.PackageSize, Installer.CurrentPKG.IconData, App.Config.InstallStorage);
                 else

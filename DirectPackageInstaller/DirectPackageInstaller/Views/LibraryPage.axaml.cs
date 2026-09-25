@@ -31,6 +31,7 @@ namespace DirectPackageInstaller.Views
             FilterGames.IsCheckedChanged += (_, _) => { if (FilterGames.IsChecked == true) Model.Filter = LibraryFilter.Games; };
             FilterUpdates.IsCheckedChanged += (_, _) => { if (FilterUpdates.IsChecked == true) Model.Filter = LibraryFilter.Updates; };
             FilterDlc.IsCheckedChanged += (_, _) => { if (FilterDlc.IsChecked == true) Model.Filter = LibraryFilter.DLC; };
+            SortBox.SelectionChanged += (_, _) => Model.Sort = (LibrarySort)Math.Max(0, SortBox.SelectedIndex);
 
             AddHandler(DragDrop.DragOverEvent, OnDragOver);
             AddHandler(DragDrop.DropEvent, OnDrop);
@@ -50,6 +51,72 @@ namespace DirectPackageInstaller.Views
         }
 
         public async void AutoCheck() => await Model.AutoCheckAsync();
+
+        static LibraryItem? ItemOf(object? Sender) => (Sender as Control)?.Tag as LibraryItem;
+
+        void MenuSendClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is { HasError: false } Item)
+                SendQueue.Instance.Enqueue(new[] { Item.Entry });
+        }
+
+        void MenuInspectClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is { } Item)
+                MainWindow.Instance?.OpenInDirectLink(Item.Entry.Path);
+        }
+
+        void MenuRevealClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item)
+                return;
+
+            try
+            {
+                if (App.IsWindows)
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{Item.Entry.Path}\"");
+                else
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.GetDirectoryName(Item.Entry.Path)!) { UseShellExecute = true });
+            }
+            catch
+            {
+            }
+        }
+
+        /// <summary>Uninstall through RPI after an explicit confirmation, then re-check the console.</summary>
+        async void MenuUninstallClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item || string.IsNullOrWhiteSpace(App.Config.PSIP))
+                return;
+
+            var What = Item.Entry.Kind switch
+            {
+                "Game" => $"the game {Item.Entry.Title} ({Item.Entry.TitleId})",
+                "Update" => $"the installed update of {Item.Entry.Title} ({Item.Entry.TitleId})",
+                _ => $"the DLC {Item.Entry.Title} ({Item.Entry.ContentId})"
+            };
+
+            var Reply = await MessageBox.ShowAsync(
+                $"Uninstall {What} from the console?\n\nIt has to be downloaded again to play. Saved data is kept.",
+                "Uninstall from PS4", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (Reply != DialogResult.Yes)
+                return;
+
+            var Error = await ConsoleActions.UninstallAsync(App.Config.PSIP, Item.Entry);
+            if (Error != null)
+            {
+                await MessageBox.ShowAsync("Couldn't uninstall:\n" + Error, "Uninstall from PS4", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            await Model.CheckConsoleAsync();
+        }
+
+        async void MenuCopyClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is { } Item && TopLevel.GetTopLevel(this)?.Clipboard is { } Clipboard)
+                await Clipboard.SetTextAsync(Item.Entry.Path);
+        }
 
         async void AddFolderClick(object? sender, RoutedEventArgs e)
         {

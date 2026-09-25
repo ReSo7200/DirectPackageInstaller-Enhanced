@@ -36,9 +36,16 @@
                     <Rectangle Width="1" Height="18" Fill="{StaticResource Line}" Margin="6,0"/>
                     <ToggleButton Classes="chip" IsChecked="{Binding OnlyMissing}"
                                   ToolTip.Tip="Hide packages the last PS4 check found installed">Not on PS4</ToggleButton>
+                    <ComboBox Name="SortBox" SelectedIndex="0" Margin="8,0,0,0" MinWidth="150" FontSize="12.5" Padding="12,4" MinHeight="30"
+                              ToolTip.Tip="Sort order">
+                        <ComboBoxItem>Sort: title</ComboBoxItem>
+                        <ComboBoxItem>Sort: newest files</ComboBoxItem>
+                        <ComboBoxItem>Sort: largest</ComboBoxItem>
+                    </ComboBox>
                 </StackPanel>
                 <TextBlock Grid.Column="2" Classes="muted" FontSize="12" TextWrapping="Wrap" TextAlignment="Right"
-                           VerticalAlignment="Center" Margin="16,0,0,0" Text="{Binding ConsoleSummary}"/>
+                           VerticalAlignment="Center" Margin="16,0,0,0" Text="{Binding ConsoleSummary}"
+                           MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ConsoleSummary}"/>
             </Grid>
 
             <ItemsControl ItemsSource="{Binding Folders}" IsVisible="{Binding HasFolders}">
@@ -77,6 +84,18 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:LibraryItem">
                         <StackPanel Width="176" ToolTip.Tip="{Binding Tooltip}">
+                            <StackPanel.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Send to PS4" Tag="{Binding}" Click="MenuSendClick"/>
+                                    <MenuItem Header="Open in Direct link" Tag="{Binding}" Click="MenuInspectClick"/>
+                                    <Separator/>
+                                    <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"/>
+                                    <MenuItem Header="Copy path" Tag="{Binding}" Click="MenuCopyClick"/>
+                                    <Separator IsVisible="{Binding CanUninstall}"/>
+                                    <MenuItem Header="Uninstall from PS4…" Tag="{Binding}" Click="MenuUninstallClick"
+                                              IsVisible="{Binding CanUninstall}"/>
+                                </ContextMenu>
+                            </StackPanel.ContextMenu>
                             <Panel Width="176" Height="176">
                                 <Border Classes="frame" CornerRadius="7" ClipToBounds="True"
                                         Background="{StaticResource Raised}" BorderThickness="2" BorderBrush="Transparent">
@@ -122,6 +141,8 @@
                                 <Run Text=" "/>
                                 <Run Text="{Binding VersionText}"/>
                             </TextBlock>
+                            <TextBlock Text="{Binding NewerOfficialText}" IsVisible="{Binding HasNewerOfficial}"
+                                       Foreground="{StaticResource Amber}" FontSize="11.5" FontWeight="SemiBold" Margin="2,3,2,0"/>
                             <Grid ColumnDefinitions="Auto,*" Margin="2,3,2,0">
                                 <TextBlock Classes="mono" Text="{Binding SizeText}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"

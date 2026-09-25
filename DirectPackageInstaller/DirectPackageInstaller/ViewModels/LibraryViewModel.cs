@@ -17,6 +17,8 @@ namespace DirectPackageInstaller.ViewModels
 {
     public enum LibraryFilter { All, Games, Updates, DLC }
 
+    public enum LibrarySort { Title, Newest, Largest }
+
     /// <summary>One cover in the library grid.</summary>
     public sealed class LibraryItem : ReactiveObject
     {
@@ -27,7 +29,7 @@ namespace DirectPackageInstaller.ViewModels
         }
 
         /// <summary>Own ICON0, else the base game's (updates often ship without one).</summary>
-        readonly string? IconFile;
+        internal readonly string? IconFile;
 
         public LibraryEntry Entry { get; }
 
@@ -38,7 +40,8 @@ namespace DirectPackageInstaller.ViewModels
         public string SizeText => TransferProgressInfo.FormatBytes(Entry.Size);
         public string Tooltip => $"{Entry.Title}\n{Entry.ContentId}\n{Entry.Path}"
                                  + (string.IsNullOrEmpty(Entry.SystemVersion) ? "" : $"\nRequires firmware {Entry.SystemVersion}")
-                                 + (Entry.Error != null ? $"\n{Entry.Error}" : "");
+                                 + (Entry.Error != null ? $"\n{Entry.Error}" : "")
+                                 + (NewerOfficial.Length > 0 ? $"\nSony has a newer update: v{NewerOfficial}" : "");
         public bool HasError => Entry.Error != null;
 
         public IBrush KindBrush => Entry.Kind switch
@@ -50,29 +53,57 @@ namespace DirectPackageInstaller.ViewModels
         };
 
         Bitmap? _Cover;
-        bool CoverLoaded;
-        /// <summary>ICON0, decoded small and only when first shown.</summary>
+        bool CoverRequested;
+        /// <summary>
+        /// ICON0, decoded small on a background thread the first time a card
+        /// asks for it (so a big library doesn't freeze the window).
+        /// </summary>
         public Bitmap? Cover
         {
             get
             {
-                if (!CoverLoaded)
+                if (!CoverRequested)
                 {
-                    CoverLoaded = true;
-                    if (IconFile != null && File.Exists(IconFile))
-                    {
-                        try
+                    CoverRequested = true;
+                    if (IconFile != null)
+                        _ = Task.Run(() =>
                         {
-                            using var Stream = File.OpenRead(IconFile);
-                            _Cover = Bitmap.DecodeToWidth(Stream, 256);
-                        }
-                        catch { }
-                    }
+                            try
+                            {
+                                if (!File.Exists(IconFile))
+                                    return;
+                                using var Stream = File.OpenRead(IconFile);
+                                var Decoded = Bitmap.DecodeToWidth(Stream, 256);
+                                Dispatcher.UIThread.Post(() =>
+                                {
+                                    _Cover = Decoded;
+                                    this.RaisePropertyChanged(nameof(Cover));
+                                    this.RaisePropertyChanged(nameof(HasCover));
+                                });
+                            }
+                            catch { }
+                        });
                 }
                 return _Cover;
             }
         }
-        public bool HasCover => Cover != null;
+        public bool HasCover => _Cover != null;
+
+        string _NewerOfficial = "";
+        /// <summary>Latest official update version when it's newer than every local PKG of this title ("" otherwise).</summary>
+        public string NewerOfficial
+        {
+            get => _NewerOfficial;
+            set
+            {
+                this.RaiseAndSetIfChanged(ref _NewerOfficial, value);
+                this.RaisePropertyChanged(nameof(HasNewerOfficial));
+                this.RaisePropertyChanged(nameof(NewerOfficialText));
+                this.RaisePropertyChanged(nameof(Tooltip));
+            }
+        }
+        public bool HasNewerOfficial => NewerOfficial.Length > 0;
+        public string NewerOfficialText => HasNewerOfficial ? $"Update {NewerOfficial} is out" : "";
 
         /// <summary>Shown when the state can't be known (RPI can't see update versions or DLC).</summary>
         public string UnknownText { get; set; } = "";
@@ -165,8 +196,13 @@ namespace DirectPackageInstaller.ViewModels
             }
         }
 
+        /// <summary>The last PS4 check found this on the console (so it can be uninstalled).</summary>
+        public bool CanUninstall => State is InstallState.Installed or InstallState.NewerInstalled
+                                    || (State == InstallState.UpdateAvailable && Entry.Kind == "Update");
+
         void RaiseRail()
         {
+            this.RaisePropertyChanged(nameof(CanUninstall));
             this.RaisePropertyChanged(nameof(RailBrush));
             this.RaisePropertyChanged(nameof(RailFill));
             this.RaisePropertyChanged(nameof(RailFillWidth));
@@ -225,6 +261,14 @@ namespace DirectPackageInstaller.ViewModels
             set { this.RaiseAndSetIfChanged(ref _Filter, value); ApplyFilter(); }
         }
 
+        LibrarySort _Sort = LibrarySort.Title;
+        /// <summary>Title keeps game families together; the others sort files individually.</summary>
+        public LibrarySort Sort
+        {
+            get => _Sort;
+            set { this.RaiseAndSetIfChanged(ref _Sort, value); ApplyFilter(); }
+        }
+
         bool _OnlyMissing;
         /// <summary>Hide what the PS4 already has.</summary>
         public bool OnlyMissing
@@ -277,6 +321,12 @@ namespace DirectPackageInstaller.ViewModels
 
         void Load(IEnumerable<LibraryEntry> Entries)
         {
+            // unchanged files come back as the same LibraryEntry objects from the cache:
+            // keep their items (and decoded covers) instead of rebuilding everything
+            var Previous = new Dictionary<LibraryEntry, LibraryItem>(ReferenceEqualityComparer.Instance);
+            foreach (var Old in All)
+                Previous[Old.Entry] = Old;
+
             All.Clear();
 
             // families stay together: game, then its updates (oldest first), then DLC
@@ -293,11 +343,22 @@ namespace DirectPackageInstaller.ViewModels
                          .ThenBy(Order)
                          .ThenBy(x => x.AppVersion))
             {
-                var Item = new LibraryItem(Entry, FamilyIcon.GetValueOrDefault(Entry.TitleId));
+                var Icon = Entry.IconFile ?? FamilyIcon.GetValueOrDefault(Entry.TitleId);
+                if (Previous.Remove(Entry, out var Existing) && Existing.IconFile == Icon)
+                {
+                    All.Add(Existing);
+                    continue;
+                }
+
+                var Item = new LibraryItem(Entry, Icon);
                 if (Snapshot != null)
                     Apply(Item, Snapshot);
                 All.Add(Item);
             }
+
+            // dropped items stop listening to queue rows
+            foreach (var Gone in Previous.Values)
+                Gone.Queued = null;
 
             LinkQueue();
             ApplyFilter();
@@ -306,8 +367,9 @@ namespace DirectPackageInstaller.ViewModels
 
         static void Apply(LibraryItem Item, ConsoleSnapshot Snapshot)
         {
-            Item.UnknownText = Snapshot.IsAppsOnly && Snapshot.Apps.Contains(Item.Entry.TitleId) && Item.Entry.Kind is "Update" or "DLC"
-                ? "Game on PS4"
+            Item.UnknownText =
+                Snapshot.IsAppsOnly && Snapshot.Apps.Contains(Item.Entry.TitleId) && Item.Entry.Kind is "Update" or "DLC" ? "Game on PS4"
+                : !Snapshot.IsAppsOnly && Item.Entry.Kind == "Update" && Snapshot.Patches.Contains(Item.Entry.TitleId) ? "An update is on PS4"
                 : "";
             Item.State = Snapshot.StateOf(Item.Entry.Category, Item.Entry.TitleId, Item.Entry.ContentId, Item.Entry.AppVersion);
         }
@@ -337,9 +399,34 @@ namespace DirectPackageInstaller.ViewModels
                        || Path.GetFileName(x.Entry.Path).Contains(Query, StringComparison.CurrentCultureIgnoreCase);
             }).ToList();
 
-            Items.Clear();
-            foreach (var Item in Visible)
-                Items.Add(Item);
+            // All is already in family/title order
+            if (Sort == LibrarySort.Newest)
+                Visible = Visible.OrderByDescending(x => x.Entry.Modified).ToList();
+            else if (Sort == LibrarySort.Largest)
+                Visible = Visible.OrderByDescending(x => x.Entry.Size).ToList();
+
+            // keep the selection to what is visible, so Send never includes hidden items
+            foreach (var Hidden in Selected.Except(Visible).ToList())
+                Selected.Remove(Hidden);
+
+            // update in place: Clear() would reset the list and drop the selection on
+            // every search keystroke
+            var Keep = new HashSet<LibraryItem>(Visible);
+            for (int i = Items.Count - 1; i >= 0; i--)
+            {
+                if (!Keep.Contains(Items[i]))
+                    Items.RemoveAt(i);
+            }
+            for (int i = 0; i < Visible.Count; i++)
+            {
+                var Current = Items.IndexOf(Visible[i]);
+                if (Current == i)
+                    continue;
+                if (Current < 0)
+                    Items.Insert(i, Visible[i]);
+                else
+                    Items.Move(Current, i);
+            }
 
             this.RaisePropertyChanged(nameof(IsEmpty));
             this.RaisePropertyChanged(nameof(HasNoMatches));
@@ -378,24 +465,49 @@ namespace DirectPackageInstaller.ViewModels
             await Task.CompletedTask;
         }
 
+        bool RescanPending;
+
+        /// <summary>
+        /// Scan the library folders. A request while a scan runs (e.g. a folder
+        /// added during the startup scan) runs another pass right after.
+        /// </summary>
         public async Task ScanAsync()
         {
             if (IsScanning)
+            {
+                RescanPending = true;
                 return;
+            }
 
             IsScanning = true;
             try
             {
-                var Progress = new Progress<(int Done, int Total, string File)>(p =>
-                    Summary = $"Reading {p.Done} of {p.Total}  ·  {Path.GetFileName(p.File)}");
+                do
+                {
+                    RescanPending = false;
+                    var Progress = new Progress<(int Done, int Total, string File)>(p =>
+                        Summary = $"Reading {p.Done} of {p.Total}  ·  {Path.GetFileName(p.File)}");
 
-                var Entries = await LibraryService.ScanAsync(Progress);
-                Load(Entries);
+                    try
+                    {
+                        var Entries = await LibraryService.ScanAsync(Progress);
+                        Load(Entries);
+                    }
+                    catch (Exception ex)
+                    {
+                        UpdateSummary();
+                        Summary = (Summary.Length > 0 ? Summary + "  ·  " : "") + "Scan failed: " + ex.Message;
+                    }
+                } while (RescanPending);
             }
             finally
             {
                 IsScanning = false;
             }
+
+            // (false until settings load; the startup pass runs from AutoCheckAsync)
+            if (App.Config.CheckOfficialUpdates)
+                _ = CheckOfficialUpdatesAsync();
         }
 
         /// <summary>
@@ -404,11 +516,14 @@ namespace DirectPackageInstaller.ViewModels
         /// </summary>
         public async Task AutoCheckAsync()
         {
-            if (!App.Config.AutoCheckConsole || string.IsNullOrWhiteSpace(App.Config.PSIP))
-                return;
-
             while (IsScanning)
                 await Task.Delay(250);
+
+            if (App.Config.CheckOfficialUpdates)
+                _ = CheckOfficialUpdatesAsync();
+
+            if (!App.Config.AutoCheckConsole || string.IsNullOrWhiteSpace(App.Config.PSIP))
+                return;
 
             if (All.Count > 0)
                 await CheckConsoleAsync();
@@ -434,7 +549,7 @@ namespace DirectPackageInstaller.ViewModels
 
                 if (Result == null)
                 {
-                    ConsoleSummary = "Couldn't read the PS4. Turn on GoldHEN's FTP server (port 2121), or open Remote Package Installer.";
+                    ConsoleSummary = "Couldn't read the PS4. Turn on GoldHEN's FTP server or open Remote Package Installer.";
                     return;
                 }
 
@@ -457,6 +572,38 @@ namespace DirectPackageInstaller.ViewModels
             finally
             {
                 IsChecking = false;
+            }
+        }
+
+        /// <summary>
+        /// Ask Sony's patch server for each title's latest update and flag the
+        /// title's newest local game/update card when something newer exists.
+        /// </summary>
+        public async Task CheckOfficialUpdatesAsync()
+        {
+            try
+            {
+                var Families = All.Where(x => x.Entry.Kind is "Game" or "Update" && x.Entry.TitleId.Length > 0)
+                    .GroupBy(x => x.Entry.TitleId).ToList();
+                if (Families.Count == 0)
+                    return;
+
+                var Latest = await PatchInfo.LatestAsync(Families.Select(x => x.Key));
+
+                foreach (var Family in Families)
+                {
+                    var Newest = Family.OrderByDescending(x => x.Entry.AppVersion, Comparer<string>.Create(PatchInfo.Compare)).First();
+                    foreach (var Item in Family)
+                        Item.NewerOfficial = Item == Newest
+                                             && Latest.TryGetValue(Family.Key, out var Version) && Version.Length > 0
+                                             && PatchInfo.Compare(Version, Item.Entry.AppVersion) > 0
+                            ? Version
+                            : "";
+                }
+            }
+            catch
+            {
+                // offline: nothing to show
             }
         }
 

@@ -77,6 +77,13 @@ namespace DirectPackageInstaller.ViewModels
             set => this.RaiseAndSetIfChanged(ref _SegmentedMode, value);
         }
 
+        private bool _CheckOfficialUpdates = true;
+        public bool CheckOfficialUpdates
+        {
+            get => _CheckOfficialUpdates;
+            set => this.RaiseAndSetIfChanged(ref _CheckOfficialUpdates, value);
+        }
+
         private bool _AutoCheckConsole = true;
         public bool AutoCheckConsole
         {

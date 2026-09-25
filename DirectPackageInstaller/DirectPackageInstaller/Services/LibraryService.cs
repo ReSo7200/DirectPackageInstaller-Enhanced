@@ -167,7 +167,7 @@ namespace DirectPackageInstaller.Services
 
             var Files = await Task.Run(() => Folders.SelectMany(FindPackages).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), Token);
 
-            var Results = new LibraryEntry[Files.Count];
+            var Results = new LibraryEntry?[Files.Count];
             int Done = 0;
 
             // Two readers: headers are small, but libraries often live on HDDs.
@@ -178,9 +178,14 @@ namespace DirectPackageInstaller.Services
                 Progress?.Report((Interlocked.Increment(ref Done), Files.Count, File));
             });
 
-            var Entries = Results.Where(x => x != null).ToList();
+            List<LibraryEntry> Entries;
             lock (Sync)
+            {
+                // a folder removed while scanning must not come back
+                var Current = Store.Folders.ToList();
+                Entries = Results.OfType<LibraryEntry>().Where(x => Current.Any(f => IsUnder(x.Path, f))).ToList();
                 Store.Entries = Entries;
+            }
 
             Save();
             return Entries;
@@ -207,11 +212,23 @@ namespace DirectPackageInstaller.Services
             }
         }
 
-        static LibraryEntry ReadEntry(string File, Dictionary<string, LibraryEntry> Previous)
+        static LibraryEntry? ReadEntry(string File, Dictionary<string, LibraryEntry> Previous)
         {
-            var Info = new FileInfo(File);
+            FileInfo Info;
+            try
+            {
+                Info = new FileInfo(File);
+                if (!Info.Exists)
+                    return null; // deleted since the folder was listed
+                _ = Info.Length;
+            }
+            catch
+            {
+                return null;
+            }
 
-            if (Previous.TryGetValue(File, out var Cached) && Cached.Size == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
+            // unreadable entries are retried every scan (the file may have been locked or still copying)
+            if (Previous.TryGetValue(File, out var Cached) && Cached.Error == null && Cached.Size == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
                 && (Cached.IconFile == null || System.IO.File.Exists(Cached.IconFile)))
                 return Cached;
 
@@ -278,7 +295,14 @@ namespace DirectPackageInstaller.Services
                 var Name = Convert.ToHexString(SHA1.HashData(Png)) + ".png";
                 var File = System.IO.Path.Combine(IconDir, Name);
                 if (!System.IO.File.Exists(File))
-                    System.IO.File.WriteAllBytes(File, Png);
+                {
+                    // a game and its update often share a cover and are read in parallel:
+                    // write privately, then move into place (losing the race is fine)
+                    var Temp = File + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                    System.IO.File.WriteAllBytes(Temp, Png);
+                    try { System.IO.File.Move(Temp, File, false); }
+                    catch (IOException) { System.IO.File.Delete(Temp); }
+                }
                 return File;
             }
             catch

@@ -84,7 +84,8 @@ namespace DirectPackageInstaller.Services
                              : c < 0 ? InstallState.UpdateAvailable
                              : InstallState.NewerInstalled;
                     }
-                    return Patches.Contains(tid) ? InstallState.Installed : InstallState.UpdateAvailable;
+                    // no installed version to compare: some update is there, but maybe not this one
+                    return Patches.Contains(tid) ? InstallState.Unknown : InstallState.UpdateAvailable;
                 }
                 case "ac":
                 {
@@ -246,10 +247,13 @@ namespace DirectPackageInstaller.Services
                 catch { }
             }
 
+            // versions are the slow part (one download per title): stop reading them
+            // before the overall limit so the apps/patches/DLC found so far are kept
+            var versionDeadline = DateTime.UtcNow + TimeSpan.FromTicks(OverallTimeout.Ticks * 2 / 3);
             int downloads = 0;
             foreach (var tid in tids)
             {
-                if (!ftp.IsConnected || downloads >= MaxAppMetaDownloads) break;
+                if (!ftp.IsConnected || downloads >= MaxAppMetaDownloads || DateTime.UtcNow > versionDeadline) break;
                 if (!appSet.Contains(tid)) continue;
                 downloads++;
                 try

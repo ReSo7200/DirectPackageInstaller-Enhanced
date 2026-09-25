@@ -246,6 +246,17 @@
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
+    <Style Selector="ComboBox">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}"/>
+        <Setter Property="Background" Value="{StaticResource Ink}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="ComboBox:pointerover /template/ Border#Background">
+        <Setter Property="Background" Value="{StaticResource Raised}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Faint}"/>
+    </Style>
+
     <Style Selector="ProgressBar.rail">
         <Setter Property="MinHeight" Value="4"/>
         <Setter Property="Height" Value="4"/>

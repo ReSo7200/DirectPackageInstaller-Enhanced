@@ -36,6 +36,9 @@ namespace DirectPackageInstaller
         /// <summary>Ask the console what is installed right after startup.</summary>
         public bool AutoCheckConsole;
 
+        /// <summary>Look up the latest official update of each title (Sony's public patch server).</summary>
+        public bool CheckOfficialUpdates;
+
         public bool AutoSplitPKG;
     }
 }

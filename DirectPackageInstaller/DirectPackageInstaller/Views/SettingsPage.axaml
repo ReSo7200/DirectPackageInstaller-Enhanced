@@ -50,6 +50,14 @@
                             </StackPanel>
                             <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoCheckConsole}" OnContent="" OffContent=""/>
                         </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Check for newer official updates"/>
+                                <TextBlock Classes="hint" Text="Asks Sony's public update server for each title's latest update version (internet needed; results kept for 12 hours) and marks games whose newest local update is behind."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckOfficialUpdates}" OnContent="" OffContent=""/>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </StackPanel>

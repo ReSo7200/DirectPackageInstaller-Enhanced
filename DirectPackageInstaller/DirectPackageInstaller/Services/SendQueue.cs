@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -23,6 +24,37 @@ namespace DirectPackageInstaller.Services
         Failed
     }
 
+    /// <summary>Union of byte ranges the console has fully received.</summary>
+    sealed class ByteRanges
+    {
+        readonly List<(long Start, long End)> Ranges = new(); // [Start, End), sorted, merged
+
+        public void Add(long Start, long End)
+        {
+            if (End <= Start)
+                return;
+
+            Ranges.Add((Start, End));
+            Ranges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+            var Merged = new List<(long Start, long End)>();
+            foreach (var R in Ranges)
+            {
+                if (Merged.Count > 0 && R.Start <= Merged[^1].End)
+                    Merged[^1] = (Merged[^1].Start, Math.Max(Merged[^1].End, R.End));
+                else
+                    Merged.Add(R);
+            }
+
+            Ranges.Clear();
+            Ranges.AddRange(Merged);
+        }
+
+        public long Covered => Ranges.Sum(x => x.End - x.Start);
+
+        public void Clear() => Ranges.Clear();
+    }
+
     public sealed class QueueItem : ReactiveObject
     {
         public QueueItem(LibraryEntry Entry)
@@ -35,6 +67,9 @@ namespace DirectPackageInstaller.Services
         public string Title => Entry.Title;
         public string Kind => Entry.Kind;
         public string Detail => $"{Entry.TitleId}  ·  v{Entry.AppVersion}  ·  {TransferProgressInfo.FormatBytes(Entry.Size)}";
+
+        /// <summary>Completed ranges of the file (the console may fetch it in pieces).</summary>
+        internal readonly ByteRanges Received = new();
 
         QueueState _State = QueueState.Waiting;
         public QueueState State
@@ -140,9 +175,21 @@ namespace DirectPackageInstaller.Services
             Items.CollectionChanged += (_, _) => this.RaisePropertyChanged(nameof(PendingCount));
         }
 
-        public void Enqueue(System.Collections.Generic.IEnumerable<LibraryEntry> Entries)
+        static int KindOrder(LibraryEntry Entry) => Entry.Kind switch { "Game" => 0, "Update" => 1, "DLC" => 2, _ => 3 };
+
+        /// <summary>
+        /// Queue packages. Within one title the base game goes first, then
+        /// updates (oldest first), then DLC: the order the console needs them.
+        /// </summary>
+        public void Enqueue(IEnumerable<LibraryEntry> Entries)
         {
-            foreach (var Entry in Entries)
+            var Ordered = Entries
+                .Select((Entry, Index) => (Entry, Index))
+                .OrderBy(x => x.Index) // keep the user's title order...
+                .GroupBy(x => string.IsNullOrEmpty(x.Entry.TitleId) ? x.Entry.Path : x.Entry.TitleId)
+                .SelectMany(g => g.OrderBy(x => KindOrder(x.Entry)).ThenBy(x => x.Entry.AppVersion).Select(x => x.Entry)); // ...but base game first
+
+            foreach (var Entry in Ordered)
             {
                 // don't queue the same file twice while it is still pending
                 if (Items.Any(x => !x.IsFinished && string.Equals(x.Path, Entry.Path, StringComparison.OrdinalIgnoreCase)))
@@ -165,6 +212,7 @@ namespace DirectPackageInstaller.Services
             Item.State = QueueState.Waiting;
             Item.Message = "";
             Item.Progress = 0;
+            Item.Received.Clear();
             _ = RunAsync();
         }
 
@@ -190,7 +238,19 @@ namespace DirectPackageInstaller.Services
             try
             {
                 while (Items.FirstOrDefault(x => x.State == QueueState.Waiting) is { } Item)
+                {
+                    // nothing can be sent without both addresses: fail the rest at once
+                    // instead of one dialog/attempt per item
+                    var Missing = MissingAddress();
+                    if (Missing != null)
+                    {
+                        foreach (var Waiting in Items.Where(x => x.State == QueueState.Waiting).ToList())
+                            Fail(Waiting, Missing);
+                        break;
+                    }
+
                     await PushAsync(Item);
+                }
             }
             finally
             {
@@ -198,10 +258,22 @@ namespace DirectPackageInstaller.Services
             }
         }
 
+        static string? MissingAddress()
+        {
+            static bool Unset(string? IP) => string.IsNullOrWhiteSpace(IP) || IP == "0.0.0.0";
+
+            if (Unset(App.Config.PSIP))
+                return "The console address isn't set. Enter it in Settings, then press Retry.";
+            if (Unset(App.Config.PCIP))
+                return "This PC's address isn't set. Pick it in Settings, then press Retry.";
+            return null;
+        }
+
         async Task PushAsync(QueueItem Item)
         {
             Item.State = QueueState.Pushing;
             Item.Message = "";
+            Item.Received.Clear();
 
             if (!File.Exists(Item.Path))
             {
@@ -209,7 +281,6 @@ namespace DirectPackageInstaller.Services
                 return;
             }
 
-            var PreviousPKG = Installer.CurrentPKG;
             try
             {
                 using var Stream = new FileStream(Item.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -220,23 +291,47 @@ namespace DirectPackageInstaller.Services
                     return;
                 }
 
-                Installer.CurrentPKG = Info.Value;
                 Stream.Position = 0;
 
                 string LastStatus = "";
-                bool OK = await Installer.PushPackage(App.Config, Source.File, Stream, Item.Path, null, null,
-                    Status =>
-                    {
-                        LastStatus = Status;
-                        Dispatcher.UIThread.Post(() => Item.Message = Status);
-                        return Task.CompletedTask;
-                    },
-                    () => LastStatus,
-                    Silent: true);
+                bool OK;
+                bool AlreadyInstalled;
+                string? Error;
+
+                // CurrentPKG is shared with Direct link: set it and push under the lock
+                await Installer.PushLock.WaitAsync();
+                try
+                {
+                    Installer.CurrentPKG = Info.Value;
+                    OK = await Installer.PushPackage(App.Config, Source.File, Stream, Item.Path, null, null,
+                        Status =>
+                        {
+                            LastStatus = Status;
+                            Dispatcher.UIThread.Post(() => Item.Message = Status);
+                            return Task.CompletedTask;
+                        },
+                        () => LastStatus,
+                        Silent: true);
+
+                    AlreadyInstalled = Installer.LastAlreadyInstalled;
+                    Error = Installer.LastError;
+                }
+                finally
+                {
+                    Installer.PushLock.Release();
+                }
 
                 if (!OK)
                 {
-                    Fail(Item, "The console didn't accept the package. Check that GoldHEN's payload server, RPI or etaHEN is running.");
+                    Fail(Item, Error ?? "The console didn't accept the package. Check that GoldHEN's payload server, RPI or etaHEN is running.");
+                    return;
+                }
+
+                if (AlreadyInstalled)
+                {
+                    Item.State = QueueState.Done;
+                    Item.Progress = 100;
+                    Item.Message = "Already installed on the console.";
                     return;
                 }
 
@@ -251,10 +346,6 @@ namespace DirectPackageInstaller.Services
             {
                 Fail(Item, ex.Message);
             }
-            finally
-            {
-                Installer.CurrentPKG = PreviousPKG;
-            }
         }
 
         static void Fail(QueueItem Item, string Message)
@@ -265,9 +356,11 @@ namespace DirectPackageInstaller.Services
 
         void OnTransferProgress(TransferProgressInfo Info)
         {
-            var File = FileFromRequest(Info.RequestPath);
-            if (File == null)
+            var Request = FileFromRequest(Info.RequestPath);
+            if (Request == null)
                 return;
+
+            var (File, PieceOffset) = Request.Value;
 
             Dispatcher.UIThread.Post(() =>
             {
@@ -276,41 +369,70 @@ namespace DirectPackageInstaller.Services
                 if (Item == null)
                     return;
 
-                Item.Progress = Math.Round(Info.Percent * 100, 1);
+                // Positions are relative to the served piece; AutoSplit pieces start at PieceOffset.
+                long FileSize = Item.Entry.Size > 0 ? Item.Entry.Size : Info.TotalBytes;
+                long ResponseStart = PieceOffset + Info.BytesSent - Info.ResponseBytesSent;
 
-                if (Info.Completed && Info.BytesSent >= Info.TotalBytes)
+                if (Info.Completed)
+                    Item.Received.Add(ResponseStart, ResponseStart + Info.ResponseBytesTotal);
+
+                // done only when every byte of the file arrived, whatever order the ranges came in
+                long InFlight = Info.Completed ? 0 : Info.ResponseBytesSent;
+                long Have = Math.Min(FileSize, Item.Received.Covered + InFlight);
+                Item.Progress = FileSize <= 0 ? 0 : Math.Round(Have * 100.0 / FileSize, 1);
+
+                if (Item.Received.Covered >= FileSize && FileSize > 0)
                 {
                     Item.State = QueueState.Done;
-                    Item.Message = $"Sent {TransferProgressInfo.FormatBytes(Info.TotalBytes)}";
+                    Item.Progress = 100;
+                    Item.Message = $"Sent {TransferProgressInfo.FormatBytes(FileSize)}";
                 }
-                else if (Item.State != QueueState.Pushing)
+                else if (Item.State != QueueState.Pushing && Item.State != QueueState.Done)
                 {
                     Item.State = QueueState.Downloading;
-                    Item.Message = $"{TransferProgressInfo.FormatBytes(Info.BytesSent)} of {TransferProgressInfo.FormatBytes(Info.TotalBytes)}  ·  {TransferProgressInfo.FormatBytes(Info.BytesPerSecond)}/s";
+                    Item.Message = $"{TransferProgressInfo.FormatBytes(Have)} of {TransferProgressInfo.FormatBytes(FileSize)}  ·  {TransferProgressInfo.FormatBytes(Info.BytesPerSecond)}/s";
                 }
             });
         }
 
-        /// <summary>Local file behind a /file/?b64=... request, or null.</summary>
-        static string? FileFromRequest(string RequestPath)
+        /// <summary>
+        /// Local file behind a request, with the piece offset: /file/?b64=PATH,
+        /// or /split/?b64=URL&amp;offset=N where URL is itself a /file/?b64=PATH link.
+        /// </summary>
+        static (string File, long Offset)? FileFromRequest(string RequestPath)
         {
             try
             {
-                var Query = RequestPath.Contains('?') ? RequestPath.Substring(RequestPath.IndexOf('?') + 1) : "";
-                // the console appends its own "?product=..." after ours
-                if (Query.Contains('?'))
-                    Query = Query.Substring(0, Query.IndexOf('?'));
+                long Offset = 0;
+                var Current = RequestPath;
 
-                var B64 = HttpUtility.ParseQueryString(Query)["b64"];
-                if (string.IsNullOrEmpty(B64))
-                    return null;
+                for (int Depth = 0; Depth < 3; Depth++)
+                {
+                    var Query = Current.Contains('?') ? Current.Substring(Current.IndexOf('?') + 1) : "";
+                    // the console appends its own "?product=..." after ours
+                    if (Query.Contains('?'))
+                        Query = Query.Substring(0, Query.IndexOf('?'));
 
-                return Encoding.UTF8.GetString(Convert.FromBase64String(B64));
+                    var Values = HttpUtility.ParseQueryString(Query);
+                    var B64 = Values["b64"];
+                    if (string.IsNullOrEmpty(B64))
+                        return null;
+
+                    if (long.TryParse(Values["offset"], out var PieceOffset))
+                        Offset += PieceOffset;
+
+                    var Decoded = Encoding.UTF8.GetString(Convert.FromBase64String(B64));
+                    if (!Decoded.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        return (Decoded, Offset);
+
+                    Current = Decoded;
+                }
             }
             catch
             {
-                return null;
             }
+
+            return null;
         }
     }
 }

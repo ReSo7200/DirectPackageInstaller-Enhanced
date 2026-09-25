@@ -9,8 +9,8 @@
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Ink}"
         x:Class="DirectPackageInstaller.Views.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="DirectPackageInstaller">
+        Icon="/Assets/dpi.ico"
+        Title="DPI Enhanced">
 
     <Grid RowDefinitions="54,*">
         <Border Background="{StaticResource Deck}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">

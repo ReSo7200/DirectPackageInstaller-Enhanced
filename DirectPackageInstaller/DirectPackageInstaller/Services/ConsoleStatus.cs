@@ -69,12 +69,33 @@ namespace DirectPackageInstaller.Services
             private set => this.RaiseAndSetIfChanged(ref _Mode, value);
         }
 
+        int RefreshAgain;
+
         public async Task RefreshAsync()
         {
             if (Interlocked.Exchange(ref Refreshing, 1) == 1)
+            {
+                // a probe is running (maybe for an old address): run again after it
+                Interlocked.Exchange(ref RefreshAgain, 1);
                 return;
+            }
 
             try
+            {
+                do
+                {
+                    Interlocked.Exchange(ref RefreshAgain, 0);
+                    await ProbeAsync();
+                } while (Interlocked.Exchange(ref RefreshAgain, 0) == 1);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref Refreshing, 0);
+            }
+        }
+
+        async Task ProbeAsync()
+        {
             {
                 var IP = App.Config.PSIP?.Trim() ?? "";
                 Address = IP;
@@ -99,16 +120,15 @@ namespace DirectPackageInstaller.Services
                 else if (Installer.Payload.ClientRunning)
                     Found = "GoldHEN (payload running)";
 
-                // the IP may have changed while probing
+                // the IP changed while probing: probe the new one
                 if (IP != (App.Config.PSIP?.Trim() ?? ""))
+                {
+                    Interlocked.Exchange(ref RefreshAgain, 1);
                     return;
+                }
 
                 Link = Found != null ? ConsoleLink.Online : ConsoleLink.Offline;
                 Mode = Found ?? "No installer answering";
-            }
-            finally
-            {
-                Interlocked.Exchange(ref Refreshing, 0);
             }
         }
     }

@@ -40,14 +40,27 @@ namespace DirectPackageInstaller.Views
 
             ((MainViewModel)View.DataContext).PropertyChanged += (_, e) =>
             {
+                // debounced (typing an IP fires per keystroke); by the time it runs
+                // MainView has copied PS4IP into App.Config
                 if (e.PropertyName == nameof(MainViewModel.PS4IP))
-                    _ = ConsoleStatus.Instance.RefreshAsync();
+                {
+                    IpChanged.Stop();
+                    IpChanged.Start();
+                }
+            };
+
+            IpChanged.Tick += (_, _) =>
+            {
+                IpChanged.Stop();
+                _ = ConsoleStatus.Instance.RefreshAsync();
             };
 
             KeyDown += OnKeyDown;
             Opened += MainWindowOpened;
             Closing += MainWindowClosing;
         }
+
+        readonly Avalonia.Threading.DispatcherTimer IpChanged = new() { Interval = TimeSpan.FromMilliseconds(700) };
 
         void ShowPage()
         {
@@ -91,6 +104,13 @@ namespace DirectPackageInstaller.Views
         }
 
         public void ShowDirectLink() => NavLink.IsChecked = true;
+
+        /// <summary>Show a file's full package details on the Direct link page.</summary>
+        public void OpenInDirectLink(string Source)
+        {
+            ShowDirectLink();
+            View.OpenSource(Source);
+        }
 
         private async void MainWindowOpened(object? sender, EventArgs e)
         {

@@ -69,7 +69,10 @@ namespace DirectPackageInstaller.Host
             try
             {
                 if (!EnsureListener(PCIP))
+                {
+                    Installer.LastError = "Couldn't open the port the PS4 payload connects back to.";
                     return false;
+                }
 
                 // 1) a resident payload is already waiting
                 var Connection = TakeLiveConnection();
@@ -78,10 +81,16 @@ namespace DirectPackageInstaller.Host
 
                 // 2) none (or it died): inject once, wait for its callback
                 if (!await TryConnectSocket(PS4IP))
+                {
+                    Installer.LastError = "GoldHEN's payload server isn't answering (ports 9090/9021/9020). Turn on BinLoader in GoldHEN settings, or open Remote Package Installer.";
                     return false;
+                }
 
                 if (!InjectPayload(PCIP))
+                {
+                    Installer.LastError = "Sending the installer payload to GoldHEN failed. Try again.";
                     return false;
+                }
 
                 DateTime WaitBegin = DateTime.Now;
                 while ((DateTime.Now - WaitBegin).TotalMilliseconds < CallbackTimeoutMs)
@@ -97,6 +106,7 @@ namespace DirectPackageInstaller.Host
                     await Task.Delay(100);
                 }
 
+                Installer.LastError = "The PS4 payload didn't connect back to this PC. Check the PC address in Settings and that Windows Firewall allows DirectPackageInstaller.";
                 return false;
             }
             finally

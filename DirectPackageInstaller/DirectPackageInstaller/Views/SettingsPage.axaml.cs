@@ -33,20 +33,37 @@ namespace DirectPackageInstaller.Views
                 }
             };
 
+            AdaptersChanged.Tick += (_, _) =>
+            {
+                AdaptersChanged.Stop();
+                FillAdapters();
+            };
+
+            ViewModels.MainViewModel? Subscribed = null;
             DataContextChanged += (_, _) =>
             {
-                if (Model != null)
-                    Model.PropertyChanged += (_, e) =>
-                    {
-                        // re-rank "same network" when the console address changes
-                        if (e.PropertyName is nameof(ViewModels.MainViewModel.PS4IP) or nameof(ViewModels.MainViewModel.PCIP))
-                            FillAdapters();
-                    };
+                if (Subscribed != null)
+                    Subscribed.PropertyChanged -= OnModelChanged;
+                Subscribed = Model;
+                if (Subscribed != null)
+                    Subscribed.PropertyChanged += OnModelChanged;
                 FillAdapters();
             };
         }
 
         ViewModels.MainViewModel? Model => DataContext as ViewModels.MainViewModel;
+
+        readonly Avalonia.Threading.DispatcherTimer AdaptersChanged = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+        /// <summary>Re-rank "same network" when the addresses change (debounced: fires per keystroke).</summary>
+        void OnModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ViewModels.MainViewModel.PS4IP) or nameof(ViewModels.MainViewModel.PCIP))
+            {
+                AdaptersChanged.Stop();
+                AdaptersChanged.Start();
+            }
+        }
 
         bool Filling;
 

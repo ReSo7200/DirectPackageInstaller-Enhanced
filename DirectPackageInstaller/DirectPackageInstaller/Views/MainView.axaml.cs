@@ -38,6 +38,12 @@ namespace DirectPackageInstaller.Views
         public INetworkManagement? AdapterHelper = null;
 
         private Stream? PKGStream;
+
+        /// <summary>
+        /// The package shown on this page. Installer.CurrentPKG is only set from it
+        /// under Installer.PushLock, so a Library queue push can't swap it underneath.
+        /// </summary>
+        private PKGHelper.PKGInfo LoadedPKG;
         
         private PkgReader PKGParser;
         private Pkg PKG;
@@ -130,6 +136,16 @@ namespace DirectPackageInstaller.Views
                     TopMenu.IsVisible = App.IsSingleView || PackagesMenu.IsVisible;
             };
         }
+        /// <summary>Load a file or link as if it was typed in and Open was pressed (Library "Open in Direct link").</summary>
+        public void OpenSource(string Source)
+        {
+            if (Model == null)
+                return;
+
+            Model.CurrentURL = Source;
+            BtnLoadOnClick(null, new RoutedEventArgs());
+        }
+
         public async Task OnShown(MainWindow? Parent)
         {
             if (Model == null)
@@ -169,6 +185,8 @@ namespace DirectPackageInstaller.Views
                 // on unless explicitly turned off (older Settings.ini files don't have it)
                 var AutoCheckConsole = IniReader.GetValue("AutoCheckConsole");
                 App.Config.AutoCheckConsole = string.IsNullOrWhiteSpace(AutoCheckConsole) || IniReader.GetBooleanValue("AutoCheckConsole");
+                var CheckOfficialUpdates = IniReader.GetValue("CheckOfficialUpdates");
+                App.Config.CheckOfficialUpdates = string.IsNullOrWhiteSpace(CheckOfficialUpdates) || IniReader.GetBooleanValue("CheckOfficialUpdates");
                 App.Config.AutoSplitPKG = IniReader.GetBooleanValue("AutoSplitPKG");
 
                 App.Config.PayloadPort = IniReader.GetIntValue("PayloadPort");
@@ -198,6 +216,7 @@ namespace DirectPackageInstaller.Views
                     ShowError = false,
                     ShowTransferProgress = true,
                     AutoCheckConsole = true,
+                    CheckOfficialUpdates = true,
                     SkipUpdateCheck = false,
                     EnableDHCP = false,
                     AllDebridApiKey = null,
@@ -222,6 +241,7 @@ namespace DirectPackageInstaller.Views
             Model.ProxyMode = App.Config.ProxyDownload;
             Model.ShowTransferProgress = App.Config.ShowTransferProgress;
             Model.AutoCheckConsole = App.Config.AutoCheckConsole;
+            Model.CheckOfficialUpdates = App.Config.CheckOfficialUpdates;
             Model.UseAllDebrid = App.Config.UseAllDebrid;
             Model.UseDebridLink = App.Config.UseDebridLink;
             Model.SegmentedMode = App.Config.SegmentedDownload;
@@ -700,7 +720,7 @@ namespace DirectPackageInstaller.Views
 
                 await SetStatus("Reading PKG...");
 
-                var Info = Installer.CurrentPKG = PKGStream.GetPKGInfo() ?? throw new AbortException("Failed to read the PKG information");
+                var Info = LoadedPKG = PKGStream.GetPKGInfo() ?? throw new AbortException("Failed to read the PKG information");
 
                 await SetStatus(Info.Description);
 
@@ -844,6 +864,9 @@ namespace DirectPackageInstaller.Views
                 case "AutoCheckConsole":
                     App.Config.AutoCheckConsole = Model.AutoCheckConsole;
                     break;
+                case "CheckOfficialUpdates":
+                    App.Config.CheckOfficialUpdates = Model.CheckOfficialUpdates;
+                    break;
                 case "PS4IP":
                     App.Config.PSIP = Model.PS4IP;
                     break;
@@ -957,7 +980,7 @@ namespace DirectPackageInstaller.Views
             Model.UseDebridLink = !Model.UseDebridLink;
         }
 
-        private async Task<bool> Install(string URL, bool Silent)
+        private async Task<bool> Install(string URL, bool Silent, PKGHelper.PKGInfo? Package = null)
         {
             if (string.IsNullOrWhiteSpace(App.Config.PSIP) || string.IsNullOrWhiteSpace(App.Config.PCIP))
             {
@@ -983,7 +1006,16 @@ namespace DirectPackageInstaller.Views
                     }
                 }
 
-                return await Installer.PushPackage(App.Config, InputType, PKGStream!, URL, CurrentDecompressor, CurrentDecompressorVolumes, SetStatus, () => Status.Text, Silent);
+                await Installer.PushLock.WaitAsync();
+                try
+                {
+                    Installer.CurrentPKG = Package ?? LoadedPKG;
+                    return await Installer.PushPackage(App.Config, InputType, PKGStream!, URL, CurrentDecompressor, CurrentDecompressorVolumes, SetStatus, () => Status.Text, Silent);
+                }
+                finally
+                {
+                    Installer.PushLock.Release();
+                }
             }
             catch
             {
@@ -1017,6 +1049,7 @@ namespace DirectPackageInstaller.Views
             foreach (var File in Files.ToArray())
             {
                 var ContentSource = tbURL.Text;
+                PKGHelper.PKGInfo? ItemPKG = null;
                 
                 if (string.IsNullOrWhiteSpace(ContentSource))
                     ContentSource = File;
@@ -1035,7 +1068,7 @@ namespace DirectPackageInstaller.Views
                         if (!Stream.CanSeek)
                             Stream = new ReadSeekableStream(Stream, TempHelper.GetTempFile(null));
 
-                        Installer.CurrentPKG = Stream.GetPKGInfo() ?? throw new Exception();
+                        ItemPKG = Stream.GetPKGInfo() ?? throw new Exception();
                     }
                     catch
                     {
@@ -1053,7 +1086,7 @@ namespace DirectPackageInstaller.Views
                     try
                     {
                         using FileStream Stream = new FileStream(File, FileMode.Open);
-                        Installer.CurrentPKG = Stream.GetPKGInfo() ?? throw new Exception();
+                        ItemPKG = Stream.GetPKGInfo() ?? throw new Exception();
                     } 
                     catch 
                     { 
@@ -1061,7 +1094,7 @@ namespace DirectPackageInstaller.Views
                     }
                 }
 
-                if (!await Install(ContentSource, true) && !ErrorIgnored)
+                if (!await Install(ContentSource, true, ItemPKG) && !ErrorIgnored)
                 {
                     var Reply = await MessageBox.ShowAsync("Continue trying install the others packages?","DirectPackageInstaller", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     if (Reply != DialogResult.Yes){

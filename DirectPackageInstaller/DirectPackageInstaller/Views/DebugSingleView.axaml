@@ -8,7 +8,7 @@
         Width="800"
         Height="450"
         x:Class="DirectPackageInstaller.Views.DebugSingleView"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/dpi.ico"
         Title="DirectPackageInstaller">
         <views:SingleView Name="View"/>
 </Window>

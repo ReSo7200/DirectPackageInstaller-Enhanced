@@ -8,7 +8,7 @@
         x:Class="DirectPackageInstaller.Views.LinkList"
         d:DataContext="ViewModels.LinkListViewModel"
         WindowStartupLocation="CenterOwner"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/dpi.ico"
         Title="Link List"
         Width="700"
         Height="400"

@@ -16,11 +16,14 @@ A fork of [marcussacana/DirectPackageInstaller](https://github.com/marcussacana/
   - **Move between system and extended storage** (right-click). Done on the console like Itemzflow's restore: the installed packages are set aside on the same drive, the title is removed with Remote Package Installer, and the payload installs each package from that file on the other drive. Nothing is sent from the PC; the copy set aside is only deleted after the console's task finished, and an interrupted move is found again and can be retried.
   - **Copy captures:** screenshots and video clips to `Pictures\DPI Captures`, a folder per game.
   - **Back up saves:** a game's saved data for every console user, zipped to `Documents\DPI Save Backups` (restore with Apollo Save Tool).
+  - **Game patches:** GoldHEN's patch database (60 FPS, resolution and more, from PS-Game-Patch) for the installed version; switch them on and save, and they apply when the game starts (needs GoldHEN's Game Patch plugin).
 - **Install to** system or extended storage per package (experimental payload): it switches the console's Application Install Location setting around each install and puts it back.
 - **Unlock-key DLC** (no-data licence packages, which the console's downloader refuses) are copied to `/data/pkg` for GoldHEN's Package Installer, and show as installed afterwards.
 - **Check a package for damage** before sending it (recomputes the checksums inside the PKG), **BACKPORT** badges on updates rebuilt for older firmware, split packages (`_0.pkg`, `_1.pkg`, …), official update downloads, library tidy-up (clear names, game folders, duplicates to the Recycle Bin), Explorer right-click menu.
 - **Homebrew page:** free PS4 apps (Apollo Save Tool, ezRemote Client, the Homebrew Store app, GoldHEN Cheat Manager, or any GitHub project you add) downloaded from their authors' releases and sent like any PKG.
 - **Android:** the same pages under bottom tabs, sized for phones.
+- **Settings:** send your own payload (.bin/.elf) to GoldHEN's BinLoader.
+- `Tools/FakePS4`: a fake console on localhost to test moves end to end without a PS4.
 - Buttons are only enabled when they can do something, and say why when they can't; pop-ups tell you when sends and moves finish.
 
 ### Build (Windows)

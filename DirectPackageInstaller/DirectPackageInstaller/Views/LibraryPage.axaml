@@ -59,7 +59,14 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:LibraryFolder">
                         <Border Classes="folder" Classes.offline="{Binding !Available}" BorderThickness="1"
+                                Tag="{Binding Path}"
                                 CornerRadius="4" Padding="9,2,2,2" Margin="0,0,6,6" ToolTip.Tip="{Binding Tip}">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Organize into game folders…" Tag="{Binding Path}" Click="MenuOrganizeClick"/>
+                                    <MenuItem Header="Open in Explorer" Tag="{Binding Path}" Click="MenuOpenFolderClick"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <TextBlock Classes="mono" Text="{Binding Label}" VerticalAlignment="Center" MaxWidth="460"
                                            TextTrimming="PrefixCharacterEllipsis"/>
@@ -97,6 +104,10 @@
                                     <Separator/>
                                     <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"/>
                                     <MenuItem Header="Copy path" Tag="{Binding}" Click="MenuCopyClick"/>
+                                    <MenuItem Header="Rename to a clear name…" Tag="{Binding}" Click="MenuRenameClick"
+                                              IsVisible="{Binding CanRename}"/>
+                                    <MenuItem Header="Move this copy to the Recycle Bin…" Tag="{Binding}" Click="MenuRecycleClick"
+                                              IsVisible="{Binding IsDuplicate}"/>
                                     <Separator IsVisible="{Binding CanUninstall}"/>
                                     <MenuItem Header="Uninstall from PS4…" Tag="{Binding}" Click="MenuUninstallClick"
                                               IsVisible="{Binding CanUninstall}"/>

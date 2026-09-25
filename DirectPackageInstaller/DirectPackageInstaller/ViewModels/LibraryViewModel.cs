@@ -63,6 +63,10 @@ namespace DirectPackageInstaller.ViewModels
                                  + (NewerOfficial.Length > 0 ? $"\nSony has a newer update: v{NewerOfficial}" : "");
         public bool HasError => Entry.Error != null;
 
+        /// <summary>Single-file packages with readable details can be renamed to the standard name.</summary>
+        public bool CanRename => Entry.Parts <= 1 && Entry.Error == null && Entry.TitleId.Length > 0
+                                 && !string.Equals(Path.GetFileName(Entry.Path), LibraryTidy.StandardName(Entry), StringComparison.OrdinalIgnoreCase);
+
         public IBrush KindBrush => Entry.Kind switch
         {
             "Game" => Brush("Text"),

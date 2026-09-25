@@ -150,6 +150,90 @@ namespace DirectPackageInstaller.Views
             await Model.CheckConsoleAsync();
         }
 
+        async void MenuRenameClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item)
+                return;
+
+            var NewName = LibraryTidy.StandardName(Item.Entry);
+            var Reply = await MessageBox.ShowAsync(
+                $"Rename\n{Path.GetFileName(Item.Entry.Path)}\n\nto\n{NewName}\n\n(same folder; only the name changes)",
+                "Rename package", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (Reply != DialogResult.Yes)
+                return;
+
+            try
+            {
+                LibraryTidy.Rename(Item.Entry, NewName);
+            }
+            catch (Exception ex)
+            {
+                await MessageBox.ShowAsync("Couldn't rename: " + ex.Message, "Rename package", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            await Model.ScanAsync();
+        }
+
+        async void MenuRecycleClick(object? sender, RoutedEventArgs e)
+        {
+            if (ItemOf(sender) is not { } Item)
+                return;
+
+            var Reply = await MessageBox.ShowAsync(
+                $"Move this copy to the Recycle Bin?\n\n{Item.Entry.Path}\n\nThe other copy stays in the library. You can restore it from the Recycle Bin.",
+                "Remove duplicate", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (Reply != DialogResult.Yes)
+                return;
+
+            try
+            {
+                LibraryTidy.Recycle(Item.Entry);
+            }
+            catch (Exception ex)
+            {
+                await MessageBox.ShowAsync(ex.Message, "Remove duplicate", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            await Model.ScanAsync();
+        }
+
+        async void MenuOrganizeClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is not string Root || !Directory.Exists(Root))
+                return;
+
+            var Moves = LibraryTidy.PlanOrganize(Root, Model.Entries);
+            if (Moves.Count == 0)
+            {
+                await MessageBox.ShowAsync("Nothing to organize: every package in this folder is already in a subfolder.",
+                    "Organize into game folders", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var Folders = Moves.Select(x => Path.GetFileName(Path.GetDirectoryName(x.To)!)).Distinct().ToList();
+            var Preview = string.Join("\n", Folders.Take(12).Select(x => "  " + x)) + (Folders.Count > 12 ? $"\n  … and {Folders.Count - 12} more" : "");
+            var Reply = await MessageBox.ShowAsync(
+                $"Move {Moves.Count} files in\n{Root}\ninto {Folders.Count} game folders?\n\n{Preview}\n\nFiles only move within this folder; nothing is deleted.",
+                "Organize into game folders", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (Reply != DialogResult.Yes)
+                return;
+
+            var (Moved, Failed) = LibraryTidy.Apply(Moves);
+            await Model.ScanAsync();
+            if (Failed.Count > 0)
+                await MessageBox.ShowAsync($"Moved {Moved} files. These couldn't be moved:\n" + string.Join("\n", Failed.Take(10)),
+                    "Organize into game folders", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        void MenuOpenFolderClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is string Folder && Directory.Exists(Folder))
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Folder) { UseShellExecute = true }); }
+                catch { }
+            }
+        }
+
         async void MenuCopyClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item && TopLevel.GetTopLevel(this)?.Clipboard is { } Clipboard)

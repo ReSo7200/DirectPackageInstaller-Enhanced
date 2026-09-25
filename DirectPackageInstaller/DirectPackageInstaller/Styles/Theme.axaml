@@ -82,7 +82,7 @@
         </ResourceDictionary>
     </Styles.Resources>
 
-    <Style Selector="Window, UserControl">
+    <Style Selector=":is(Window), :is(UserControl)">
         <Setter Property="FontFamily" Value="{StaticResource Body}"/>
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
     </Style>

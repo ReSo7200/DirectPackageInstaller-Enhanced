@@ -26,6 +26,7 @@ public partial class SingleView : UserControl
     }
 
     public MainView Main;
+    public MobileShell? Shell;
     
     private async void OnInitialized(object? sender, EventArgs e)
     {
@@ -33,9 +34,12 @@ public partial class SingleView : UserControl
             DataContext = new MainViewModel()
         };
         
-        _ = CallView(Main, false);
+        // the same pages as the desktop window, with tabs at the bottom
+        Shell = new MobileShell(Main);
+        _ = CallView(Shell, false);
         
         await Main.OnShown(null);
+        Shell.OnStarted();
         
     }
 

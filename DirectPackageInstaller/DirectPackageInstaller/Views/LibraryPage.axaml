@@ -9,12 +9,12 @@
     <Grid RowDefinitions="Auto,Auto,*,Auto">
 
         <!-- header -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="28,22,28,14">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="28,22,28,14" Classes="pagehead">
             <StackPanel Spacing="2">
                 <TextBlock Classes="h1" Text="Library"/>
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}"/>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Classes="headbuttons">
                 <Button Name="BtnCheck" ToolTip.Tip="Ask the PS4 which of these are installed">
                     <TextBlock Text="{Binding CheckButtonText}"/>
                 </Button>
@@ -24,11 +24,11 @@
         </Grid>
 
         <!-- filters + folders -->
-        <StackPanel Grid.Row="1" Margin="28,0,28,12" Spacing="10">
-            <Grid ColumnDefinitions="Auto,Auto,*">
+        <StackPanel Grid.Row="1" Margin="28,0,28,12" Spacing="10" Classes="pagebody">
+            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto" Classes="filters">
                 <TextBox Name="SearchBox" Width="290" Text="{Binding Search}"
                          Watermark="Search title, CUSA ID or file name"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="14,0,0,0" VerticalAlignment="Center">
+                <WrapPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center" Classes="chips">
                     <RadioButton Classes="chip" GroupName="kind" Name="FilterAll" IsChecked="True">All</RadioButton>
                     <RadioButton Classes="chip" GroupName="kind" Name="FilterGames">Games</RadioButton>
                     <RadioButton Classes="chip" GroupName="kind" Name="FilterUpdates">Updates</RadioButton>
@@ -44,8 +44,8 @@
                         <ComboBoxItem>Sort: newest files</ComboBoxItem>
                         <ComboBoxItem>Sort: largest</ComboBoxItem>
                     </ComboBox>
-                </StackPanel>
-                <TextBlock Grid.Column="2" Classes="muted" FontSize="12" TextWrapping="Wrap" TextAlignment="Right"
+                </WrapPanel>
+                <TextBlock Grid.Column="2" Classes="muted summary" FontSize="12" TextWrapping="Wrap" TextAlignment="Right"
                            VerticalAlignment="Center" Margin="16,0,0,0" Text="{Binding ConsoleSummary}"
                            MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ConsoleSummary}"/>
             </Grid>
@@ -82,7 +82,7 @@
 
         <!-- grid -->
         <Panel Grid.Row="2">
-            <ListBox Name="Grid" Classes="library" ItemsSource="{Binding Items}" SelectedItems="{Binding Selected}"
+            <ListBox Name="Grid" Classes="library grid" ItemsSource="{Binding Items}" SelectedItems="{Binding Selected}"
                      SelectionMode="Multiple,Toggle" Background="Transparent" Padding="28,4,14,20"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemsPanel>
@@ -209,6 +209,43 @@
     </Grid>
 
     <UserControl.Styles>
+        <!-- phones and narrow windows -->
+        <Style Selector="WrapPanel.chips > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <!-- no ColumnSpan here: a spanning child widens the Auto column and squeezes the title to nothing -->
+        <Style Selector=":is(UserControl).narrow StackPanel.headbuttons">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
+            <Setter Property="Margin" Value="14,0,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.filters TextBox">
+            <Setter Property="Width" Value="NaN"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.filters WrapPanel.chips">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.filters TextBlock.summary">
+            <Setter Property="Grid.Row" Value="2"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow ListBox.grid">
+            <Setter Property="Padding" Value="14,4,0,16"/>
+        </Style>
         <Style Selector="Border.folder">
             <Setter Property="Background" Value="{StaticResource Deck}"/>
             <Setter Property="BorderBrush" Value="{StaticResource Line}"/>

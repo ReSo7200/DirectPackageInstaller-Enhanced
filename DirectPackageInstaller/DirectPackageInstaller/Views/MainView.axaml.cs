@@ -128,12 +128,12 @@ namespace DirectPackageInstaller.Views
             var TopMenu = this.Find<Menu>("TopMenu")!;
             var OptionsMenu = this.Find<MenuItem>("OptionsMenu")!;
             this.Find<StackPanel>("LinkHeader")!.IsVisible = !App.IsSingleView;
-            OptionsMenu.IsVisible = App.IsSingleView;
-            TopMenu.IsVisible = App.IsSingleView;
+            OptionsMenu.IsVisible = false;
+            TopMenu.IsVisible = false;
             PackagesMenu.PropertyChanged += (_, e) =>
             {
                 if (e.Property == IsVisibleProperty)
-                    TopMenu.IsVisible = App.IsSingleView || PackagesMenu.IsVisible;
+                    TopMenu.IsVisible = PackagesMenu.IsVisible;
             };
         }
         /// <summary>Load a file or link as if it was typed in and Open was pressed (Library "Open in Direct link").</summary>
@@ -261,6 +261,7 @@ namespace DirectPackageInstaller.Views
             Model.AllDebridApiKey = App.Config.AllDebridApiKey;
             Model.RealDebridApiKey = App.Config.RealDebridApiKey;
             Model.DebridLinkApiKey = App.Config.DebridLinkApiKey;
+            App.SettingsLoaded = true;
              
             if (App.Config.SearchPS4 || string.IsNullOrEmpty(App.Config.PSIP))
             {
@@ -1427,7 +1428,7 @@ namespace DirectPackageInstaller.Views
             await Installer.StartServer(Model.PCIP);
         }
 
-        private void btnExitOnClick(object? sender, RoutedEventArgs? e)
+        internal void btnExitOnClick(object? sender, RoutedEventArgs? e)
         {
             App.SaveSettings();
             TempHelper.Clear();

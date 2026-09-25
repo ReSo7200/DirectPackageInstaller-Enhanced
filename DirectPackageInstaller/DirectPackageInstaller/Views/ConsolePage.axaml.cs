@@ -14,6 +14,12 @@ namespace DirectPackageInstaller.Views
         public ConsolePage()
         {
             InitializeComponent();
+            // phones / narrow windows: pages restyle through the "narrow" class
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == BoundsProperty)
+                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
+            };
         }
 
         /// <summary>Called by the window once the library exists (to show "N PKGs in library").</summary>
@@ -42,7 +48,7 @@ namespace DirectPackageInstaller.Views
         void MenuShowInLibraryClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)
-                MainWindow.Instance?.ShowInLibrary(Item.TitleId);
+                AppShell.Current?.ShowInLibrary(Item.TitleId);
         }
 
         async void MenuCopyIdClick(object? sender, RoutedEventArgs e)

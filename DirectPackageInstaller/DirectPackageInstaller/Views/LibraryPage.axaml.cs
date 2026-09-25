@@ -17,6 +17,12 @@ namespace DirectPackageInstaller.Views
         public LibraryPage()
         {
             InitializeComponent();
+            // phones / narrow windows: pages restyle through the "narrow" class
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == BoundsProperty)
+                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
+            };
             DataContext = new LibraryViewModel();
 
             BtnAddFolder.Click += AddFolderClick;
@@ -95,13 +101,13 @@ namespace DirectPackageInstaller.Views
                 return;
 
             UpdateDownloads.Instance.Start(Patch, Item.Entry.Title, Folder);
-            MainWindow.Instance?.ShowQueue();
+            AppShell.Current?.ShowQueue();
         }
 
         void MenuInspectClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)
-                MainWindow.Instance?.OpenInDirectLink(Item.Entry.Path);
+                AppShell.Current?.OpenInDirectLink(Item.Entry.Path);
         }
 
         void MenuRevealClick(object? sender, RoutedEventArgs e)
@@ -242,6 +248,18 @@ namespace DirectPackageInstaller.Views
 
         async void AddFolderClick(object? sender, RoutedEventArgs e)
         {
+            // phones: the app's own browser (direct paths, the library scans them itself)
+            if (App.IsSingleView)
+            {
+                var Picker = new FilePicker { FolderMode = true };
+                await Picker.OpenDir(App.RootDir);
+                await SingleView.CallView(Picker, false);
+                foreach (var Picked in Picker.SelectedFiles)
+                    if (Directory.Exists(Picked))
+                        await Model.AddFolderAsync(Picked);
+                return;
+            }
+
             var Top = TopLevel.GetTopLevel(this);
             if (Top == null)
                 return;

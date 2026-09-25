@@ -9,13 +9,14 @@ using DirectPackageInstaller.ViewModels;
 
 namespace DirectPackageInstaller.Views
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, IAppShell
     {
         public static MainWindow Instance;
 
         public MainWindow()
         {
             Instance = this;
+            AppShell.Current = this;
 
             InitializeComponent();
 

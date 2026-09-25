@@ -14,6 +14,12 @@ namespace DirectPackageInstaller.Views
         public SettingsPage()
         {
             InitializeComponent();
+            // phones / narrow windows: pages restyle through the "narrow" class
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == BoundsProperty)
+                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
+            };
 
             VersionText.Text = $"DPI Enhanced {SelfUpdate.CurrentVersion}";
 
@@ -21,15 +27,25 @@ namespace DirectPackageInstaller.Views
             DhcpSwitch.Click += DhcpClick;
             BtnRestartServer.Click += (_, _) => Host?.RestartServer_OnClick(this, null);
             BtnOpenData.Click += (_, _) => OpenDataFolder();
+            BtnOpenData.IsVisible = !App.IsAndroid;
+            ExitRow.IsVisible = App.IsAndroid;
+            BtnExit.Click += (_, _) => Host?.btnExitOnClick(this, null);
 
             BtnRefreshAdapters.Click += (_, _) => FillAdapters();
 
             // experimental payload: stored straight in App.Config (not part of the main view model)
-            AttachedToVisualTree += (_, _) =>
+            // the page attaches before Settings.ini is read: sync again whenever it's shown
+            void SyncExperimental()
             {
                 ExperimentalSwitch.IsChecked = App.Config.ExperimentalPayload;
                 StorageBox.SelectedIndex = App.Config.InstallStorage + 1;
                 StorageBox.IsEnabled = App.Config.ExperimentalPayload;
+            }
+            AttachedToVisualTree += (_, _) => SyncExperimental();
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == IsVisibleProperty && IsVisible)
+                    SyncExperimental();
             };
             ExperimentalSwitch.IsCheckedChanged += async (_, _) =>
             {
@@ -44,7 +60,7 @@ namespace DirectPackageInstaller.Views
             };
             StorageBox.SelectionChanged += (_, _) =>
             {
-                if (StorageBox.SelectedIndex < 0)
+                if (StorageBox.SelectedIndex < 0 || StorageBox.SelectedIndex - 1 == App.Config.InstallStorage)
                     return;
                 App.Config.InstallStorage = StorageBox.SelectedIndex - 1;
                 App.SaveSettings();

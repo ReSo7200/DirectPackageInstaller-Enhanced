@@ -9,6 +9,12 @@ namespace DirectPackageInstaller.Views
         public QueuePage()
         {
             InitializeComponent();
+            // phones / narrow windows: pages restyle through the "narrow" class
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == BoundsProperty)
+                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
+            };
             DataContext = SendQueue.Instance;
 
             BtnClearFinished.Click += (_, _) => SendQueue.Instance.ClearFinished();

@@ -127,8 +127,16 @@ namespace DirectPackageInstaller
             base.OnFrameworkInitializationCompleted();
         }
 
+        /// <summary>
+        /// Set once MainView has read Settings.ini. Until then App.Config holds blank
+        /// defaults, and saving would overwrite the user's settings with them.
+        /// </summary>
+        public static bool SettingsLoaded { get; set; }
+
         public static void SaveSettings()
         {
+            if (!SettingsLoaded)
+                return;
             try
             {
                 var IniWriter = new Ini(App.SettingsPath, "Settings");

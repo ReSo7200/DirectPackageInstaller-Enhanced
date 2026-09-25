@@ -6,29 +6,29 @@
              x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,Auto,*">
-        <Grid ColumnDefinitions="*,Auto" Margin="28,22,28,14">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="28,22,28,14" Classes="pagehead">
             <StackPanel Spacing="2">
                 <TextBlock Classes="h1" Text="On PS4"/>
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}" TextWrapping="Wrap"/>
                 <TextBlock FontFamily="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Text}"
                            Text="{Binding FreeSpace}" IsVisible="{Binding HasFreeSpace}" Margin="0,4,0,0"/>
             </StackPanel>
-            <Button Grid.Column="1" Name="BtnRefresh" Classes="primary" VerticalAlignment="Center" MinWidth="110"
+            <Button Grid.Column="1" Name="BtnRefresh" Classes="primary headbutton" VerticalAlignment="Center" MinWidth="110"
                     IsEnabled="{Binding !IsLoading}" Content="{Binding RefreshText}"
                     ToolTip.Tip="Read what's installed on the console (GoldHEN FTP)"/>
         </Grid>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="28,0,28,12" IsVisible="{Binding Loaded}">
-            <TextBox Width="290" Text="{Binding Search}" Watermark="Search title or CUSA ID" Margin="0,0,8,0"/>
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="28,0,28,12" IsVisible="{Binding Loaded}" Classes="pagebody chips">
+            <TextBox Width="290" Text="{Binding Search}" Watermark="Search title or CUSA ID" Margin="0,0,8,0" Classes="search"/>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterAll" IsChecked="True" VerticalAlignment="Center">All</RadioButton>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterGames" VerticalAlignment="Center">Games</RadioButton>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterApps" VerticalAlignment="Center">Apps</RadioButton>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterExt" VerticalAlignment="Center">Extended storage</RadioButton>
-        </StackPanel>
+        </WrapPanel>
 
         <Panel Grid.Row="2">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Items}" Margin="28,4,14,20">
+                <ItemsControl ItemsSource="{Binding Items}" Margin="28,4,14,20" Classes="grid">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel/>
@@ -90,4 +90,29 @@
             </StackPanel>
         </Panel>
     </Grid>
+
+    <UserControl.Styles>
+        <Style Selector="WrapPanel.chips > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Button.headbutton">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow WrapPanel.pagebody">
+            <Setter Property="Margin" Value="14,0,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBox.search">
+            <Setter Property="Width" Value="NaN"/>
+            <Setter Property="MinWidth" Value="260"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow ItemsControl.grid">
+            <Setter Property="Margin" Value="14,4,0,16"/>
+        </Style>
+    </UserControl.Styles>
 </UserControl>

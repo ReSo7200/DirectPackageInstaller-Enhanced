@@ -16,6 +16,23 @@ namespace DirectPackageInstaller.Views;
 public partial class FilePicker : UserControl
 {
     public List<string> SelectedFiles { get; set; } = new List<string>();
+
+    /// <summary>Pick a folder: the OK button always shows and returns the folder being browsed.</summary>
+    public bool FolderMode
+    {
+        get => _FolderMode;
+        set
+        {
+            _FolderMode = value;
+            var Ok = this.Find<Button>("btnOK");
+            if (Ok != null && value)
+            {
+                Ok.Content = "Use this folder";
+                Ok.IsVisible = true;
+            }
+        }
+    }
+    bool _FolderMode;
     private FilePickerModel Model => (FilePickerModel)DataContext!;
     public FilePicker()
     {
@@ -208,6 +225,9 @@ public partial class FilePicker : UserControl
 
     private void Open_OnClick(object? sender, RoutedEventArgs e)
     {
+        if (FolderMode)
+            SelectedFiles = new List<string> { Model.CurrentDir ?? LastDir ?? "" };
+
         Model.Result = DialogResult.OK;
         SingleView.ReturnView(this);
     }

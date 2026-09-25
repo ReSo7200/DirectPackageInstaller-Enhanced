@@ -80,7 +80,7 @@ namespace DirectPackageInstaller.Views
                     Enabled &= Console.HasRpi;
                 if (Entry.Classes.Contains("move"))
                 {
-                    var Why = ConsoleMove.WhyNot();
+                    var Why = ConsoleMove.WhyNot((Entry.Tag as LibraryItem)?.Entry.TitleId);
                     Enabled &= Why == null;
                     ToolTip.SetTip(Entry, Why ?? "The console copies it to the other drive and removes the old copy. Nothing is sent from this device.");
                     ToolTip.SetShowOnDisabled(Entry, true);

@@ -8,7 +8,7 @@ namespace DirectPackageInstaller.Views
     {
         public static async Task AskAndStartAsync(string TitleId, string Title, string Category, bool ToExtended)
         {
-            if (ConsoleMove.WhyNot() is { } Why)
+            if (ConsoleMove.WhyNot(TitleId) is { } Why)
             {
                 await MessageBox.ShowAsync(Why + ".", "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;

@@ -65,7 +65,7 @@ namespace DirectPackageInstaller.Views
                 }
                 if (Entry.Classes.Contains("move"))
                 {
-                    var Why = Entry.Tag is ConsoleTitleItem { Title.Installing: true } ? "Still installing on the console" : ConsoleMove.WhyNot();
+                    var Why = Entry.Tag is ConsoleTitleItem { Title.Installing: true } ? "Still installing on the console" : ConsoleMove.WhyNot((Entry.Tag as ConsoleTitleItem)?.TitleId);
                     Entry.IsEnabled = Why == null;
                     ToolTip.SetTip(Entry, Why ?? "The console copies it to the other drive and removes the old copy. Nothing is sent from this device.");
                     ToolTip.SetShowOnDisabled(Entry, true);

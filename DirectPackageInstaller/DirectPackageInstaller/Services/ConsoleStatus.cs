@@ -80,6 +80,28 @@ namespace DirectPackageInstaller.Services
             private set => this.RaiseAndSetIfChanged(ref _HasBinLoader, value);
         }
 
+        string _RunningTitleId = "";
+        /// <summary>The title running on the console (discovery reply), "" when none or unknown.</summary>
+        public string RunningTitleId
+        {
+            get => _RunningTitleId;
+            private set => this.RaiseAndSetIfChanged(ref _RunningTitleId, value);
+        }
+
+        string _NowPlaying = "";
+        /// <summary>"Now playing: …" for the status pill's tooltip, "" when nothing runs.</summary>
+        public string NowPlaying
+        {
+            get => _NowPlaying;
+            private set
+            {
+                this.RaiseAndSetIfChanged(ref _NowPlaying, value);
+                this.RaisePropertyChanged(nameof(PillTip));
+            }
+        }
+
+        public string PillTip => "Console connection. Click to check again." + (NowPlaying.Length > 0 ? "\n" + NowPlaying : "");
+
         /// <summary>What's installed can be read (FTP, or RPI for games only).</summary>
         public bool CanRead => FtpOpen || HasRpi;
         public bool IsOffline => Link is ConsoleLink.Offline or ConsoleLink.NoAddress;
@@ -220,6 +242,10 @@ namespace DirectPackageInstaller.Services
                 HasRpi = Rpi;
                 FtpOpen = Ftp;
                 HasBinLoader = BinLoader;
+
+                var Running = await ConsoleScanner.RunningAppAsync(IP);
+                RunningTitleId = Running?.TitleId ?? "";
+                NowPlaying = Running is { TitleId.Length: > 0 } R ? $"Now playing: {(R.Name.Length > 0 ? R.Name : R.TitleId)}" : "";
                 Link = Found != null ? ConsoleLink.Online : ConsoleLink.Offline;
                 Mode = Found ?? await WhyNotAsync(IP, Ftp);
             }

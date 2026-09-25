@@ -127,10 +127,12 @@ namespace DirectPackageInstaller.Services
         static string Root(bool Extended) => Extended ? ConsoleInventory.ExtRoot : "";
         static string HoldOf(MoveJob Job) => $"{Root(!Job.ToExtended)}{HoldFolder}/{Job.TitleId}";
 
-        /// <summary>Why a move can't start now, or null.</summary>
-        public static string? WhyNot()
+        /// <summary>Why a move can't start now (for this title, when given), or null.</summary>
+        public static string? WhyNot(string? TitleId = null)
         {
             var Console = ConsoleStatus.Instance;
+            if (TitleId != null && string.Equals(Console.RunningTitleId, TitleId, StringComparison.OrdinalIgnoreCase))
+                return "The game is running on the console: close it first";
             if (IsBusy)
                 return "Another move is running (see Queue)";
             if (!Console.FtpOpen)

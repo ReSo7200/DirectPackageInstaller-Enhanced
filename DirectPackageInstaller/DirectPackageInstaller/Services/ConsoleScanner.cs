@@ -47,6 +47,58 @@ namespace DirectPackageInstaller.Services
     /// </summary>
     public static class ConsoleScanner
     {
+        /// <summary>
+        /// What the console is running, from its discovery reply ("running-app-titleid" /
+        /// "running-app-name"): ("", "") when nothing runs, null when it didn't answer.
+        /// The console only answers broadcasts, so the query goes to the broadcast
+        /// address of each local network and only this console's reply counts.
+        /// </summary>
+        public static async Task<(string TitleId, string Name)?> RunningAppAsync(string ConsoleIP, int TimeoutMs = 1500)
+        {
+            if (!IPAddress.TryParse(ConsoleIP, out var Console))
+                return null;
+
+            try
+            {
+                using var Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { EnableBroadcast = true };
+                Socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+                var Message = Encoding.ASCII.GetBytes("SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00020020\n");
+                var Targets = new List<IPAddress> { IPAddress.Broadcast };
+                var Bytes = Console.GetAddressBytes();
+                Targets.Add(new IPAddress(new byte[] { Bytes[0], Bytes[1], Bytes[2], 255 })); // the usual /24
+                foreach (var Target in Targets)
+                    try { await Socket.SendToAsync(Message, SocketFlags.None, new IPEndPoint(Target, 987)); } catch { }
+
+                var Buffer = new byte[2048];
+                using var Wait = new CancellationTokenSource(TimeoutMs);
+                while (!Wait.IsCancellationRequested)
+                {
+                    SocketReceiveFromResult Reply;
+                    try { Reply = await Socket.ReceiveFromAsync(Buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), Wait.Token); }
+                    catch { return null; }
+
+                    if (!((IPEndPoint)Reply.RemoteEndPoint).Address.Equals(Console))
+                        continue;
+
+                    string Tid = "", Name = "";
+                    foreach (var Line in Encoding.UTF8.GetString(Buffer, 0, Reply.ReceivedBytes).Split('\n'))
+                    {
+                        var Colon = Line.IndexOf(':');
+                        if (Colon < 0) continue;
+                        var Key = Line.Substring(0, Colon).Trim().ToLowerInvariant();
+                        if (Key == "running-app-titleid") Tid = Line.Substring(Colon + 1).Trim();
+                        if (Key == "running-app-name") Name = Line.Substring(Colon + 1).Trim();
+                    }
+                    return (Tid, Name);
+                }
+            }
+            catch
+            {
+            }
+            return null;
+        }
+
         static readonly (int Port, string Name)[] ServicePorts =
         {
             (12800, "RPI / etaHEN"),

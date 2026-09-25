@@ -246,9 +246,9 @@ namespace DirectPackageInstaller.ViewModels
             int OnExt = All.Count(x => x.Title.OnExtended);
             var Boxes = new List<StorageBox>();
             if (S.HasInternal)
-                Boxes.Add(StorageBox.Of("SYSTEM STORAGE", "Signal", S.InternalFree, S.InternalTotal, All.Count - OnExt));
+                Boxes.Add(StorageBox.Of("SYSTEM", "Signal", S.InternalFree, S.InternalTotal, All.Count - OnExt));
             if (S.HasExtended)
-                Boxes.Add(StorageBox.Of("EXTENDED STORAGE", "Violet", S.ExtendedFree, S.ExtendedTotal, OnExt));
+                Boxes.Add(StorageBox.Of("EXTENDED", "Violet", S.ExtendedFree, S.ExtendedTotal, OnExt));
             Storage = Boxes;
             FreeSpace = Boxes.Count > 0 ? "" : "Free space: not reported by the console";
         }

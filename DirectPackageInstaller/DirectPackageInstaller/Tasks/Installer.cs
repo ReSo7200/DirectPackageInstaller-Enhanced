@@ -45,6 +45,9 @@ namespace DirectPackageInstaller.Tasks
         /// <summary>Set when the console reported the package as already installed.</summary>
         public static bool LastAlreadyInstalled;
 
+        /// <summary>RPI task ID of the last push (for live progress), or null for other install methods.</summary>
+        public static long? LastTaskId;
+
         /// <summary>
         /// Base64 value for a ?b64= query parameter. Escaped because
         /// ParseQueryString turns a raw '+' into a space, which breaks decoding.
@@ -56,6 +59,7 @@ namespace DirectPackageInstaller.Tasks
         {
             LastError = null;
             LastAlreadyInstalled = false;
+            LastTaskId = null;
 
             if (string.IsNullOrEmpty(Config.PSIP) || Config.PSIP == "0.0.0.0")
             {
@@ -367,6 +371,8 @@ namespace DirectPackageInstaller.Tasks
                 {
                     // RPI reports "same version already installed" as success with task_id -1
                     LastAlreadyInstalled = System.Text.RegularExpressions.Regex.IsMatch(Result, "\"task_id\"\\s*:\\s*-1");
+                    var TaskId = RpiTasks.Number(Result, "task_id");
+                    LastTaskId = TaskId is >= 0 ? TaskId : null;
 
                     if (!Silent)
                         await MessageBox.ShowAsync(LastAlreadyInstalled ? "Already installed on the console." : "Package Sent!", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);

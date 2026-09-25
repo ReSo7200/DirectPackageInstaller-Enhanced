@@ -46,6 +46,12 @@
                                         <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}"
                                                    FontWeight="SemiBold" FontSize="12.5" HorizontalAlignment="Right"/>
                                         <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                            <Button Classes="ghost" Padding="10,4" Content="Pause" IsVisible="{Binding CanPause}"
+                                                    Tag="{Binding}" Click="PauseClick" ToolTip.Tip="Pause the download on the console"/>
+                                            <Button Classes="ghost" Padding="10,4" Content="Resume" IsVisible="{Binding CanResume}"
+                                                    Tag="{Binding}" Click="ResumeClick"/>
+                                            <Button Classes="ghost danger" Padding="10,4" Content="Cancel" IsVisible="{Binding CanCancel}"
+                                                    Tag="{Binding}" Click="CancelClick" ToolTip.Tip="Stop the download on the console"/>
                                             <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding CanRetry}"
                                                     Tag="{Binding}" Click="RetryClick"/>
                                             <Button Classes="ghost danger" Padding="10,4" Content="Remove"

@@ -25,6 +25,24 @@ namespace DirectPackageInstaller.Views
                 SendQueue.Instance.Retry(Item);
         }
 
+        async void PauseClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is QueueItem Item)
+                await SendQueue.Instance.PauseAsync(Item);
+        }
+
+        async void ResumeClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is QueueItem Item)
+                await SendQueue.Instance.ResumeAsync(Item);
+        }
+
+        async void CancelClick(object? sender, RoutedEventArgs e)
+        {
+            if ((sender as Control)?.Tag is QueueItem Item)
+                await SendQueue.Instance.CancelAsync(Item);
+        }
+
         void RemoveClick(object? sender, RoutedEventArgs e)
         {
             if ((sender as Control)?.Tag is QueueItem Item)

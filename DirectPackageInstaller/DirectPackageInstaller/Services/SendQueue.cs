@@ -68,6 +68,32 @@ namespace DirectPackageInstaller.Services
         public string Kind => Entry.Kind;
         public string Detail => $"{Entry.TitleId}  ·  v{Entry.AppVersion}  ·  {TransferProgressInfo.FormatBytes(Entry.Size)}";
 
+        long? _TaskId;
+        /// <summary>RPI task on the console: progress then comes from the console itself.</summary>
+        public long? TaskId
+        {
+            get => _TaskId;
+            set { this.RaiseAndSetIfChanged(ref _TaskId, value); RaiseControls(); }
+        }
+
+        bool _IsPaused;
+        public bool IsPaused
+        {
+            get => _IsPaused;
+            set { this.RaiseAndSetIfChanged(ref _IsPaused, value); RaiseControls(); }
+        }
+
+        public bool CanPause => TaskId != null && !IsPaused && !IsFinished;
+        public bool CanResume => TaskId != null && IsPaused && !IsFinished;
+        public bool CanCancel => TaskId != null && !IsFinished;
+
+        void RaiseControls()
+        {
+            this.RaisePropertyChanged(nameof(CanPause));
+            this.RaisePropertyChanged(nameof(CanResume));
+            this.RaisePropertyChanged(nameof(CanCancel));
+        }
+
         /// <summary>Completed ranges of the file (the console may fetch it in pieces).</summary>
         internal readonly ByteRanges Received = new();
 
@@ -83,6 +109,7 @@ namespace DirectPackageInstaller.Services
                 this.RaisePropertyChanged(nameof(CanRetry));
                 this.RaisePropertyChanged(nameof(StateBrush));
                 this.RaisePropertyChanged(nameof(ShowProgress));
+                RaiseControls();
             }
         }
 
@@ -297,6 +324,7 @@ namespace DirectPackageInstaller.Services
                 bool OK;
                 bool AlreadyInstalled;
                 string? Error;
+                long? TaskId;
 
                 // CurrentPKG is shared with Direct link: set it and push under the lock
                 await Installer.PushLock.WaitAsync();
@@ -315,6 +343,7 @@ namespace DirectPackageInstaller.Services
 
                     AlreadyInstalled = Installer.LastAlreadyInstalled;
                     Error = Installer.LastError;
+                    TaskId = Installer.LastTaskId;
                 }
                 finally
                 {
@@ -341,11 +370,131 @@ namespace DirectPackageInstaller.Services
                     Item.State = QueueState.Queued;
                     Item.Message = "The PS4 will start downloading shortly.";
                 }
+
+                // RPI: follow the console's own task (progress, stalls, pause/resume)
+                if (TaskId != null)
+                {
+                    Item.TaskId = TaskId;
+                    _ = MonitorAsync(Item, App.Config.PSIP);
+                }
             }
             catch (Exception ex)
             {
                 Fail(Item, ex.Message);
             }
+        }
+
+        /// <summary>Restart a task after this long without progress.</summary>
+        public static TimeSpan StallTimeout { get; set; } = TimeSpan.FromSeconds(90);
+        public static TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(3);
+        const int MaxAutoResumes = 3;
+
+        /// <summary>
+        /// Poll the console's task until it's downloaded or fails. When the byte
+        /// count stops moving for StallTimeout, pause and resume the task (a
+        /// common fix for stuck downloads), at most MaxAutoResumes times.
+        /// </summary>
+        internal async Task MonitorAsync(QueueItem Item, string ConsoleIP)
+        {
+            long Last = -1;
+            var LastMove = DateTime.UtcNow;
+            int Resumes = 0, Misses = 0;
+            string Note = "";
+
+            void Ui(Action Change) => Dispatcher.UIThread.Post(Change);
+
+            while (Item.TaskId is long Id && !Item.IsFinished)
+            {
+                await Task.Delay(PollInterval);
+
+                if (Item.IsPaused)
+                {
+                    LastMove = DateTime.UtcNow;
+                    continue;
+                }
+
+                var Progress = await RpiTasks.ProgressAsync(ConsoleIP, Id);
+                if (Progress == null)
+                {
+                    // RPI closed or busy: keep the PC-side estimate meanwhile
+                    if (++Misses == 10)
+                        Ui(() => Item.Message = "Remote Package Installer stopped answering; the download may still be running.");
+                    continue;
+                }
+                Misses = 0;
+
+                if (Progress.Error != 0)
+                {
+                    var Reason = InstallErrors.Describe($"0x{Progress.Error:X8}");
+                    Ui(() => Fail(Item, Reason));
+                    return;
+                }
+
+                if (Progress.Finished)
+                {
+                    Ui(() =>
+                    {
+                        Item.State = QueueState.Done;
+                        Item.Progress = 100;
+                        Item.Message = "Downloaded. The console is installing it.";
+                    });
+                    return;
+                }
+
+                if (Progress.Transferred != Last)
+                {
+                    Last = Progress.Transferred;
+                    LastMove = DateTime.UtcNow;
+                }
+                else if (DateTime.UtcNow - LastMove > StallTimeout && Resumes < MaxAutoResumes)
+                {
+                    Resumes++;
+                    LastMove = DateTime.UtcNow;
+                    await RpiTasks.ControlAsync(ConsoleIP, Id, "pause_task");
+                    await Task.Delay(2000);
+                    await RpiTasks.ControlAsync(ConsoleIP, Id, "resume_task");
+                    Note = $"  ·  stalled, restarted {Resumes}x";
+                }
+
+                var Text = $"{TransferProgressInfo.FormatBytes(Progress.Transferred)} of {TransferProgressInfo.FormatBytes(Progress.Length)}"
+                           + (Progress.RestSeconds > 0 ? $"  ·  {FormatRest(Progress.RestSeconds)} left" : "")
+                           + Note;
+                Ui(() =>
+                {
+                    if (Item.IsFinished)
+                        return;
+                    Item.State = QueueState.Downloading;
+                    Item.Progress = Math.Round(Progress.Percent, 1);
+                    Item.Message = Text;
+                });
+            }
+        }
+
+        static string FormatRest(long Seconds) =>
+            Seconds >= 3600 ? $"{Seconds / 3600} h {Seconds % 3600 / 60} min" : Seconds >= 60 ? $"{Seconds / 60} min" : $"{Seconds} s";
+
+        public async Task PauseAsync(QueueItem Item)
+        {
+            if (Item.TaskId is long Id && await RpiTasks.ControlAsync(App.Config.PSIP, Id, "pause_task"))
+            {
+                Item.IsPaused = true;
+                Item.Message = "Paused on the console.";
+            }
+        }
+
+        public async Task ResumeAsync(QueueItem Item)
+        {
+            if (Item.TaskId is long Id && await RpiTasks.ControlAsync(App.Config.PSIP, Id, "resume_task"))
+            {
+                Item.IsPaused = false;
+                Item.Message = "Resuming...";
+            }
+        }
+
+        public async Task CancelAsync(QueueItem Item)
+        {
+            if (Item.TaskId is long Id && await RpiTasks.ControlAsync(App.Config.PSIP, Id, "stop_task"))
+                Fail(Item, "Cancelled. Delete the partial download from Notifications > Downloads on the console.");
         }
 
         static void Fail(QueueItem Item, string Message)
@@ -367,6 +516,10 @@ namespace DirectPackageInstaller.Services
                 var Item = Items.LastOrDefault(x => string.Equals(x.Path, File, StringComparison.OrdinalIgnoreCase)
                                                    && x.State is QueueState.Pushing or QueueState.Queued or QueueState.Downloading or QueueState.Done);
                 if (Item == null)
+                    return;
+
+                // the console reports this one itself (RPI task)
+                if (Item.TaskId != null && Item.State != QueueState.Pushing)
                     return;
 
                 // Positions are relative to the served piece; AutoSplit pieces start at PieceOffset.

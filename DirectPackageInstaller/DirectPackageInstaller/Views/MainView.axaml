@@ -3,27 +3,17 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:DirectPackageInstaller.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="640"
              x:Class="DirectPackageInstaller.Views.MainView"
-             Foreground="White"
-             Background="#171C2C">
+             Background="{StaticResource Ink}">
   <Design.DataContext>
     <viewModels:MainViewModel />
   </Design.DataContext>
-    <Grid DragDrop.AllowDrop="True" Name="MainViewGrid">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="40"/>
-            <RowDefinition Height="40"/>
-            <RowDefinition/>
-            <RowDefinition Height="40"/>
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="330"/>
-            <ColumnDefinition/>
-        </Grid.ColumnDefinitions>
+    <Grid DragDrop.AllowDrop="True" Name="MainViewGrid" RowDefinitions="Auto,Auto,Auto,*,Auto">
 
-        <Menu Grid.ColumnSpan="2">
-            <MenuItem Header="_Options">
+        <!-- Options live in Settings on desktop; the menu stays for phones and multi-PKG archives -->
+        <Menu Grid.Row="0" Name="TopMenu" Margin="20,8,20,0">
+            <MenuItem Header="_Options" Name="OptionsMenu">
                 <MenuItem Header="_Proxy Downloads" Name="btnProxyDownload">
                     <MenuItem.Icon>
                         <CheckBox BorderThickness="0" IsChecked="{Binding ProxyMode, Mode=TwoWay}"/>
@@ -94,63 +84,85 @@
                         </MenuItem>
                     </MenuItem>
                 </MenuItem>
-                
+
                 <MenuItem Header="_Restart Server" Name="btnRestartServer"/>
                 <MenuItem Header="_Exit" Name="btnExit"/>
             </MenuItem>
-            <MenuItem Header="Packages" IsVisible="False" Name="PackagesMenu">
+            <MenuItem Header="Packages in this archive" IsVisible="False" Name="PackagesMenu">
                 <Separator></Separator>
-                <MenuItem Header="Install _All" Name="btnInstallAll"></MenuItem>
+                <MenuItem Header="Install _all" Name="btnInstallAll"></MenuItem>
             </MenuItem>
         </Menu>
 
-        <Grid Grid.Row="1" Grid.ColumnSpan="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="auto"></ColumnDefinition>
-                <ColumnDefinition Width="*"></ColumnDefinition>
-                <ColumnDefinition Width="auto"></ColumnDefinition>
-            </Grid.ColumnDefinitions>
-            <Label Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="5,0,0,0">URL:</Label>
-            <TextBox Grid.Row="0" Grid.Column="1" Margin="5" Text="{Binding CurrentURL, Mode=TwoWay}" Name="tbURL"></TextBox>
-            <Button Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" Margin="5,0,5,0" Name="btnLoad">Open</Button>
-        </Grid>
+        <StackPanel Grid.Row="1" Name="LinkHeader" Margin="28,22,28,14" Spacing="2">
+            <TextBlock Classes="h1" Text="Direct link"/>
+            <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                       Text="Paste a download link, or the path to a .pkg, .rar, .7z or .json on this PC. Quotes from Explorer's “Copy as path” are removed for you."/>
+        </StackPanel>
 
+        <Border Grid.Row="2" Classes="card" Margin="28,0,28,14" Padding="8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Text="{Binding CurrentURL, Mode=TwoWay}" Name="tbURL" BorderThickness="0"
+                         Background="Transparent" FontSize="14"
+                         Watermark="https://…  or  D:\Games\Some Game.pkg"/>
+                <Button Grid.Column="1" Name="btnLoad" Classes="primary" MinWidth="112"
+                        HorizontalContentAlignment="Center">Open</Button>
+            </Grid>
+        </Border>
 
-        <Grid Grid.Row="2" Grid.ColumnSpan="2" Name="PreviewGrid">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="330"/>
-                <ColumnDefinition Width="5"/>
-                <ColumnDefinition/>
-            </Grid.ColumnDefinitions>
-            <Image Name="IconBox"></Image>
-            <GridSplitter Name="MainGridSplitter" Grid.Column="1"></GridSplitter>
+        <Border Grid.Row="3" Classes="card" Margin="28,0,28,0" ClipToBounds="True">
+          <Panel>
+            <Grid Name="PreviewGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="330"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Image Name="IconBox" Margin="12"></Image>
+                <GridSplitter Name="MainGridSplitter" Grid.Column="1" Background="{StaticResource Line}"></GridSplitter>
 
-            <DataGrid Grid.Column="2" Name="PkgInfoGrid" ItemsSource="{Binding PKGParams}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Param" Binding="{Binding Name}"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding Value}"/>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
+                <DataGrid Grid.Column="2" Name="PkgInfoGrid" ItemsSource="{Binding PKGParams}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Param" Binding="{Binding Name}"/>
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+            <Border IsVisible="{Binding #IconBox.Source, Converter={x:Static ObjectConverters.IsNull}}"
+                    Background="{StaticResource Deck}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="420">
+                    <TextBlock Classes="h2" Text="Nothing open yet" HorizontalAlignment="Center"/>
+                    <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                               Text="Press Open to pick a file, or paste a link and press Load. The cover and package details appear here before you install."/>
+                </StackPanel>
+            </Border>
+          </Panel>
+        </Border>
 
-        <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Grid.Column="0" Name="Status"/>
+        <Border Grid.Row="4" Margin="28,10,28,14" MinHeight="22">
+            <TextBlock Name="Status" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                       Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+        </Border>
     </Grid>
     <UserControl.Styles>
-        <Style Selector="CheckBox">
+        <Style Selector="MenuItem > CheckBox, MenuItem CheckBox">
             <Setter Property="Width" Value="20"/>
             <Setter Property="MinHeight" Value="42"/>
             <Setter Property="Margin" Value="0,-6,0,-16"/>
-        </Style>
-        <Style Selector="TextBlock">
-            <Setter Property="VerticalAlignment" Value="Center"></Setter>
-            <Setter Property="Margin" Value="5,0,5,0"></Setter>
         </Style>
         <Style Selector="DataGrid">
             <Setter Property="AutoGenerateColumns" Value="False"/>
             <Setter Property="CanUserResizeColumns" Value="True"/>
             <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="HorizontalScrollBarVisibility" Value="Visible"/>
-            <Setter Property="VerticalScrollBarVisibility" Value="Visible"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource Line}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="DataGridCell">
+            <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+            <Setter Property="FontSize" Value="12"/>
         </Style>
         <Style Selector="MenuItem >> Label">
             <Setter Property="HorizontalAlignment" Value="Right"></Setter>

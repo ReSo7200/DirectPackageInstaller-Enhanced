@@ -33,6 +33,9 @@ namespace DirectPackageInstaller
         public bool ShowError;
         public bool ShowTransferProgress;
 
+        /// <summary>Ask the console what is installed right after startup.</summary>
+        public bool AutoCheckConsole;
+
         public bool AutoSplitPKG;
     }
 }

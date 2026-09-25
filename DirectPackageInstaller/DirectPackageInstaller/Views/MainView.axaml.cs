@@ -116,6 +116,19 @@ namespace DirectPackageInstaller.Views
             AddHandler(DragDrop.DropEvent, DropEventEvent);
 
             btnDHCPService.IsVisible = App.IsWindows;
+
+            // Desktop: options moved to the Settings page, so the menu bar only
+            // appears for the per-archive Packages menu. Phones keep the old menu.
+            var TopMenu = this.Find<Menu>("TopMenu")!;
+            var OptionsMenu = this.Find<MenuItem>("OptionsMenu")!;
+            this.Find<StackPanel>("LinkHeader")!.IsVisible = !App.IsSingleView;
+            OptionsMenu.IsVisible = App.IsSingleView;
+            TopMenu.IsVisible = App.IsSingleView;
+            PackagesMenu.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == IsVisibleProperty)
+                    TopMenu.IsVisible = App.IsSingleView || PackagesMenu.IsVisible;
+            };
         }
         public async Task OnShown(MainWindow? Parent)
         {
@@ -153,6 +166,9 @@ namespace DirectPackageInstaller.Views
                 var ShowTransferProgress = IniReader.GetValue("ShowTransferProgress");
                 App.Config.ShowTransferProgress = string.IsNullOrWhiteSpace(ShowTransferProgress) || IniReader.GetBooleanValue("ShowTransferProgress");
                 App.Config.SkipUpdateCheck = IniReader.GetBooleanValue("SkipUpdateCheck");
+                // on unless explicitly turned off (older Settings.ini files don't have it)
+                var AutoCheckConsole = IniReader.GetValue("AutoCheckConsole");
+                App.Config.AutoCheckConsole = string.IsNullOrWhiteSpace(AutoCheckConsole) || IniReader.GetBooleanValue("AutoCheckConsole");
                 App.Config.AutoSplitPKG = IniReader.GetBooleanValue("AutoSplitPKG");
 
                 App.Config.PayloadPort = IniReader.GetIntValue("PayloadPort");
@@ -181,6 +197,7 @@ namespace DirectPackageInstaller.Views
                     EnableCNL = true,
                     ShowError = false,
                     ShowTransferProgress = true,
+                    AutoCheckConsole = true,
                     SkipUpdateCheck = false,
                     EnableDHCP = false,
                     AllDebridApiKey = null,
@@ -204,6 +221,7 @@ namespace DirectPackageInstaller.Views
             Model.CNLService = App.Config.EnableCNL;
             Model.ProxyMode = App.Config.ProxyDownload;
             Model.ShowTransferProgress = App.Config.ShowTransferProgress;
+            Model.AutoCheckConsole = App.Config.AutoCheckConsole;
             Model.UseAllDebrid = App.Config.UseAllDebrid;
             Model.UseDebridLink = App.Config.UseDebridLink;
             Model.SegmentedMode = App.Config.SegmentedDownload;
@@ -288,7 +306,8 @@ namespace DirectPackageInstaller.Views
                     Model.PS4IP = PS4IP.ToString();
 
                     var NewPCIP = PCIP?.ToString() ?? IPHelper.FindLocalIP(PS4IP.ToString()) ?? "";
-                    if (!string.IsNullOrWhiteSpace(NewPCIP) && NewPCIP != "0.0.0.0")
+                    // keep the PC address the user picked; only fill it when unset
+                    if (!string.IsNullOrWhiteSpace(NewPCIP) && NewPCIP != "0.0.0.0" && (string.IsNullOrWhiteSpace(Model.PCIP) || Model.PCIP == "0.0.0.0"))
                         Model.PCIP = NewPCIP;
 
                     RestartServer_OnClick(null, null);
@@ -425,7 +444,7 @@ namespace DirectPackageInstaller.Views
                 }
             }
         }
-        private async void BtnDHCPServiceOnClick(object? sender, RoutedEventArgs e)
+        internal async void BtnDHCPServiceOnClick(object? sender, RoutedEventArgs e)
         {
             if (Model == null)
                 return;
@@ -822,6 +841,9 @@ namespace DirectPackageInstaller.Views
                 case "ShowTransferProgress":
                     App.Config.ShowTransferProgress = Model.ShowTransferProgress;
                     break;
+                case "AutoCheckConsole":
+                    App.Config.AutoCheckConsole = Model.AutoCheckConsole;
+                    break;
                 case "PS4IP":
                     App.Config.PSIP = Model.PS4IP;
                     break;
@@ -1197,8 +1219,36 @@ namespace DirectPackageInstaller.Views
                 e.DragEffects = DragDropEffects.None;
         }
 
+        /// <summary>
+        /// Explorer's "Copy as path" wraps paths in quotes ("D:\Games\x.pkg");
+        /// strip matching quotes and surrounding whitespace from single-line input.
+        /// </summary>
+        public static string CleanPastedSource(string? Value)
+        {
+            static bool Quoted(string s) => s.Length >= 2 && ((s[0] == '"' && s[^1] == '"') || (s[0] == '\'' && s[^1] == '\''));
+
+            var Clean = (Value ?? "").Trim();
+
+            // only touch quoted input: trimming while typing would eat the space in "D:\My Games"
+            if (Clean.Contains('\n') || !Quoted(Clean))
+                return Value ?? "";
+
+            while (Quoted(Clean))
+                Clean = Clean.Substring(1, Clean.Length - 2).Trim();
+
+            return Clean;
+        }
+
         private void UrlChanged(string Url)
         {
+            var Clean = CleanPastedSource(Url);
+            if (Clean != Url)
+            {
+                // re-enters UrlChanged with the cleaned value
+                App.Callback(() => Model!.CurrentURL = Clean);
+                return;
+            }
+
             InputType = Source.NONE;
 
             btnLoad.Content = (string.IsNullOrWhiteSpace(Url) && !File.Exists(Url)) ? "Open" : "Load";
@@ -1322,22 +1372,15 @@ namespace DirectPackageInstaller.Views
             return $"Sending {Sent} / {Total} ({Info.Percent:P1}) - {Speed}/s";
         }
         
-        private async void RestartServer_OnClick(object? sender, RoutedEventArgs? e)
+        internal async void RestartServer_OnClick(object? sender, RoutedEventArgs? e)
         {
             if (Model == null)
                 return;
             
-            try
-            {
-                Installer.Server?.Stop();
-
-                PS4Server pS4Server = new PS4Server(Model.PCIP);
-                Installer.Server = pS4Server;
-                Installer.Server.Start();
-            }
-            catch (Exception ex){
-                await MessageBox.ShowAsync($"Failed to restart the server, Report a Bug:\n{ex.ToString()}", "Server Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            // StartServer only keeps a server that actually started, and explains a busy port
+            Installer.Server?.Stop();
+            Installer.Server = null;
+            await Installer.StartServer(Model.PCIP);
         }
 
         private void btnExitOnClick(object? sender, RoutedEventArgs? e)

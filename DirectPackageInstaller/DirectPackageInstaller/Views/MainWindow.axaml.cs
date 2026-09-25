@@ -1,8 +1,9 @@
 using System;
 using System.ComponentModel;
-using Acornima.Ast;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using DirectPackageInstaller.Services;
 using DirectPackageInstaller.Tasks;
 using DirectPackageInstaller.ViewModels;
 
@@ -11,62 +12,151 @@ namespace DirectPackageInstaller.Views
     public partial class MainWindow : Window
     {
         public static MainWindow Instance;
+
         public MainWindow()
         {
             Instance = this;
 
             InitializeComponent();
 
-            View = this.Find<MainView>("View");
+            // one view model for Direct link and Settings (they drive the same options)
             View.DataContext = new MainViewModel();
+            SettingsPage.DataContext = View.DataContext;
+            SettingsPage.Host = View;
 
+            ConsolePill.DataContext = ConsoleStatus.Instance;
+            ConsolePill.Click += async (_, _) => await ConsoleStatus.Instance.RefreshAsync();
+
+            NavLibrary.IsCheckedChanged += (_, _) => ShowPage();
+            NavLink.IsCheckedChanged += (_, _) => ShowPage();
+            NavQueue.IsCheckedChanged += (_, _) => ShowPage();
+            NavSettings.IsCheckedChanged += (_, _) => ShowPage();
+
+            SendQueue.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SendQueue.PendingCount))
+                    NavQueue.Tag = SendQueue.Instance.PendingCount > 0 ? SendQueue.Instance.PendingCount.ToString() : null;
+            };
+
+            ((MainViewModel)View.DataContext).PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.PS4IP))
+                    _ = ConsoleStatus.Instance.RefreshAsync();
+            };
+
+            KeyDown += OnKeyDown;
             Opened += MainWindowOpened;
             Closing += MainWindowClosing;
         }
+
+        void ShowPage()
+        {
+            bool LeavingSettings = SettingsPage.IsVisible && NavSettings.IsChecked != true;
+
+            LibraryPage.IsVisible = NavLibrary.IsChecked == true;
+            View.IsVisible = NavLink.IsChecked == true;
+            QueuePage.IsVisible = NavQueue.IsChecked == true;
+            SettingsPage.IsVisible = NavSettings.IsChecked == true;
+
+            // settings used to be saved only on a clean exit
+            if (LeavingSettings)
+            {
+                App.SaveSettings();
+                _ = ConsoleStatus.Instance.RefreshAsync();
+            }
+
+            if (LibraryPage.IsVisible)
+                LibraryPage.OnShown();
+        }
+
+        void OnKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                return;
+
+            RadioButton? Target = e.Key switch
+            {
+                Key.D1 or Key.NumPad1 => NavLibrary,
+                Key.D2 or Key.NumPad2 => NavLink,
+                Key.D3 or Key.NumPad3 => NavQueue,
+                Key.D4 or Key.NumPad4 => NavSettings,
+                _ => null
+            };
+
+            if (Target != null)
+            {
+                Target.IsChecked = true;
+                e.Handled = true;
+            }
+        }
+
+        public void ShowDirectLink() => NavLink.IsChecked = true;
 
         private async void MainWindowOpened(object? sender, EventArgs e)
         {
 #if DEBUG
             this.AttachDevTools();
 #endif
+            // the scan needs no settings; don't make it wait for update checks
+            LibraryPage.OnShown();
+
             await View.OnShown(this);
+
+            // settings are loaded by OnShown
+            ConsoleStatus.Instance.Start();
+            LibraryPage.AutoCheck();
         }
 
-        private bool ForceClose = false;
+        private bool ShutdownDone;
+        private bool ShuttingDown;
 
+        /// <summary>
+        /// Cancel the first close, finish the shutdown work (servers, DHCP network
+        /// restore), then close for real. Previously the process could exit
+        /// before the network adapter was restored.
+        /// </summary>
         private async void MainWindowClosing(object? sender, CancelEventArgs e)
         {
+            if (ShutdownDone)
+                return;
+
+            e.Cancel = true;
+            if (ShuttingDown)
+                return;
+
+            ShuttingDown = true;
             try
             {
-                bool PS4Connected = Installer.Server?.Connections > 0;
-                PS4Connected |= (DateTime.Now - Installer.Server?.LastRequest)?.TotalSeconds < 5;
+                bool PS4Downloading = Installer.Server?.Connections > 0;
+                PS4Downloading |= (DateTime.Now - Installer.Server?.LastRequest)?.TotalSeconds < 5;
+                PS4Downloading |= SendQueue.Instance.PendingCount > 0;
 
-                if (PS4Connected && !ForceClose)
-                {
-                    App.Callback(async () =>
-                    {
-                        if (await MessageBox.ShowAsync("The playstation is still downloading\nDo you really wanna exit?", "DirectPackageInstaller", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-                            return;
-
-                        ForceClose = true;
-                        Close();
-                    });
-                    e.Cancel = true;
+                if (PS4Downloading &&
+                    await MessageBox.ShowAsync("The console is still downloading from this PC, or packages are waiting in the queue.\nClose anyway? Unfinished downloads will stop.",
+                        "DirectPackageInstaller", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                     return;
+
+                await View.SetStatus("Shutting down servers…");
+
+                App.SaveSettings();
+                await Installer.Payload.StopServer();
+
+                if (View.DHCP != null)
+                {
+                    View.DHCP.Stop();
+                    await App.SetupDHCPNetwork();
                 }
             }
-            catch { }
-
-            View.Status.Text = "Shutting Down Servers...";
-
-            App.SaveSettings();
-            await Installer.Payload.StopServer();
-
-            if (View.DHCP != null)
+            catch
             {
-                View.DHCP.Stop();
-                await App.SetupDHCPNetwork();
             }
+            finally
+            {
+                ShuttingDown = false;
+            }
+
+            ShutdownDone = true;
+            Close();
         }
     }
 }

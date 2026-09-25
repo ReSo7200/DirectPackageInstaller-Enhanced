@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:DirectPackageInstaller.Services"
+             x:Class="DirectPackageInstaller.Views.QueuePage"
+             x:DataType="svc:SendQueue"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="Auto,*">
+        <Grid ColumnDefinitions="*,Auto" Margin="28,22,28,14">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="h1" Text="Queue"/>
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Packages go to the PS4 one at a time; it downloads them in order. Keep this app open until they finish."/>
+            </StackPanel>
+            <Button Grid.Column="1" Name="BtnClearFinished" VerticalAlignment="Center">Clear finished</Button>
+        </Grid>
+
+        <Panel Grid.Row="1">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Items}" Margin="28,0,28,24">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="svc:QueueItem">
+                            <Border Classes="card" Padding="12" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="56,*,Auto" ColumnSpacing="14">
+                                    <Border Width="56" Height="56" CornerRadius="5" ClipToBounds="True"
+                                            Background="{StaticResource Raised}" VerticalAlignment="Top">
+                                        <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}"
+                                                       FontWeight="SemiBold" FontSize="17" TextTrimming="CharacterEllipsis"/>
+                                            <Border Classes="kind" Background="{StaticResource Raised}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Kind}" Foreground="{StaticResource Muted}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Classes="mono" Text="{Binding Detail}"/>
+                                        <ProgressBar Classes="rail" Value="{Binding Progress}" Maximum="100"
+                                                     IsVisible="{Binding ShowProgress}" Margin="0,5,0,1"/>
+                                        <TextBlock Text="{Binding Message}" Classes="muted" FontSize="12.5"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}"
+                                                   FontWeight="SemiBold" FontSize="12.5" HorizontalAlignment="Right"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                            <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding CanRetry}"
+                                                    Tag="{Binding}" Click="RetryClick"/>
+                                            <Button Classes="ghost danger" Padding="10,4" Content="Remove"
+                                                    Tag="{Binding}" Click="RemoveClick"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="380">
+                <TextBlock Classes="h2" Text="Nothing queued" HorizontalAlignment="Center"/>
+                <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Select games in the Library and press Send to PS4, or drop .pkg files onto the Library."/>
+            </StackPanel>
+        </Panel>
+    </Grid>
+</UserControl>

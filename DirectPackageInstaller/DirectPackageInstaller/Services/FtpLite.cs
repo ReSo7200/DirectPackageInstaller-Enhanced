@@ -1,0 +1,424 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DirectPackageInstaller.Services
+{
+    /// <summary>A single FTP server reply (final code + all text lines).</summary>
+    public readonly record struct FtpReply(int Code, string Text)
+    {
+        public bool IsPositive => Code >= 100 && Code < 400;
+        public override string ToString() => $"{Code} {Text}";
+    }
+
+    /// <summary>A directory entry parsed from a LIST response.</summary>
+    public readonly record struct FtpEntry(string Name, bool IsDirectory);
+
+    public sealed class FtpException : Exception
+    {
+        public FtpReply? Reply { get; }
+        public FtpException(string message, FtpReply? reply = null) : base(message) { Reply = reply; }
+    }
+
+    /// <summary>
+    /// Minimal async FTP client over raw sockets (passive mode only, binary type).
+    /// Every operation is bounded by <see cref="OperationTimeout"/> and honours the CancellationToken.
+    /// Not thread-safe: issue one command at a time.
+    /// </summary>
+    public sealed class FtpLite : IAsyncDisposable
+    {
+        public const int DefaultMaxDownload = 1024 * 1024;
+
+        private readonly string _host;
+        private readonly int _port;
+        private TcpClient? _control;
+        private NetworkStream? _stream;
+        private readonly byte[] _buf = new byte[4096];
+        private int _bufPos, _bufLen;
+        private IPAddress? _remoteIp;
+
+        public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(3);
+        public TimeSpan OperationTimeout { get; set; } = TimeSpan.FromSeconds(5);
+        public string Host => _host;
+        public int Port => _port;
+        public FtpReply? Welcome { get; private set; }
+        public bool IsConnected => _control?.Connected == true;
+
+        public FtpLite(string host, int port = 21)
+        {
+            _host = host;
+            _port = port;
+        }
+
+        /// <summary>Connects, reads the greeting, logs in anonymously and switches to TYPE I.</summary>
+        public static async Task<FtpLite> ConnectAsync(string host, int port, TimeSpan? connectTimeout = null,
+            TimeSpan? operationTimeout = null, CancellationToken ct = default)
+        {
+            var ftp = new FtpLite(host, port);
+            if (connectTimeout.HasValue) ftp.ConnectTimeout = connectTimeout.Value;
+            if (operationTimeout.HasValue) ftp.OperationTimeout = operationTimeout.Value;
+            try
+            {
+                await ftp.ConnectAsync(ct).ConfigureAwait(false);
+                await ftp.LoginAsync("anonymous", "anonymous", ct).ConfigureAwait(false);
+                await ftp.SetBinaryAsync(ct).ConfigureAwait(false);
+                return ftp;
+            }
+            catch
+            {
+                await ftp.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
+
+        public async Task ConnectAsync(CancellationToken ct = default)
+        {
+            if (_control != null) throw new InvalidOperationException("Already connected");
+            _control = new TcpClient { NoDelay = true };
+            using (var cts = Linked(ct, ConnectTimeout))
+            {
+                try
+                {
+                    await _control.ConnectAsync(_host, _port, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    throw new TimeoutException($"FTP connect to {_host}:{_port} timed out");
+                }
+            }
+            _stream = _control.GetStream();
+            _remoteIp = (_control.Client.RemoteEndPoint as IPEndPoint)?.Address;
+            if (_remoteIp != null && _remoteIp.IsIPv4MappedToIPv6) _remoteIp = _remoteIp.MapToIPv4();
+
+            var greet = await ReadReplyAsync(ct).ConfigureAwait(false);
+            // Some servers send 120 "ready in n minutes" first.
+            if (greet.Code == 120) greet = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (greet.Code != 220) throw new FtpException("Unexpected FTP greeting", greet);
+            Welcome = greet;
+        }
+
+        public async Task LoginAsync(string user = "anonymous", string pass = "anonymous", CancellationToken ct = default)
+        {
+            var r = await CommandAsync("USER " + user, ct).ConfigureAwait(false);
+            if (r.Code == 230 || r.Code == 202) return;        // logged in immediately / no auth
+            if (r.Code == 331 || r.Code == 332)
+            {
+                r = await CommandAsync("PASS " + pass, ct).ConfigureAwait(false);
+                if (r.Code == 230 || r.Code == 202) return;
+                throw new FtpException("FTP login rejected", r);
+            }
+            // Some homebrew servers answer USER with 500/502 because they have no auth at all; continue.
+            if (r.Code >= 500 && r.Code < 510) return;
+            throw new FtpException("FTP USER rejected", r);
+        }
+
+        public async Task SetBinaryAsync(CancellationToken ct = default)
+        {
+            // Tolerate servers that don't implement TYPE: they are binary anyway.
+            await CommandAsync("TYPE I", ct).ConfigureAwait(false);
+        }
+
+        /// <summary>Sends a command and returns the (final) reply.</summary>
+        public async Task<FtpReply> CommandAsync(string command, CancellationToken ct = default)
+        {
+            await SendAsync(command, ct).ConfigureAwait(false);
+            return await ReadReplyAsync(ct).ConfigureAwait(false);
+        }
+
+        /// <summary>LIST path; returns entry names (excluding "." and "..").</summary>
+        public async Task<List<FtpEntry>> ListAsync(string path, CancellationToken ct = default)
+        {
+            var data = await TransferAsync("LIST " + path, 4 * 1024 * 1024, ct).ConfigureAwait(false);
+            var text = Encoding.UTF8.GetString(data);
+            var result = new List<FtpEntry>();
+            foreach (var raw in text.Split('\n'))
+            {
+                var line = raw.TrimEnd('\r');
+                if (TryParseListLine(line, out var entry) && entry.Name != "." && entry.Name != "..")
+                    result.Add(entry);
+            }
+            return result;
+        }
+
+        /// <summary>RETR path into memory; throws if the file exceeds maxBytes.</summary>
+        public Task<byte[]> DownloadAsync(string path, int maxBytes = DefaultMaxDownload, CancellationToken ct = default)
+            => TransferAsync("RETR " + path, maxBytes, ct);
+
+        public async Task QuitAsync(CancellationToken ct = default)
+        {
+            if (_stream == null) return;
+            try
+            {
+                using var cts = Linked(ct, TimeSpan.FromSeconds(1));
+                await SendAsync("QUIT", cts.Token).ConfigureAwait(false);
+                await ReadReplyAsync(cts.Token).ConfigureAwait(false);
+            }
+            catch { /* best effort */ }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_control != null && _control.Connected)
+                await QuitAsync().ConfigureAwait(false);
+            try { _stream?.Dispose(); } catch { }
+            try { _control?.Dispose(); } catch { }
+            _stream = null;
+            _control = null;
+        }
+
+        // ---------------------------------------------------------------- internals
+
+        private async Task<byte[]> TransferAsync(string command, int maxBytes, CancellationToken ct)
+        {
+            var ep = await EnterPassiveAsync(ct).ConfigureAwait(false);
+            using var data = new TcpClient { NoDelay = true };
+            using (var cts = Linked(ct, ConnectTimeout))
+            {
+                try
+                {
+                    await data.ConnectAsync(ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    Abort();
+                    throw new TimeoutException($"FTP data connection to {ep} timed out");
+                }
+            }
+
+            await SendAsync(command, ct).ConfigureAwait(false);
+            var prelim = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (prelim.Code != 125 && prelim.Code != 150)
+            {
+                // Some servers reply 226 directly for empty listings.
+                if (prelim.Code == 226 || prelim.Code == 250) return Array.Empty<byte>();
+                throw new FtpException($"'{command}' failed", prelim);
+            }
+
+            var ms = new MemoryStream();
+            var ds = data.GetStream();
+            var chunk = new byte[16384];
+            while (true)
+            {
+                int n;
+                using (var cts = Linked(ct, OperationTimeout))
+                {
+                    try
+                    {
+                        n = await ds.ReadAsync(chunk.AsMemory(), cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        Abort();
+                        throw new TimeoutException($"FTP data transfer for '{command}' timed out");
+                    }
+                }
+                if (n <= 0) break;
+                if (ms.Length + n > maxBytes)
+                {
+                    // Abort: drop the data connection and resync the control channel.
+                    try { data.Client.Close(); } catch { }
+                    try
+                    {
+                        using var rc = Linked(ct, TimeSpan.FromSeconds(2));
+                        await ReadReplyAsync(rc.Token).ConfigureAwait(false);
+                    }
+                    catch { Abort(); }
+                    throw new FtpException($"'{command}' exceeds size limit of {maxBytes} bytes");
+                }
+                ms.Write(chunk, 0, n);
+            }
+            try { data.Client.Shutdown(SocketShutdown.Both); } catch { }
+
+            var done = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (done.Code != 226 && done.Code != 250)
+                throw new FtpException($"'{command}' transfer did not complete", done);
+            return ms.ToArray();
+        }
+
+        private async Task<IPEndPoint> EnterPassiveAsync(CancellationToken ct)
+        {
+            var r = await CommandAsync("PASV", ct).ConfigureAwait(false);
+            if (r.Code != 227) throw new FtpException("PASV failed", r);
+            int open = r.Text.IndexOf('(');
+            int close = open >= 0 ? r.Text.IndexOf(')', open) : -1;
+            string tuple;
+            if (open >= 0 && close > open) tuple = r.Text.Substring(open + 1, close - open - 1);
+            else
+            {
+                // No parentheses: find the first run of "d,d,d,d,d,d".
+                var m = System.Text.RegularExpressions.Regex.Match(r.Text, @"\d+,\d+,\d+,\d+,\d+,\d+");
+                if (!m.Success) throw new FtpException("Cannot parse PASV reply", r);
+                tuple = m.Value;
+            }
+            var parts = tuple.Split(',');
+            if (parts.Length != 6) throw new FtpException("Cannot parse PASV reply", r);
+            var nums = new int[6];
+            for (int i = 0; i < 6; i++)
+                if (!int.TryParse(parts[i].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out nums[i]) || nums[i] < 0 || nums[i] > 255)
+                    throw new FtpException("Cannot parse PASV reply", r);
+
+            var ip = new IPAddress(new[] { (byte)nums[0], (byte)nums[1], (byte)nums[2], (byte)nums[3] });
+            int port = nums[4] * 256 + nums[5];
+            // Use the control connection's IP if the server advertises 0.0.0.0 / loopback / a different
+            // (e.g. internal) address. PS4 FTP servers only ever serve data from the same host.
+            if (_remoteIp != null && !ip.Equals(_remoteIp))
+                ip = _remoteIp;
+            return new IPEndPoint(ip, port);
+        }
+
+        private async Task SendAsync(string line, CancellationToken ct)
+        {
+            if (_stream == null) throw new InvalidOperationException("Not connected");
+            var bytes = Encoding.UTF8.GetBytes(line + "\r\n");
+            using var cts = Linked(ct, OperationTimeout);
+            try
+            {
+                await _stream.WriteAsync(bytes.AsMemory(), cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new TimeoutException("FTP send timed out");
+            }
+        }
+
+        /// <summary>Reads a full reply, following "nnn-" continuations until "nnn ".</summary>
+        private async Task<FtpReply> ReadReplyAsync(CancellationToken ct)
+        {
+            using var cts = Linked(ct, OperationTimeout);
+            try
+            {
+                var sb = new StringBuilder();
+                var first = await ReadLineAsync(cts.Token).ConfigureAwait(false);
+                if (first.Length < 3 || !int.TryParse(first.AsSpan(0, 3), NumberStyles.None, CultureInfo.InvariantCulture, out int code))
+                    throw new FtpException("Malformed FTP reply: " + first);
+                sb.Append(first.Length > 4 ? first.Substring(4) : "");
+                if (first.Length > 3 && first[3] == '-')
+                {
+                    var terminator = first.Substring(0, 3) + " ";
+                    int guard = 0;
+                    while (true)
+                    {
+                        var line = await ReadLineAsync(cts.Token).ConfigureAwait(false);
+                        if (++guard > 1000) throw new FtpException("FTP reply too long");
+                        if (line.StartsWith(terminator, StringComparison.Ordinal) || line == first.Substring(0, 3))
+                        {
+                            sb.Append('\n').Append(line.Length > 4 ? line.Substring(4) : "");
+                            break;
+                        }
+                        sb.Append('\n').Append(line);
+                    }
+                }
+                return new FtpReply(code, sb.ToString());
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                Abort();
+                throw new TimeoutException("FTP reply timed out");
+            }
+            catch (OperationCanceledException)
+            {
+                Abort(); // control channel state is unknown after a cancelled read
+                throw;
+            }
+        }
+
+        private async Task<string> ReadLineAsync(CancellationToken ct)
+        {
+            if (_stream == null) throw new InvalidOperationException("Not connected");
+            var bytes = new List<byte>(128);
+            while (true)
+            {
+                if (_bufPos >= _bufLen)
+                {
+                    _bufLen = await _stream.ReadAsync(_buf.AsMemory(), ct).ConfigureAwait(false);
+                    _bufPos = 0;
+                    if (_bufLen <= 0)
+                    {
+                        _bufLen = 0;
+                        throw new FtpException("FTP control connection closed");
+                    }
+                }
+                byte b = _buf[_bufPos++];
+                if (b == (byte)'\n') break;
+                if (bytes.Count > 8192) throw new FtpException("FTP reply line too long");
+                bytes.Add(b);
+            }
+            if (bytes.Count > 0 && bytes[^1] == (byte)'\r') bytes.RemoveAt(bytes.Count - 1);
+            return Encoding.UTF8.GetString(bytes.ToArray());
+        }
+
+        /// <summary>Drops the control connection without QUIT (used after timeouts/desync).</summary>
+        private void Abort()
+        {
+            try { _control?.Client.Close(0); } catch { }
+            try { _stream?.Dispose(); } catch { }
+            try { _control?.Dispose(); } catch { }
+            _stream = null;
+            _control = null;
+        }
+
+        private static CancellationTokenSource Linked(CancellationToken ct, TimeSpan timeout)
+        {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(timeout);
+            return cts;
+        }
+
+        /// <summary>
+        /// Parses a Unix-style LIST line ("drwxr-xr-x 1 user group 512 Jan 1 12:00 name with spaces").
+        /// Falls back to DOS-style ("01-01-20 12:00PM &lt;DIR&gt; name").
+        /// </summary>
+        public static bool TryParseListLine(string line, out FtpEntry entry)
+        {
+            entry = default;
+            if (string.IsNullOrWhiteSpace(line)) return false;
+            if (line.StartsWith("total ", StringComparison.OrdinalIgnoreCase)) return false;
+
+            char t = line[0];
+            if ("dl-bcps".IndexOf(t) >= 0 && line.Length > 10)
+            {
+                // Skip 8 whitespace-separated fields (perms, links, owner, group, size, month, day, time/year).
+                int pos = 0, fields = 0;
+                while (fields < 8)
+                {
+                    while (pos < line.Length && IsWs(line[pos])) pos++;
+                    if (pos >= line.Length) break;
+                    while (pos < line.Length && !IsWs(line[pos])) pos++;
+                    fields++;
+                }
+                if (fields < 8) return false;
+                // Skip separator padding (PS4 names never start with whitespace); internal spaces are kept.
+                while (pos < line.Length && IsWs(line[pos])) pos++;
+                if (pos >= line.Length) return false;
+                var name = line.Substring(pos).TrimEnd();
+                if (t == 'l')
+                {
+                    int arrow = name.IndexOf(" -> ", StringComparison.Ordinal);
+                    if (arrow > 0) name = name.Substring(0, arrow);
+                }
+                if (name.Length == 0) return false;
+                entry = new FtpEntry(name, t == 'd');
+                return true;
+            }
+
+            // DOS format
+            var dos = System.Text.RegularExpressions.Regex.Match(line,
+                @"^\d{2}-\d{2}-\d{2,4}\s+\d{1,2}:\d{2}(AM|PM)?\s+(<DIR>|\d+)\s+(.+)$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (dos.Success)
+            {
+                entry = new FtpEntry(dos.Groups[3].Value, dos.Groups[2].Value.Equals("<DIR>", StringComparison.OrdinalIgnoreCase));
+                return true;
+            }
+            return false;
+        }
+
+        private static bool IsWs(char c) => c == ' ' || c == '\t';
+    }
+}

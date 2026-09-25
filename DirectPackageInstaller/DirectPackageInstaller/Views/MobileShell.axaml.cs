@@ -68,6 +68,8 @@ namespace DirectPackageInstaller.Views
         /// <summary>After MainView loaded the settings (same order as the desktop window).</summary>
         public void OnStarted()
         {
+            if (TopLevel.GetTopLevel(this) is { } Top)
+                Notices.Attach(Top);
             LibraryPage.OnShown();
             ConsoleStatus.Instance.Start();
             LibraryPage.AutoCheck();

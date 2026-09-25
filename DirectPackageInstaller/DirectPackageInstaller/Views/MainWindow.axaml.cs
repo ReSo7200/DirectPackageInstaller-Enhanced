@@ -19,6 +19,7 @@ namespace DirectPackageInstaller.Views
             AppShell.Current = this;
 
             InitializeComponent();
+            Notices.Attach(this);
 
             // one view model for Direct link and Settings (they drive the same options)
             View.DataContext = new MainViewModel();

@@ -193,6 +193,7 @@ namespace DirectPackageInstaller.Services
                     Job.Status = $"Moved to {Job.Destination}.{Note}";
                     Job.IsRunning = false;
                 });
+                Notices.Post(Job.Title, $"Moved to {Job.Destination}.");
             }
             catch (Exception ex)
             {
@@ -207,6 +208,7 @@ namespace DirectPackageInstaller.Services
                     Job.Failed = true;
                     Job.IsRunning = false;
                 });
+                Notices.Post($"Moving {Job.Title} failed", Why, Error: true);
             }
             finally
             {

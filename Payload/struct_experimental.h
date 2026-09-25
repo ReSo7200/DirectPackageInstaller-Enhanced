@@ -48,6 +48,7 @@ struct bgft_download_param_ex {
 #define CMD_PACKAGE     1  /* legacy package request */
 #define CMD_PACKAGE_V2  2  /* package request + trailing i32 storage */
 #define CMD_FREE_SPACE  3  /* reply: 4 x u64, then close */
+#define CMD_PACKAGE_V3  4  /* like v2; after registering, reply i32 rv + i32 task id, then close */
 
 /* storage values of CMD_PACKAGE_V2 */
 #define STORAGE_DEFAULT  (-1)
@@ -69,6 +70,7 @@ struct pkg_buffers {
 	char icon_name[0x40];
 	char icon_path[0x100];
 	char io[4096];
+	int reply_sock;  /* CMD_PACKAGE_V3: the request's socket, kept open for the result (else -1) */
 };
 
 /*
@@ -77,6 +79,18 @@ struct pkg_buffers {
  * so the pointers stored in params stay valid for the task registration.
  */
 int get_pkg_info(struct bgft_download_param* params, struct pkg_buffers* bufs, int* storage);
+
+/*
+ * The install location switched away from, kept on disk while it's switched: a
+ * payload that dies mid-registration would otherwise leave the console installing
+ * elsewhere. Restored at the next start (info_experimental.c).
+ */
+void remember_location(int value);
+int pending_location(int* value);
+void forget_location(void);
+
+/* CMD_PACKAGE_V3: tell the PC how the registration went, then close its socket */
+void send_result(struct pkg_buffers* bufs, int rv, int task);
 
 #define BGFT_INVALID_TASK_ID (-1)
 #define ORBIS_KERNEL_PRIO_FIFO_NORMAL  0x2BC

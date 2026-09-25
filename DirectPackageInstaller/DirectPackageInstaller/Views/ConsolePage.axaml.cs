@@ -92,7 +92,7 @@ namespace DirectPackageInstaller.Views
         async void MenuMoveClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)
-                await MoveDialog.AskAndStartAsync(Item.TitleId, Item.Name, !Item.OnExtended);
+                await MoveDialog.AskAndStartAsync(Item.TitleId, Item.Name, Item.Title.Category, !Item.OnExtended);
         }
 
         void MenuUninstallUpdateClick(object? sender, RoutedEventArgs e) => Uninstall(ItemOf(sender), "gp");

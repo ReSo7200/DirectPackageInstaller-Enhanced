@@ -27,6 +27,7 @@ typedef int (*reg_set_int_fn)(int, int);
 #define REG_LOC_EXTENDED 0
 #define REG_LOC_SYSTEM   1
 
+
 static void int32ToHex(int32_t Value, char* Hex)
 {
 	Hex[0] = '0';
@@ -106,6 +107,11 @@ int main()
 	reg_get_int_fn sceRegMgrGetInt = regmgr ? dlsym(regmgr, "sceRegMgrGetInt") : 0;
 	reg_set_int_fn sceRegMgrSetInt = regmgr ? dlsym(regmgr, "sceRegMgrSetInt") : 0;
 
+	/* a previous run died with the install location switched: put it back */
+	int pending;
+	if (pending_location(&pending) && sceRegMgrSetInt && sceRegMgrSetInt(REG_INSTALL_LOCATION, pending) == 0)
+		forget_location();
+
 	clear_stack();
 
 	struct OrbisUserServiceInitializeParams init_params = {
@@ -174,6 +180,8 @@ int main()
 			continue;
 
 		int task = BGFT_INVALID_TASK_ID;
+		/* the PC waits for the result (moves): report every outcome, never exit on one */
+		int answered = bufs.reply_sock >= 0;
 
 		/*
 		 * Storage choice: the task goes where "Application Install Location"
@@ -187,18 +195,20 @@ int main()
 			if (!sceRegMgrGetInt || !sceRegMgrSetInt || sceRegMgrGetInt(REG_INSTALL_LOCATION, &saved) != 0) {
 				notify(222, "DPI: Can't read the install location, using the console setting");
 			} else if (saved != want) {
+				remember_location(saved);
 				rv = sceRegMgrSetInt(REG_INSTALL_LOCATION, want);
 				if (rv == 0)
 					restore = 1;
-				else
+				else {
+					forget_location();
 					notify_code(notify, "DPI: Can't change the install location, using the console setting ", rv);
+				}
 			}
 		}
 
 		if (bgft_params.content_url[0] == '/') {
 			if (!sceBgftRegisterTaskByStorageEx) {
-				rv = -1;
-				notify(222, "DPI: This console can't install from a local file");
+				rv = 0x80020001; /* reported to the PC as "not supported" */
 			} else {
 				struct bgft_download_param_ex ex;
 				ex.param = bgft_params;
@@ -212,11 +222,23 @@ int main()
 		}
 
 		int registered = rv != 0x80990088 && task != BGFT_INVALID_TASK_ID;
-		if (registered)
-			sceBgftDownloadStartTask(task);
+		if (registered) {
+			int started = sceBgftDownloadStartTask(task);
+			if (started != 0)
+				rv = started;
+		}
 
-		if (restore)
-			sceRegMgrSetInt(REG_INSTALL_LOCATION, saved);
+		if (restore) {
+			if (sceRegMgrSetInt(REG_INSTALL_LOCATION, saved) == 0)
+				forget_location();
+			else
+				notify(222, "DPI: Couldn't restore the install location; it's put back when DPI next connects");
+		}
+
+		if (answered) {
+			send_result(&bufs, registered ? rv : (rv ? rv : -1), registered ? task : BGFT_INVALID_TASK_ID);
+			continue;
+		}
 
 		if (registered)
 			continue;

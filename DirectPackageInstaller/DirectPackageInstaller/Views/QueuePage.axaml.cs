@@ -25,6 +25,12 @@ namespace DirectPackageInstaller.Views
             DownloadsList.ItemsSource = UpdateDownloads.Instance.Items;
             MovesList.ItemsSource = ConsoleMove.Jobs;
             ConsoleMove.Jobs.CollectionChanged += (_, _) => UpdateEmpty();
+            // moves interrupted by closing the app: found again once FTP answers
+            ConsoleStatus.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ConsoleStatus.FtpOpen) && ConsoleStatus.Instance.FtpOpen)
+                    _ = ConsoleMove.RecoverAsync();
+            };
             UpdateDownloads.Instance.Items.CollectionChanged += (_, _) => UpdateEmpty();
             UpdateEmpty();
         }

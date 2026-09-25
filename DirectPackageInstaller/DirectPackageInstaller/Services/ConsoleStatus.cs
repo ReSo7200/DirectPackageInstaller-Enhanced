@@ -109,9 +109,17 @@ namespace DirectPackageInstaller.Services
 
         public async void NotifyContentsChanged()
         {
-            ContentsChanged?.Invoke();
-            await Task.Delay(TimeSpan.FromSeconds(20));
-            ContentsChanged?.Invoke();
+            try
+            {
+                ContentsChanged?.Invoke();
+                await Task.Delay(TimeSpan.FromSeconds(20));
+                ContentsChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                // async void: an escaping exception would end the app
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
         }
 
         int RefreshAgain;

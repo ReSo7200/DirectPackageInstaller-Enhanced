@@ -330,20 +330,22 @@ namespace DirectPackageInstaller.Services
 
             // unlock-key DLC: installed ones only show in the download notifications,
             // copied-but-not-installed ones wait in /data/pkg
-            var downloaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (ftp.IsConnected)
-                try { downloaded.UnionWith(FinishedDownloads(await ftp.DownloadAsync(NotificationDb, 8 * 1024 * 1024, ct).ConfigureAwait(false))); }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                catch { }
-
+            // listed first: reading the database may end the connection (size cut-off)
             var staged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (ftp.IsConnected)
                 try
                 {
                     foreach (var e in await ftp.ListAsync(UnlockKeys.ConsoleFolder, ct).ConfigureAwait(false))
-                        if (!e.IsDirectory && ContentIdPattern.Match(e.Name) is { Success: true } m)
+                        if (!e.IsDirectory && e.Name.EndsWith(".pkg", StringComparison.OrdinalIgnoreCase)
+                            && ContentIdPattern.Match(e.Name) is { Success: true } m)
                             staged.Add(m.Value);
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch { }
+
+            var downloaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (ftp.IsConnected)
+                try { downloaded.UnionWith(FinishedDownloads(await ftp.ReadHeadAsync(NotificationDb, 16 * 1024 * 1024, ct).ConfigureAwait(false))); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch { }
 

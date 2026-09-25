@@ -190,9 +190,47 @@ static int send_free_space(int sock) {
 	return write_full(sock, reply, sizeof(reply));
 }
 
+#define REGLOC_FILE "/user/data/dpi_install_location"
+
+void remember_location(int value) {
+	int fd = open(REGLOC_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	if (fd >= 0) {
+		write_full(fd, &value, sizeof(value));
+		close(fd);
+	}
+}
+
+int pending_location(int* value) {
+	int fd = open(REGLOC_FILE, O_RDONLY, 0);
+	if (fd < 0)
+		return 0;
+	int ok = read_full(fd, value, sizeof(*value)) == 0;
+	close(fd);
+	return ok;
+}
+
+void forget_location(void) {
+	unlink(REGLOC_FILE);
+}
+
+void send_result(struct pkg_buffers* b, int rv, int task)
+{
+	if (b->reply_sock < 0)
+		return;
+	int32_t reply[2] = { rv, task };
+	write_full(b->reply_sock, reply, sizeof(reply));
+	close(b->reply_sock);
+	b->reply_sock = -1;
+}
+
+/*
+ * A malformed or cut-off request only drops that connection (INFO_HANDLED):
+ * the payload exits on CMD_EXIT or when the PC can't be reached at all.
+ */
 int get_pkg_info(struct bgft_download_param* params, struct pkg_buffers* b, int* storage)
 {
 	*storage = STORAGE_DEFAULT;
+	b->reply_sock = -1;
 
 	struct sockaddr_in conn_info = {
 		.sin_family = AF_INET,
@@ -212,7 +250,7 @@ int get_pkg_info(struct bgft_download_param* params, struct pkg_buffers* b, int*
 	uint32_t cmd;
 	if (get_uint32(sock, &cmd) != 0) {
 		close(sock);
-		return INFO_ERROR;
+		return INFO_HANDLED;
 	}
 
 	if (cmd == CMD_EXIT) {
@@ -226,9 +264,9 @@ int get_pkg_info(struct bgft_download_param* params, struct pkg_buffers* b, int*
 		return INFO_HANDLED;
 	}
 
-	if (cmd != CMD_PACKAGE && cmd != CMD_PACKAGE_V2) {
+	if (cmd != CMD_PACKAGE && cmd != CMD_PACKAGE_V2 && cmd != CMD_PACKAGE_V3) {
 		close(sock);
-		return INFO_ERROR;
+		return INFO_HANDLED;
 	}
 
 	/* Order: URL, Name, ID, Type, size, [Icon Len, Icon Data], (v2) storage */
@@ -239,7 +277,7 @@ int get_pkg_info(struct bgft_download_param* params, struct pkg_buffers* b, int*
 		get_string(sock, b->pkg_type, sizeof(b->pkg_type)) != 0 ||
 		get_uint64(sock, &size) != 0) {
 		close(sock);
-		return INFO_ERROR;
+		return INFO_HANDLED;
 	}
 
 	/* icon file name from the content id; never let it escape /user/data */
@@ -252,19 +290,22 @@ int get_pkg_info(struct bgft_download_param* params, struct pkg_buffers* b, int*
 
 	if (get_file(sock, b->icon_path, sizeof(b->icon_path), b->icon_name, b->io, sizeof(b->io)) != 0) {
 		close(sock);
-		return INFO_ERROR;
+		return INFO_HANDLED;
 	}
 
-	if (cmd == CMD_PACKAGE_V2) {
+	if (cmd == CMD_PACKAGE_V2 || cmd == CMD_PACKAGE_V3) {
 		int32_t st;
 		if (read_full(sock, &st, sizeof(st)) != 0) {
 			close(sock);
-			return INFO_ERROR;
+			return INFO_HANDLED;
 		}
 		*storage = st;
 	}
 
-	close(sock);
+	if (cmd == CMD_PACKAGE_V3)
+		b->reply_sock = sock;  /* main() answers with send_result() */
+	else
+		close(sock);
 
 	params->id = b->id;
 	params->content_url = b->url;

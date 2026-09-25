@@ -213,7 +213,8 @@ namespace DirectPackageInstaller.Services
                         Hosts.Add(FromUInt(Host));
             }
 
-            var Throttle = new SemaphoreSlim(256);
+            // Android connects on a thread each (NetConnect): keep far fewer in flight
+            var Throttle = new SemaphoreSlim(OperatingSystem.IsAndroid() ? 32 : 256);
             var Tasks = Hosts.Distinct().SelectMany(Host => ServicePorts.Select(async Service =>
             {
                 await Throttle.WaitAsync(Token);

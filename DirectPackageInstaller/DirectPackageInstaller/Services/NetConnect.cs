@@ -55,7 +55,9 @@ namespace DirectPackageInstaller.Services
             }
 
             Token.ThrowIfCancellationRequested();
-            var Connect = Task.Run(() => Socket.Connect(Endpoint));
+            // a thread of its own: blocking connects on pool threads starve everything else
+            var Connect = Task.Factory.StartNew(() => Socket.Connect(Endpoint), CancellationToken.None,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
             using (Token.Register(() => { try { Socket.Close(); } catch { } }))
             {
                 try
@@ -67,6 +69,9 @@ namespace DirectPackageInstaller.Services
                     throw new OperationCanceledException(Token);
                 }
             }
+            // cancelled just after connecting: the socket was closed under the caller
+            if (Token.IsCancellationRequested || !Socket.Connected)
+                throw new OperationCanceledException(Token);
         }
     }
 }

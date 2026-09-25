@@ -236,6 +236,14 @@ namespace DirectPackageInstaller.ViewModels
                 return;
             }
 
+            // no BinLoader and no payload running: nothing can answer (and don't hold up sends trying)
+            if (!ConsoleStatus.Instance.HasBinLoader && !Tasks.Installer.Payload.ClientRunning)
+            {
+                if (!HasStorage)
+                    FreeSpace = "Free space: needs GoldHEN's BinLoader (payload server) turned on";
+                return;
+            }
+
             // keep the last boxes while reading; the text only shows without them
             FreeSpace = HasStorage ? "" : "Reading free space…";
             var Space_ = await Tasks.Installer.Payload.QueryFreeSpaceAsync(IP, App.Config.PCIP);

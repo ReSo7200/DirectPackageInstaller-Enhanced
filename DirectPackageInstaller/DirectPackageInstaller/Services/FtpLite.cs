@@ -164,16 +164,17 @@ namespace DirectPackageInstaller.Services
         /// <summary>RNFR/RNTO. Only within one drive on the PS4 (no copy across drives).</summary>
         public async Task RenameAsync(string from, string to, CancellationToken ct = default)
         {
+            // PS4 servers (ftps4-based) answer 226 where others say 250: any 2xx is done
             var r = await CommandAsync("RNFR " + from, ct).ConfigureAwait(false);
             if (r.Code != 350) throw new FtpException($"Can't rename '{from}'", r);
             r = await CommandAsync("RNTO " + to, ct).ConfigureAwait(false);
-            if (r.Code != 250) throw new FtpException($"Can't rename '{from}' to '{to}'", r);
+            if (r.Code / 100 != 2) throw new FtpException($"Can't rename '{from}' to '{to}'", r);
         }
 
         public async Task DeleteAsync(string path, CancellationToken ct = default)
         {
             var r = await CommandAsync("DELE " + path, ct).ConfigureAwait(false);
-            if (r.Code != 250) throw new FtpException($"Can't delete '{path}'", r);
+            if (r.Code / 100 != 2) throw new FtpException($"Can't delete '{path}'", r);
         }
 
         /// <summary>MKD; an existing folder is fine.</summary>
@@ -181,17 +182,30 @@ namespace DirectPackageInstaller.Services
             => await CommandAsync("MKD " + path, ct).ConfigureAwait(false);
 
         public async Task<bool> RemoveDirAsync(string path, CancellationToken ct = default)
-            => (await CommandAsync("RMD " + path, ct).ConfigureAwait(false)).Code == 250;
+            => (await CommandAsync("RMD " + path, ct).ConfigureAwait(false)).Code / 100 == 2;
 
-        /// <summary>Size of a file from its folder's listing, or -1 when it isn't there.</summary>
+        /// <summary>Size of a file (SIZE, else its folder's listing), or -1 when it isn't there.</summary>
         public async Task<long> FileSizeAsync(string path, CancellationToken ct = default)
         {
+            var sized = await CommandAsync("SIZE " + path, ct).ConfigureAwait(false);
+            if (sized.Code == 213 && long.TryParse(sized.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var n))
+                return n;
+            if (sized.Code == 550)
+                return -1;
+
             int slash = path.LastIndexOf('/');
             var dir = slash <= 0 ? "/" : path.Substring(0, slash);
             var name = path.Substring(slash + 1);
-            foreach (var e in await ListAsync(dir, ct).ConfigureAwait(false))
-                if (!e.IsDirectory && e.Name == name)
-                    return e.Size;
+            try
+            {
+                foreach (var e in await ListAsync(dir, ct).ConfigureAwait(false))
+                    if (!e.IsDirectory && e.Name == name)
+                        return e.Size;
+            }
+            catch (FtpException ex) when (ex.Reply is { Code: >= 500 })
+            {
+                // the folder doesn't exist
+            }
             return -1;
         }
 
@@ -389,7 +403,7 @@ namespace DirectPackageInstaller.Services
 
         private async Task SendAsync(string line, CancellationToken ct)
         {
-            if (_stream == null) throw new InvalidOperationException("Not connected");
+            if (_stream == null) throw new FtpException("FTP connection lost");
             var bytes = Encoding.UTF8.GetBytes(line + "\r\n");
             using var cts = Linked(ct, OperationTimeout);
             try
@@ -445,7 +459,7 @@ namespace DirectPackageInstaller.Services
 
         private async Task<string> ReadLineAsync(CancellationToken ct)
         {
-            if (_stream == null) throw new InvalidOperationException("Not connected");
+            if (_stream == null) throw new FtpException("FTP connection lost");
             var bytes = new List<byte>(128);
             while (true)
             {

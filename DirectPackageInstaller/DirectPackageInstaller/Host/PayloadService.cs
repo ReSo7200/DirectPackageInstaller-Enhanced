@@ -102,24 +102,25 @@ namespace DirectPackageInstaller.Host
         /// the given storage. Experimental payload only: it installs from the file with
         /// BGFT's ByStorage registration. Sets Installer.LastError on failure.
         /// </summary>
-        public async Task<bool> SendLocalPackageAsync(string PS4IP, string PCIP, string ConsolePath, PKGHelper.PKGInfo Info, int Storage)
+        /// <returns>The console's registration result and BGFT task id (task -1 when it failed), or null if nothing answered.</returns>
+        public async Task<(int Result, int Task)?> SendLocalPackageAsync(string PS4IP, string PCIP, string ConsolePath, PKGHelper.PKGInfo Info, int Storage)
         {
             if (!App.Config.ExperimentalPayload)
             {
                 Installer.LastError = "Needs the experimental GoldHEN payload (Settings › Experimental).";
-                return false;
+                return null;
             }
 
             byte[] Data;
             try
             {
-                Data = ExperimentalPayloadProtocol.BuildPackageV2(ConsolePath, Info.FriendlyName, Info.ContentID,
+                Data = ExperimentalPayloadProtocol.BuildPackageV3(ConsolePath, Info.FriendlyName, Info.ContentID,
                     Info.BGFTContentType, Info.PackageSize, Info.IconData, Storage);
             }
             catch (ArgumentException ex)
             {
                 Installer.LastError = ex.Message;
-                return false;
+                return null;
             }
 
             await SendLock.WaitAsync();
@@ -133,18 +134,54 @@ namespace DirectPackageInstaller.Host
                 {
                     var Connection = await GetConnectionAsync(PS4IP, PCIP);
                     if (Connection == null)
-                        return false;
+                        return null;
                     if (!ResidentExperimental)
                     {
                         Installer.LastError = "The experimental GoldHEN payload didn't start on the console.";
-                        return false;
+                        return null;
                     }
-                    if (await TrySend(Connection, Data))
-                        return true;
+
+                    try
+                    {
+                        await Connection.SendAsync(new ArraySegment<byte>(Data), SocketFlags.None);
+                    }
+                    catch
+                    {
+                        Connection.Close();
+                        continue;   // a dead queued connection: take the next one
+                    }
+
+                    // the payload answers once BGFT registered (or refused) the task
+                    try
+                    {
+                        var Reply = new byte[8];
+                        int Got = 0;
+                        using var Timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                        while (Got < Reply.Length)
+                        {
+                            int Count = await Connection.ReceiveAsync(new ArraySegment<byte>(Reply, Got, Reply.Length - Got), SocketFlags.None, Timeout.Token);
+                            if (Count <= 0)
+                                break;
+                            Got += Count;
+                        }
+                        if (Got == Reply.Length)
+                            return (BitConverter.ToInt32(Reply, 0), BitConverter.ToInt32(Reply, 4));
+                        Installer.LastError = "The console took the request but didn't say whether it started the install (check Notifications › Downloads).";
+                        return null;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Installer.LastError = "The console didn't confirm the install within a minute (check Notifications › Downloads).";
+                        return null;
+                    }
+                    finally
+                    {
+                        Connection.Close();
+                    }
                 }
 
                 Installer.LastError = "The PS4 payload connection kept dropping. Try again.";
-                return false;
+                return null;
             }
             finally
             {
@@ -485,10 +522,8 @@ namespace DirectPackageInstaller.Host
                 {
                     var Endpoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
-                    if (App.IsAndroid)
-                        socket.Connect(Endpoint);
-                    else
-                        await socket.ConnectAsync(Endpoint, CToken.Token);
+                    // NetConnect: Android's ConnectAsync is broken and a plain Connect has no timeout
+                    await Services.NetConnect.ConnectAsync(socket, Endpoint, CToken.Token);
 
                     if (socket.Connected)
                     {

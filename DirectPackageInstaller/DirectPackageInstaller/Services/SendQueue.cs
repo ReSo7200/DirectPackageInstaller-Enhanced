@@ -451,7 +451,9 @@ namespace DirectPackageInstaller.Services
 
             void Ui(Action Change) => Dispatcher.UIThread.Post(Change);
 
-            while (Item.TaskId is long Id && !Item.IsFinished)
+            // Retry gives the item a new task: this loop follows only the one it started with
+            var Followed = Item.TaskId;
+            while (Item.TaskId is long Id && Id == Followed && !Item.IsFinished)
             {
                 await Task.Delay(PollInterval);
 

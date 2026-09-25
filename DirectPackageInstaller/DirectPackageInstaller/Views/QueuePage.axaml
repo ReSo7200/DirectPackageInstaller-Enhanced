@@ -38,7 +38,7 @@
                                             <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding CanRetry}"
                                                     Tag="{Binding}" Click="RetryMoveClick"
                                                     ToolTip.Tip="Install the packages kept on the console again"/>
-                                            <Button Classes="ghost" Padding="10,4" Content="Remove" IsVisible="{Binding !IsRunning}"
+                                            <Button Classes="ghost" Padding="10,4" Content="Remove" IsVisible="{Binding CanRemove}"
                                                     Tag="{Binding}" Click="RemoveMoveClick"/>
                                         </StackPanel>
                                     </Grid>

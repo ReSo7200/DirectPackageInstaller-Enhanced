@@ -6,7 +6,7 @@ namespace DirectPackageInstaller.Views
     /// <summary>"Move to … storage" from the On PS4 and Library menus.</summary>
     public static class MoveDialog
     {
-        public static async Task AskAndStartAsync(string TitleId, string Title, bool ToExtended)
+        public static async Task AskAndStartAsync(string TitleId, string Title, string Category, bool ToExtended)
         {
             if (ConsoleMove.WhyNot() is { } Why)
             {
@@ -24,7 +24,7 @@ namespace DirectPackageInstaller.Views
             if (Reply != DialogResult.Yes)
                 return;
 
-            ConsoleMove.Start(TitleId, Title, ToExtended);
+            ConsoleMove.Start(TitleId, Title, Category, ToExtended);
             AppShell.Current?.ShowQueue();
         }
     }

@@ -94,7 +94,7 @@ namespace DirectPackageInstaller.Views
         async void MenuMoveClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)
-                await MoveDialog.AskAndStartAsync(Item.Entry.TitleId, Item.Entry.Title, !Item.OnExtended);
+                await MoveDialog.AskAndStartAsync(Item.Entry.TitleId, Item.Entry.Title, "gd", !Item.OnExtended);
         }
 
         async void MenuSendMissingClick(object? sender, RoutedEventArgs e)

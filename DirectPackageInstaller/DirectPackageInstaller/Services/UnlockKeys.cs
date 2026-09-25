@@ -63,11 +63,15 @@ namespace DirectPackageInstaller.Services
                         if (Package.CanSeek)
                             Package.Position = Start;
                         Status?.Report($"Copying to {Target}…");
-                        await Ftp.UploadAsync(Target, Package, Sent =>
+                        // under a temporary name until complete: a cut-off copy must not look ready
+                        var Partial = Target + ".part";
+                        await Ftp.UploadAsync(Partial, Package, Sent =>
                         {
                             if (Length > 0)
                                 Status?.Report($"Copying to {Target}… {Sent * 100 / Length}%");
                         }, Token);
+                        try { await Ftp.DeleteAsync(Target, Token); } catch (FtpException) { } // an older copy
+                        await Ftp.RenameAsync(Partial, Target, Token);
                         return Target;
                     }
                     catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }

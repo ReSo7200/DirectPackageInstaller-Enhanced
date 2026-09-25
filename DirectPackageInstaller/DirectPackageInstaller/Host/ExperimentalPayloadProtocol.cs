@@ -33,6 +33,8 @@ namespace DirectPackageInstaller.Host
         public const uint CmdPackage = 1;
         public const uint CmdPackageV2 = 2;
         public const uint CmdFreeSpace = 3;
+        /// <summary>Like v2; the payload answers i32 result + i32 BGFT task id after registering.</summary>
+        public const uint CmdPackageV3 = 4;
 
         /// <summary>Console default storage (same registration path as cmd 1).</summary>
         public const int StorageDefault = -1;
@@ -66,6 +68,13 @@ namespace DirectPackageInstaller.Host
         /// Builds a cmd 2 request. Name is truncated to fit; URL, ContentID or Type
         /// that don't fit throw <see cref="ArgumentException"/> (the payload would reject them).
         /// </summary>
+        public static byte[] BuildPackageV3(string URL, string? Name, string? ContentID, string Type, long PackageSize, byte[]? Icon, int Storage)
+        {
+            var Data = BuildPackageV2(URL, Name, ContentID, Type, PackageSize, Icon, Storage);
+            BinaryPrimitives.WriteUInt32LittleEndian(Data, CmdPackageV3);
+            return Data;
+        }
+
         public static byte[] BuildPackageV2(string URL, string? Name, string? ContentID, string Type, long PackageSize, byte[]? Icon, int Storage)
         {
             if (Storage < StorageDefault || Storage > StorageExtended)

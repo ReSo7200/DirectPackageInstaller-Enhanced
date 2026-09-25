@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             xmlns:svc="using:DirectPackageInstaller.Services"
+             xmlns:local="using:DirectPackageInstaller.Views"
              x:Class="DirectPackageInstaller.Views.ConsolePage"
              x:DataType="vm:ConsoleViewModel"
              x:CompileBindings="True">
@@ -85,6 +87,7 @@
                                         <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick" Classes="library"/>
                                         <MenuItem Header="Copy title ID" Tag="{Binding}" Click="MenuCopyIdClick"/>
                                         <MenuItem Header="Back up saves" Tag="{Binding}" Click="MenuBackupSavesClick" Classes="ftp"/>
+                                        <MenuItem Header="Game patches (60 FPS, resolution…)" Tag="{Binding}" Click="MenuPatchesClick" Classes="ftp"/>
                                         <Separator/>
                                         <MenuItem Header="Move to extended storage…" Tag="{Binding}" Click="MenuMoveClick"
                                                   IsVisible="{Binding OnSystem}" Classes="move"/>
@@ -139,6 +142,46 @@
                         IsEnabled="{Binding CanRefresh}" ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True">Read the console</Button>
             </StackPanel>
         </Panel>
+
+        <!-- game patches for one title (GoldHEN's Game Patch plugin), over the page -->
+        <Border Grid.RowSpan="4" Name="PatchPanel" IsVisible="False" Background="#D90B0E16">
+            <Border Classes="card" Margin="16" Padding="18,16" MaxWidth="680" VerticalAlignment="Center"
+                    HorizontalAlignment="Stretch">
+                <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" MaxHeight="620">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="eyebrow" Text="GAME PATCHES"/>
+                        <TextBlock Name="PatchHeading" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="20" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Name="PatchStatus" FontSize="12.5" TextWrapping="Wrap" Margin="0,8,0,4"
+                               Foreground="{StaticResource Amber}" IsVisible="False"/>
+                    <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" Margin="0,6,0,0">
+                        <ItemsControl Name="PatchList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="svc:GamePatch">
+                                    <Border BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,8">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <CheckBox IsChecked="{Binding Enabled}" IsEnabled="{Binding Applies}" VerticalAlignment="Top"
+                                                      ToolTip.ShowOnDisabled="True"
+                                                      ToolTip.Tip="{Binding Applies, Converter={x:Static local:PatchTips.Tip}}"/>
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Detail}" TextWrapping="Wrap"/>
+                                                <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Note}" TextWrapping="Wrap" IsVisible="{Binding HasNote}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <TextBlock Grid.Row="3" Name="PatchFooter" Classes="muted" FontSize="11.5" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Name="BtnPatchClose">Close</Button>
+                        <Button Name="BtnPatchSave" Classes="primary" IsEnabled="False" ToolTip.ShowOnDisabled="True">Save to the console</Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
     </Grid>
 
     <UserControl.Styles>

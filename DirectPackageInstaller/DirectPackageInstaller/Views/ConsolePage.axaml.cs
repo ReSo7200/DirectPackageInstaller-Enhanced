@@ -14,12 +14,16 @@ namespace DirectPackageInstaller.Views
         public ConsolePage()
         {
             InitializeComponent();
-            // phones / narrow windows: pages restyle through the "narrow" class
-            PropertyChanged += (_, e) =>
-            {
-                if (e.Property == BoundsProperty)
-                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
-            };
+            // phones / narrow windows: pages restyle through the "narrow" class;
+            // the search box gets a line of its own (it sits in the chip WrapPanel)
+            NarrowLayout.Watch(this, _ => FitSearch());
+            Filters.SizeChanged += (_, _) => FitSearch();
+        }
+
+        void FitSearch()
+        {
+            bool Narrow = Classes.Contains("narrow");
+            NarrowLayout.Set(SearchBox, WidthProperty, Math.Max(100, Filters.Bounds.Width - SearchBox.Margin.Right), Narrow && Filters.Bounds.Width > 0);
         }
 
         /// <summary>Called by the window once the library exists (to show "N PKGs in library").</summary>

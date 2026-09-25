@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.LogicalTree;
 using Avalonia.Interactivity;
 
 namespace DirectPackageInstaller.Views
@@ -15,11 +16,7 @@ namespace DirectPackageInstaller.Views
         {
             InitializeComponent();
             // phones / narrow windows: pages restyle through the "narrow" class
-            PropertyChanged += (_, e) =>
-            {
-                if (e.Property == BoundsProperty)
-                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
-            };
+            NarrowLayout.Watch(this, ApplyNarrow);
 
             VersionText.Text = $"DPI Enhanced {SelfUpdate.CurrentVersion}";
 
@@ -107,6 +104,20 @@ namespace DirectPackageInstaller.Views
         }
 
         ViewModels.MainViewModel? Model => DataContext as ViewModels.MainViewModel;
+
+        /// <summary>Narrow: address and key fields go under their label, full width.</summary>
+        void ApplyNarrow(bool Narrow)
+        {
+            NarrowLayout.Reflow(PsIpRow, Narrow);
+            foreach (var Row in this.GetLogicalDescendants().OfType<Grid>().Where(x => x.Classes.Contains("debrid")))
+                NarrowLayout.Reflow(Row, Narrow);
+
+            // the adapter picker already has its own line: let it fill it
+            NarrowLayout.Set(PcIpLine.ColumnDefinitions[0], ColumnDefinition.WidthProperty, GridLength.Star, Narrow);
+            NarrowLayout.Set(PcIpLine, HorizontalAlignmentProperty, Avalonia.Layout.HorizontalAlignment.Stretch, Narrow);
+            NarrowLayout.Set(PcIpPicker, MinWidthProperty, 0d, Narrow);
+            NarrowLayout.Set(PcIpPicker, HorizontalAlignmentProperty, Avalonia.Layout.HorizontalAlignment.Stretch, Narrow);
+        }
 
         /// <summary>Scan the network and list consoles to pick from (there may be more than one).</summary>
         public async System.Threading.Tasks.Task FindConsolesAsync()

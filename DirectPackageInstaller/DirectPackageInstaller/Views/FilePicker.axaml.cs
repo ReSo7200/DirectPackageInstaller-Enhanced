@@ -187,7 +187,8 @@ public partial class FilePicker : UserControl
         if (Button.DataContext is not FileEntry Entry)
             return;
 
-        if (Entry.IsPKG)
+        // folder mode: files are only shown for orientation
+        if (Entry.IsPKG && !FolderMode)
         {
             Model.Result = DialogResult.OK;
             SelectedFiles = new List<string>(new [] { Entry.FullPath });
@@ -204,7 +205,7 @@ public partial class FilePicker : UserControl
         if (sender is not HoldToToggleButton Button)
             return;
 
-        if (Button.DataContext is FileEntry {IsPKG: true} Entry)
+        if (Button.DataContext is FileEntry {IsPKG: true} Entry && !FolderMode)
             SelectedFiles.Add(Entry.FullPath);
         else
             Button.Toggle();
@@ -226,7 +227,13 @@ public partial class FilePicker : UserControl
     private void Open_OnClick(object? sender, RoutedEventArgs e)
     {
         if (FolderMode)
-            SelectedFiles = new List<string> { Model.CurrentDir ?? LastDir ?? "" };
+        {
+            // the browser keeps a trailing separator; the library stores plain folder paths
+            var Folder = Model.CurrentDir ?? LastDir ?? "";
+            if (Folder.Length > 1)
+                Folder = Folder.TrimEnd('/', '\\');
+            SelectedFiles = new List<string> { Folder };
+        }
 
         Model.Result = DialogResult.OK;
         SingleView.ReturnView(this);

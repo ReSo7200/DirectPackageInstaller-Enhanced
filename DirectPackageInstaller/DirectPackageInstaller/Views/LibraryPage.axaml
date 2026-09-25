@@ -6,29 +6,32 @@
              x:CompileBindings="True"
              DragDrop.AllowDrop="True">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Grid RowDefinitions="*,Auto">
+      <!-- narrow: header and filters scroll away with the tiles (wide: vertical scrolling off, a plain panel) -->
+      <ScrollViewer Classes="page" HorizontalScrollBarVisibility="Disabled">
+        <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- header -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="28,22,28,14" Classes="pagehead">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
             <StackPanel Spacing="2">
                 <TextBlock Classes="h1" Text="Library"/>
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}"/>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Classes="headbuttons">
+            <WrapPanel ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center" Classes="headbuttons">
                 <Button Name="BtnCheck" ToolTip.Tip="Ask the PS4 which of these are installed">
                     <TextBlock Text="{Binding CheckButtonText}"/>
                 </Button>
                 <Button Name="BtnRescan" IsEnabled="{Binding !IsScanning}" ToolTip.Tip="Look for new, changed or removed PKGs">Rescan</Button>
                 <Button Name="BtnAddFolder" Classes="primary">Add folder</Button>
-            </StackPanel>
+            </WrapPanel>
         </Grid>
 
         <!-- filters + folders -->
-        <StackPanel Grid.Row="1" Margin="28,0,28,12" Spacing="10" Classes="pagebody">
+        <StackPanel Grid.Row="1" Spacing="10" Classes="pagebody">
             <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto" Classes="filters">
-                <TextBox Name="SearchBox" Width="290" Text="{Binding Search}"
+                <TextBox Name="SearchBox" Text="{Binding Search}"
                          Watermark="Search title, CUSA ID or file name"/>
-                <WrapPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center" Classes="chips">
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Classes="chips">
                     <RadioButton Classes="chip" GroupName="kind" Name="FilterAll" IsChecked="True">All</RadioButton>
                     <RadioButton Classes="chip" GroupName="kind" Name="FilterGames">Games</RadioButton>
                     <RadioButton Classes="chip" GroupName="kind" Name="FilterUpdates">Updates</RadioButton>
@@ -45,8 +48,8 @@
                         <ComboBoxItem>Sort: largest</ComboBoxItem>
                     </ComboBox>
                 </WrapPanel>
-                <TextBlock Grid.Column="2" Classes="muted summary" FontSize="12" TextWrapping="Wrap" TextAlignment="Right"
-                           VerticalAlignment="Center" Margin="16,0,0,0" Text="{Binding ConsoleSummary}"
+                <TextBlock Classes="muted summary" FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" Text="{Binding ConsoleSummary}"
                            MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ConsoleSummary}"/>
             </Grid>
 
@@ -68,9 +71,9 @@
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Classes="mono" Text="{Binding Label}" VerticalAlignment="Center" MaxWidth="460"
+                                <TextBlock Classes="mono folderlabel" Text="{Binding Label}" VerticalAlignment="Center"
                                            TextTrimming="PrefixCharacterEllipsis"/>
-                                <Button Classes="ghost danger" Padding="6,1" FontSize="12" Content="✕"
+                                <Button Classes="ghost danger" Padding="6,1" FontSize="12" Content="×"
                                         Tag="{Binding Path}" Click="RemoveFolderClick"
                                         ToolTip.Tip="Remove this folder from the library (files are not touched)"/>
                             </StackPanel>
@@ -83,7 +86,7 @@
         <!-- grid -->
         <Panel Grid.Row="2">
             <ListBox Name="Grid" Classes="library grid" ItemsSource="{Binding Items}" SelectedItems="{Binding Selected}"
-                     SelectionMode="Multiple,Toggle" Background="Transparent" Padding="28,4,14,20"
+                     SelectionMode="Multiple,Toggle" Background="Transparent"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -92,7 +95,7 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:LibraryItem">
-                        <StackPanel Width="176" ToolTip.Tip="{Binding Tooltip}">
+                        <StackPanel Classes="tile" ToolTip.Tip="{Binding Tooltip}">
                             <StackPanel.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Send to PS4" Tag="{Binding}" Click="MenuSendClick"/>
@@ -113,7 +116,7 @@
                                               IsVisible="{Binding CanUninstall}"/>
                                 </ContextMenu>
                             </StackPanel.ContextMenu>
-                            <Panel Width="176" Height="176">
+                            <Panel Classes="cover">
                                 <Border Classes="frame" CornerRadius="7" ClipToBounds="True"
                                         Background="{StaticResource Raised}" BorderThickness="2" BorderBrush="Transparent">
                                     <Panel>
@@ -178,7 +181,7 @@
 
             <!-- empty: no folders yet -->
             <StackPanel IsVisible="{Binding !HasFolders}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="10" MaxWidth="420">
+                        Spacing="10" MaxWidth="420" Margin="20,0">
                 <TextBlock Classes="h2" Text="Add the folder where you keep your PKGs" TextAlignment="Center" TextWrapping="Wrap"/>
                 <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
                            Text="Subfolders are included. Games, updates and DLC are grouped by title, and a PS4 check shows what's already installed. You can also drop a folder here."/>
@@ -187,65 +190,32 @@
 
             <!-- empty: folders but no PKGs -->
             <TextBlock IsVisible="{Binding IsEmpty}" Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"
                        Text="No .pkg files found yet. Press Rescan after adding files."/>
 
             <TextBlock IsVisible="{Binding HasNoMatches}" Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"
                        Text="Nothing matches this search or filter."/>
         </Panel>
 
+        </Grid>
+      </ScrollViewer>
+
         <!-- send bar -->
-        <Border Grid.Row="3" IsVisible="{Binding HasSelection}" Background="{StaticResource Deck}"
-                BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="28,12">
-            <Grid ColumnDefinitions="*,Auto">
+        <!-- narrow: selection text + Send on top, the other two buttons under them -->
+        <Border Grid.Row="1" IsVisible="{Binding HasSelection}" Background="{StaticResource Deck}"
+                BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Classes="sendbar">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
                 <TextBlock Text="{Binding SelectionText}" FontFamily="{StaticResource Mono}" FontSize="13"
-                           VerticalAlignment="Center"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <Button Name="BtnSelectFamily" Classes="ghost" ToolTip.Tip="Also select the updates and DLC of the selected games">Add updates &amp; DLC</Button>
-                    <Button Name="BtnClearSelection" Classes="ghost">Clear</Button>
-                    <Button Name="BtnSend" Classes="primary" MinWidth="130">Send to PS4</Button>
-                </StackPanel>
+                           VerticalAlignment="Center" TextWrapping="Wrap" Classes="selection"/>
+                <Button Name="BtnSelectFamily" Classes="ghost" ToolTip.Tip="Also select the updates and DLC of the selected games">Add updates &amp; DLC</Button>
+                <Button Name="BtnClearSelection" Classes="ghost">Clear</Button>
+                <Button Grid.Column="3" Name="BtnSend" Classes="primary" MinWidth="130">Send to PS4</Button>
             </Grid>
         </Border>
     </Grid>
 
     <UserControl.Styles>
-        <!-- phones and narrow windows -->
-        <Style Selector="WrapPanel.chips > :is(Control)">
-            <Setter Property="Margin" Value="0,0,6,6"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow Grid.pagehead">
-            <Setter Property="Margin" Value="14,14,14,8"/>
-        </Style>
-        <!-- no ColumnSpan here: a spanning child widens the Auto column and squeezes the title to nothing -->
-        <Style Selector=":is(UserControl).narrow StackPanel.headbuttons">
-            <Setter Property="Grid.Row" Value="1"/>
-            <Setter Property="Grid.Column" Value="0"/>
-            <Setter Property="Margin" Value="0,10,0,0"/>
-            <Setter Property="HorizontalAlignment" Value="Left"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
-            <Setter Property="Margin" Value="14,0,14,8"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow Grid.filters TextBox">
-            <Setter Property="Width" Value="NaN"/>
-            <Setter Property="Grid.ColumnSpan" Value="3"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow Grid.filters WrapPanel.chips">
-            <Setter Property="Grid.Row" Value="1"/>
-            <Setter Property="Grid.Column" Value="0"/>
-            <Setter Property="Grid.ColumnSpan" Value="3"/>
-            <Setter Property="Margin" Value="0,10,0,0"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow Grid.filters TextBlock.summary">
-            <Setter Property="Grid.Row" Value="2"/>
-            <Setter Property="Grid.Column" Value="0"/>
-            <Setter Property="Grid.ColumnSpan" Value="3"/>
-            <Setter Property="TextAlignment" Value="Left"/>
-            <Setter Property="Margin" Value="0,4,0,0"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow ListBox.grid">
-            <Setter Property="Padding" Value="14,4,0,16"/>
-        </Style>
         <Style Selector="Border.folder">
             <Setter Property="Background" Value="{StaticResource Deck}"/>
             <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
@@ -283,6 +253,132 @@
         </Style>
         <Style Selector="ListBox.library ListBoxItem:selected Border.check">
             <Setter Property="IsVisible" Value="True"/>
+        </Style>
+
+        <!-- wide layout: kept in styles, not attributes, so the narrow styles below can override it -->
+        <Style Selector="WrapPanel.chips > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+        </Style>
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector="WrapPanel.headbuttons">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="StackPanel.pagebody">
+            <Setter Property="Margin" Value="28,0,28,12"/>
+        </Style>
+        <Style Selector="TextBox#SearchBox">
+            <Setter Property="Width" Value="290"/>
+        </Style>
+        <Style Selector="Grid.filters > WrapPanel.chips">
+            <Setter Property="Grid.Column" Value="1"/>
+            <Setter Property="Margin" Value="14,0,0,0"/>
+        </Style>
+        <Style Selector="TextBlock.summary">
+            <Setter Property="Grid.Column" Value="2"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="16,0,0,0"/>
+        </Style>
+        <Style Selector="TextBlock.folderlabel">
+            <Setter Property="MaxWidth" Value="460"/>
+        </Style>
+        <Style Selector="ScrollViewer.page">
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+        <Style Selector="ListBox.grid">
+            <Setter Property="Padding" Value="28,4,14,20"/>
+        </Style>
+        <Style Selector="StackPanel.tile">
+            <Setter Property="Width" Value="176"/>
+        </Style>
+        <Style Selector="Panel.cover">
+            <Setter Property="Width" Value="176"/>
+            <Setter Property="Height" Value="176"/>
+        </Style>
+        <Style Selector="Border.sendbar">
+            <Setter Property="Padding" Value="28,12"/>
+        </Style>
+        <Style Selector="Button#BtnSelectFamily">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="Button#BtnClearSelection">
+            <Setter Property="Grid.Column" Value="2"/>
+        </Style>
+
+        <!-- phones and narrow windows -->
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <!-- no ColumnSpan here: a spanning child widens the Auto column and squeezes the title to nothing -->
+        <Style Selector=":is(UserControl).narrow WrapPanel.headbuttons">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
+            <Setter Property="Margin" Value="14,0,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBox#SearchBox">
+            <Setter Property="Width" Value="NaN"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.filters > WrapPanel.chips">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBlock.summary">
+            <Setter Property="Grid.Row" Value="2"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBlock.folderlabel">
+            <Setter Property="MaxWidth" Value="250"/>
+        </Style>
+        <!-- the page scrolls instead of the list (the list's own scrolling would swallow the swipe) -->
+        <Style Selector=":is(UserControl).narrow ScrollViewer.page">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+        <!-- two tiles per row on a ~360 dp phone -->
+        <Style Selector=":is(UserControl).narrow ListBox.grid">
+            <Setter Property="Padding" Value="14,4,2,16"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow ListBox.library ListBoxItem">
+            <Setter Property="Margin" Value="0,0,12,16"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.tile">
+            <Setter Property="Width" Value="160"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Panel.cover">
+            <Setter Property="Width" Value="160"/>
+            <Setter Property="Height" Value="160"/>
+        </Style>
+        <!-- send bar: selection + Send on the first line, the other buttons under them -->
+        <Style Selector=":is(UserControl).narrow Border.sendbar">
+            <Setter Property="Padding" Value="14,10"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Border.sendbar > Grid">
+            <Setter Property="RowSpacing" Value="8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBlock.selection">
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Button#BtnSelectFamily">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Button#BtnClearSelection">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="3"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
         </Style>
     </UserControl.Styles>
 </UserControl>

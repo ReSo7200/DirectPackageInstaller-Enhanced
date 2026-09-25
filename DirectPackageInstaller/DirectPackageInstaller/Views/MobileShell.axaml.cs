@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using DirectPackageInstaller.Services;
 using DirectPackageInstaller.ViewModels;
@@ -21,6 +23,19 @@ namespace DirectPackageInstaller.Views
 
             // Direct link is the existing MainView (it also owns the servers)
             LinkHost.Children.Add(Main);
+            // its 28 px side margins are for the desktop window: phones get 14
+            NarrowLayout.Watch(Main, Narrow =>
+            {
+                if (Main.FindControl<Grid>("MainViewGrid") is not { } Root)
+                    return;
+                // the page title is hidden on phones: keep the URL card off the top bar
+                bool NoHeader = Main.FindControl<Control>("LinkHeader") is { IsVisible: false };
+                foreach (var Child in Root.Children.Where(x => x is not Menu))
+                {
+                    double Top = NoHeader && Grid.GetRow(Child) == 2 ? 14 : Child.Margin.Top;
+                    NarrowLayout.Set(Child, MarginProperty, new Thickness(14, Top, 14, Child.Margin.Bottom), Narrow);
+                }
+            });
 
             SettingsPage.DataContext = Main.DataContext;
             SettingsPage.Host = Main;

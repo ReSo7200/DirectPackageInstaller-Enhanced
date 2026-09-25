@@ -6,35 +6,35 @@
              x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,*">
-        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="28,22,28,14" Classes="pagehead">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
             <StackPanel Spacing="2">
                 <TextBlock Classes="h1" Text="Queue"/>
                 <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
                            Text="Packages go to the PS4 one at a time; it downloads them in order. Keep this app open until they finish."/>
             </StackPanel>
-            <Button Grid.Column="1" Name="BtnClearFinished" VerticalAlignment="Center" Classes="headbutton">Clear finished</Button>
+            <Button Name="BtnClearFinished" VerticalAlignment="Center" Classes="headbutton">Clear finished</Button>
         </Grid>
 
         <Panel Grid.Row="1">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
               <StackPanel>
-                <StackPanel Name="DownloadsPanel" Margin="28,0,28,8" IsVisible="False" Classes="list">
+                <StackPanel Name="DownloadsPanel" IsVisible="False" Classes="list downloads">
                     <TextBlock Classes="eyebrow" Text="DOWNLOADS FROM PLAYSTATION NETWORK" Margin="0,0,0,8"/>
                     <ItemsControl Name="DownloadsList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="svc:UpdateDownload">
                                 <Border Classes="card" Padding="14,12" Margin="0,0,0,8">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14" Classes="entry">
                                         <StackPanel Spacing="3">
                                             <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="17"/>
                                             <TextBlock Classes="mono" Text="{Binding Detail}" TextTrimming="CharacterEllipsis"/>
                                             <ProgressBar Classes="rail" Value="{Binding Progress}" Maximum="100" Margin="0,5,0,1"/>
                                             <TextBlock Text="{Binding Message}" Classes="muted" FontSize="12.5" TextWrapping="Wrap"/>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="12.5" HorizontalAlignment="Right"
+                                        <StackPanel Spacing="6" VerticalAlignment="Center" Classes="actions">
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="12.5"
                                                        Foreground="{StaticResource Signal}"/>
-                                            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
                                                 <Button Classes="ghost danger" Padding="10,4" Content="Cancel" IsVisible="{Binding CanCancel}"
                                                         Tag="{Binding}" Click="CancelDownloadClick"/>
                                                 <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding IsFinished}"
@@ -50,11 +50,11 @@
                     </ItemsControl>
                     <TextBlock Classes="eyebrow" Text="SENDING TO THE CONSOLE" Margin="0,8,0,0"/>
                 </StackPanel>
-                <ItemsControl ItemsSource="{Binding Items}" Margin="28,0,28,24" Classes="list">
+                <ItemsControl ItemsSource="{Binding Items}" Classes="list">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="svc:QueueItem">
                             <Border Classes="card" Padding="12" Margin="0,0,0,8">
-                                <Grid ColumnDefinitions="56,*,Auto" ColumnSpacing="14">
+                                <Grid ColumnDefinitions="56,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14" Classes="entry">
                                     <Border Width="56" Height="56" CornerRadius="5" ClipToBounds="True"
                                             Background="{StaticResource Raised}" VerticalAlignment="Top">
                                         <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
@@ -75,10 +75,10 @@
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <StackPanel Spacing="6" VerticalAlignment="Center" Classes="actions">
                                         <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}"
-                                                   FontWeight="SemiBold" FontSize="12.5" HorizontalAlignment="Right"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                                   FontWeight="SemiBold" FontSize="12.5"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
                                             <Button Classes="ghost" Padding="10,4" Content="Pause" IsVisible="{Binding CanPause}"
                                                     Tag="{Binding}" Click="PauseClick" ToolTip.Tip="Pause the download on the console"/>
                                             <Button Classes="ghost" Padding="10,4" Content="Resume" IsVisible="{Binding CanResume}"
@@ -99,7 +99,7 @@
               </StackPanel>
             </ScrollViewer>
 
-            <StackPanel Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="380">
+            <StackPanel Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="380" Margin="20,0">
                 <TextBlock Classes="h2" Text="Nothing queued" HorizontalAlignment="Center"/>
                 <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
                            Text="Select games in the Library and press Send to PS4, or drop .pkg files onto the Library."/>
@@ -108,6 +108,32 @@
     </Grid>
 
     <UserControl.Styles>
+        <!-- wide layout: kept in styles, not attributes, so the narrow styles below can override it -->
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector="Button.headbutton">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector=":is(Control).list">
+            <Setter Property="Margin" Value="28,0,28,24"/>
+        </Style>
+        <Style Selector=":is(Control).list.downloads">
+            <Setter Property="Margin" Value="28,0,28,8"/>
+        </Style>
+        <!-- state + buttons: last column (after the cover and text) -->
+        <Style Selector="Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Column" Value="2"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector="Grid.entry > StackPanel.actions > :is(Control)">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector="StackPanel.downloads Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+
+        <!-- phones and narrow windows -->
         <Style Selector=":is(UserControl).narrow Grid.pagehead">
             <Setter Property="Margin" Value="14,14,14,8"/>
         </Style>
@@ -119,6 +145,20 @@
         </Style>
         <Style Selector=":is(UserControl).narrow :is(Control).list">
             <Setter Property="Margin" Value="10,0,10,16"/>
+        </Style>
+        <!-- state + buttons move under the text -->
+        <Style Selector=":is(UserControl).narrow Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="1"/>
+            <Setter Property="Grid.ColumnSpan" Value="2"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.downloads Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Column" Value="0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.entry > StackPanel.actions > :is(Control)">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
         </Style>
     </UserControl.Styles>
 </UserControl>

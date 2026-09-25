@@ -8,7 +8,7 @@
              x:CompileBindings="True">
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="28,22,28,32" Spacing="18" MaxWidth="820" HorizontalAlignment="Left" Classes="pagebody">
+        <StackPanel Spacing="18" MaxWidth="820" HorizontalAlignment="Left" Classes="pagebody">
             <TextBlock Classes="h1" Text="Settings"/>
 
             <!-- console -->
@@ -16,7 +16,7 @@
                 <TextBlock Classes="eyebrow" Text="CONSOLE"/>
                 <Border Classes="card">
                     <StackPanel>
-                        <Grid Classes="row" RowDefinitions="Auto,Auto" ColumnDefinitions="*,220,Auto">
+                        <Grid Classes="row" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,220,Auto" Name="PsIpRow">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="PS4 / PS5 address"/>
                                 <TextBlock Classes="hint" Text="Press Find consoles to scan your network, or type it (on the console: Settings › Network › View Connection Status)."/>
@@ -26,7 +26,7 @@
                             <Button Grid.Column="2" Name="BtnFindConsoles"
                                     ToolTip.Tip="Look for consoles on this PC's networks (takes a few seconds)">Find consoles</Button>
 
-                            <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Name="FoundPanel" IsVisible="False" Spacing="6" Margin="0,12,0,0">
+                            <StackPanel Grid.Row="2" Grid.ColumnSpan="3" Name="FoundPanel" IsVisible="False" Spacing="6" Margin="0,12,0,0">
                                 <TextBlock Name="FoundStatus" Classes="hint"/>
                                 <ItemsControl Name="FoundList">
                                     <ItemsControl.ItemTemplate>
@@ -48,7 +48,8 @@
                                 <TextBlock Classes="label" Text="This PC's address"/>
                                 <TextBlock Classes="hint" Text="The network adapter the console downloads from. Pick the one on the same network as the console; it won't change unless you change it here."/>
                             </StackPanel>
-                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                            <Grid Grid.Row="1" Grid.ColumnSpan="2" Name="PcIpLine" ColumnDefinitions="Auto,Auto" ColumnSpacing="8"
+                                  HorizontalAlignment="Left" Margin="0,10,0,0">
                                 <ComboBox Name="PcIpPicker" MinWidth="440" MaxWidth="560"
                                           PlaceholderText="Choose a network adapter">
                                     <ComboBox.ItemTemplate>
@@ -58,8 +59,8 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Name="BtnRefreshAdapters" ToolTip.Tip="List the adapters again (after plugging in a cable or joining a network)">Refresh</Button>
-                            </StackPanel>
+                                <Button Grid.Column="1" Name="BtnRefreshAdapters" ToolTip.Tip="List the adapters again (after plugging in a cable or joining a network)">Refresh</Button>
+                            </Grid>
                         </Grid>
                         <Rectangle Classes="divider"/>
                         <Grid Classes="row" ColumnDefinitions="*,Auto">
@@ -131,7 +132,7 @@
                 <TextBlock Classes="eyebrow" Text="DEBRID SERVICES"/>
                 <Border Classes="card">
                     <StackPanel>
-                        <Grid Classes="row" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
+                        <Grid Classes="row debrid" RowDefinitions="Auto,Auto" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="AllDebrid"/>
                                 <TextBlock Classes="hint" Text="API key from alldebrid.com/apikeys"/>
@@ -140,7 +141,7 @@
                             <ToggleSwitch Grid.Column="2" IsChecked="{Binding UseAllDebrid}" OnContent="" OffContent=""/>
                         </Grid>
                         <Rectangle Classes="divider"/>
-                        <Grid Classes="row" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
+                        <Grid Classes="row debrid" RowDefinitions="Auto,Auto" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="RealDebrid"/>
                                 <TextBlock Classes="hint" Text="API token from real-debrid.com/apitoken"/>
@@ -149,7 +150,7 @@
                             <ToggleSwitch Grid.Column="2" IsChecked="{Binding UseRealDebrid}" OnContent="" OffContent=""/>
                         </Grid>
                         <Rectangle Classes="divider"/>
-                        <Grid Classes="row" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
+                        <Grid Classes="row debrid" RowDefinitions="Auto,Auto" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="Debrid-Link"/>
                                 <TextBlock Classes="hint" Text="API key from debrid-link.com/webapp/apikey"/>
@@ -201,12 +202,13 @@
                         <Grid Classes="row" ColumnDefinitions="*,Auto">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="Experimental GoldHEN payload"/>
-                                <TextBlock Classes="hint" Text="A newer build of the installer payload that can report free space (shown on the On PS4 page) and try to install to a chosen storage. Untested on consoles: turn it off if installs misbehave. Remote Package Installer and etaHEN installs are not affected."/>
+                                <TextBlock Classes="hint" Text="A newer build of the installer payload that can report free space (shown on the On PS4 page). Turn it off if installs misbehave. Remote Package Installer and etaHEN installs are not affected."/>
                             </StackPanel>
                             <ToggleSwitch Grid.Column="1" Name="ExperimentalSwitch" OnContent="" OffContent=""/>
                         </Grid>
-                        <Rectangle Classes="divider"/>
-                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                        <!-- hidden: tested on a PS4 (Sep 2026), the console ignores the requested storage -->
+                        <Rectangle Classes="divider" IsVisible="False"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="StorageRow" IsVisible="False">
                             <StackPanel>
                                 <TextBlock Classes="label" Text="Install to"/>
                                 <TextBlock Classes="hint" Text="Needs the experimental payload. If the console refuses the choice it installs to its own setting (Settings › Storage › Application Install Location) and shows a notification."/>
@@ -247,19 +249,8 @@
     </ScrollViewer>
 
     <UserControl.Styles>
-        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
-            <Setter Property="Margin" Value="12,14,12,24"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow Grid.row">
-            <Setter Property="Margin" Value="12,12"/>
-            <Setter Property="ColumnSpacing" Value="10"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow Grid.row TextBox">
-            <Setter Property="MaxWidth" Value="150"/>
-        </Style>
-        <Style Selector=":is(UserControl).narrow ComboBox">
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="MaxWidth" Value="300"/>
+        <Style Selector="StackPanel.pagebody">
+            <Setter Property="Margin" Value="28,22,28,32"/>
         </Style>
         <Style Selector="Grid.row">
             <Setter Property="Margin" Value="18,14"/>
@@ -274,6 +265,7 @@
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style Selector="TextBlock.hint">
             <Setter Property="FontSize" Value="12.5"/>
@@ -285,6 +277,22 @@
             <Setter Property="Height" Value="1"/>
             <Setter Property="Fill" Value="{StaticResource Line}"/>
             <Setter Property="Margin" Value="18,0"/>
+        </Style>
+
+        <!-- phones and narrow windows (after the wide styles: the later style wins); text boxes
+             and combo boxes drop under their label in code (NarrowLayout.Reflow) -->
+        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
+            <Setter Property="Margin" Value="12,14,12,24"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.row">
+            <Setter Property="Margin" Value="12,12"/>
+            <Setter Property="ColumnSpacing" Value="10"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.note">
+            <Setter Property="Margin" Value="12,12"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Rectangle.divider">
+            <Setter Property="Margin" Value="12,0"/>
         </Style>
     </UserControl.Styles>
 </UserControl>

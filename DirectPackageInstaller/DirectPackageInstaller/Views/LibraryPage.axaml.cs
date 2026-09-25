@@ -18,11 +18,7 @@ namespace DirectPackageInstaller.Views
         {
             InitializeComponent();
             // phones / narrow windows: pages restyle through the "narrow" class
-            PropertyChanged += (_, e) =>
-            {
-                if (e.Property == BoundsProperty)
-                    Classes.Set("narrow", Bounds.Width > 0 && Bounds.Width < 700);
-            };
+            NarrowLayout.Watch(this);
             DataContext = new LibraryViewModel();
 
             BtnAddFolder.Click += AddFolderClick;

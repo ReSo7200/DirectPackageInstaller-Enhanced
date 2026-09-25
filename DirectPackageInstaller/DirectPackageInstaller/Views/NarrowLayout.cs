@@ -51,7 +51,7 @@ namespace DirectPackageInstaller.Views
 
         /// <summary>
         /// Settings-style rows (label in column 0, controls to the right): text boxes and
-        /// combo boxes drop under the label and stretch, fixed-width columns collapse.
+        /// combo boxes drop under the label and stretch across the row, fixed-width columns collapse.
         /// Needs a second RowDefinition on the grid.
         /// </summary>
         public static void Reflow(Grid Row, bool Narrow)
@@ -73,7 +73,7 @@ namespace DirectPackageInstaller.Views
                 {
                     Set(Child, Grid.RowProperty, 1, Narrow);
                     Set(Child, Grid.ColumnProperty, 0, Narrow);
-                    Set(Child, Grid.ColumnSpanProperty, Columns > 2 ? Columns - 1 : Columns, Narrow);
+                    Set(Child, Grid.ColumnSpanProperty, Columns, Narrow);
                     Set(Child, Layoutable.MinWidthProperty, 0d, Narrow);
                     Set(Child, Layoutable.HorizontalAlignmentProperty, HorizontalAlignment.Stretch, Narrow);
                     Set(Child, Layoutable.MarginProperty, new Thickness(0, 10, 0, 0), Narrow);

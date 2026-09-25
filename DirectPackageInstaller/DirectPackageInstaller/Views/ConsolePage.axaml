@@ -6,20 +6,20 @@
              x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,Auto,*">
-        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="28,22,28,14" Classes="pagehead">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
             <StackPanel Spacing="2">
                 <TextBlock Classes="h1" Text="On PS4"/>
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}" TextWrapping="Wrap"/>
                 <TextBlock FontFamily="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Text}"
                            Text="{Binding FreeSpace}" IsVisible="{Binding HasFreeSpace}" Margin="0,4,0,0"/>
             </StackPanel>
-            <Button Grid.Column="1" Name="BtnRefresh" Classes="primary headbutton" VerticalAlignment="Center" MinWidth="110"
+            <Button Name="BtnRefresh" Classes="primary headbutton" VerticalAlignment="Center" MinWidth="110"
                     IsEnabled="{Binding !IsLoading}" Content="{Binding RefreshText}"
                     ToolTip.Tip="Read what's installed on the console (GoldHEN FTP)"/>
         </Grid>
 
-        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="28,0,28,12" IsVisible="{Binding Loaded}" Classes="pagebody chips">
-            <TextBox Width="290" Text="{Binding Search}" Watermark="Search title or CUSA ID" Margin="0,0,8,0" Classes="search"/>
+        <WrapPanel Grid.Row="1" Name="Filters" Orientation="Horizontal" IsVisible="{Binding Loaded}" Classes="pagebody chips">
+            <TextBox Name="SearchBox" Width="290" Text="{Binding Search}" Watermark="Search title or CUSA ID" Margin="0,0,8,0"/>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterAll" IsChecked="True" VerticalAlignment="Center">All</RadioButton>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterGames" VerticalAlignment="Center">Games</RadioButton>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterApps" VerticalAlignment="Center">Apps</RadioButton>
@@ -28,7 +28,7 @@
 
         <Panel Grid.Row="2">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Items}" Margin="28,4,14,20" Classes="grid">
+                <ItemsControl ItemsSource="{Binding Items}" Classes="grid">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel/>
@@ -36,7 +36,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ConsoleTitleItem">
-                            <StackPanel Width="176" Margin="0,0,16,20" ToolTip.Tip="{Binding Tooltip}" Background="Transparent">
+                            <StackPanel Classes="tile" ToolTip.Tip="{Binding Tooltip}" Background="Transparent">
                                 <StackPanel.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick"/>
@@ -47,7 +47,7 @@
                                         <MenuItem Header="Uninstall…" Tag="{Binding}" Click="MenuUninstallClick"/>
                                     </ContextMenu>
                                 </StackPanel.ContextMenu>
-                                <Panel Width="176" Height="176">
+                                <Panel Classes="cover">
                                     <Border CornerRadius="7" ClipToBounds="True" Background="{StaticResource Raised}">
                                         <Panel>
                                             <TextBlock Classes="mono" FontSize="13" Text="{Binding TitleId}"
@@ -82,7 +82,7 @@
             </ScrollViewer>
 
             <StackPanel IsVisible="{Binding ShowIntro}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="10" MaxWidth="440">
+                        Spacing="10" MaxWidth="440" Margin="20,0">
                 <TextBlock Classes="h2" Text="See everything installed on the console" TextAlignment="Center" TextWrapping="Wrap"/>
                 <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
                            Text="Games, apps, installed updates and DLC on system and extended storage, read from the console with GoldHEN's FTP server. Works without a library."/>
@@ -92,9 +92,32 @@
     </Grid>
 
     <UserControl.Styles>
+        <!-- wide layout: kept in styles, not attributes, so the narrow styles below can override it -->
         <Style Selector="WrapPanel.chips > :is(Control)">
             <Setter Property="Margin" Value="0,0,6,6"/>
         </Style>
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector="Button.headbutton">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="WrapPanel.pagebody">
+            <Setter Property="Margin" Value="28,0,28,12"/>
+        </Style>
+        <Style Selector="ItemsControl.grid">
+            <Setter Property="Margin" Value="28,4,14,20"/>
+        </Style>
+        <Style Selector="StackPanel.tile">
+            <Setter Property="Width" Value="176"/>
+            <Setter Property="Margin" Value="0,0,16,20"/>
+        </Style>
+        <Style Selector="Panel.cover">
+            <Setter Property="Width" Value="176"/>
+            <Setter Property="Height" Value="176"/>
+        </Style>
+
+        <!-- phones and narrow windows (the search box width is set in code) -->
         <Style Selector=":is(UserControl).narrow Grid.pagehead">
             <Setter Property="Margin" Value="14,14,14,8"/>
         </Style>
@@ -107,12 +130,17 @@
         <Style Selector=":is(UserControl).narrow WrapPanel.pagebody">
             <Setter Property="Margin" Value="14,0,14,8"/>
         </Style>
-        <Style Selector=":is(UserControl).narrow TextBox.search">
-            <Setter Property="Width" Value="NaN"/>
-            <Setter Property="MinWidth" Value="260"/>
-        </Style>
+        <!-- two tiles per row on a ~360 dp phone -->
         <Style Selector=":is(UserControl).narrow ItemsControl.grid">
-            <Setter Property="Margin" Value="14,4,0,16"/>
+            <Setter Property="Margin" Value="14,4,2,16"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.tile">
+            <Setter Property="Width" Value="160"/>
+            <Setter Property="Margin" Value="0,0,12,16"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Panel.cover">
+            <Setter Property="Width" Value="160"/>
+            <Setter Property="Height" Value="160"/>
         </Style>
     </UserControl.Styles>
 </UserControl>

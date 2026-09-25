@@ -211,7 +211,8 @@ namespace DirectPackageInstaller.ViewModels
                 var Titles = await ConsoleTitles.QueryAsync(IP, Progress);
                 if (Titles == null)
                 {
-                    Summary = "Couldn't read the console. Turn on GoldHEN's FTP server (Settings › Server Settings on the PS4), then press Refresh.";
+                    Summary = "Couldn't read the console. Turn on GoldHEN's FTP server (Settings › Server Settings on the PS4), then press Refresh."
+                              + (ConsoleTitles.LastError is { } Why ? $"\n({Why})" : "");
                     return;
                 }
 

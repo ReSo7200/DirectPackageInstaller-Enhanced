@@ -40,8 +40,12 @@ namespace DirectPackageInstaller.Services
     {
         static string IconCache => Path.Combine(LibraryService.DataDir, "console-icons");
 
+        /// <summary>Why the last QueryAsync returned null (connection or listing error).</summary>
+        public static string? LastError { get; private set; }
+
         public static async Task<List<InstalledTitle>?> QueryAsync(string ConsoleIP, IProgress<string>? Progress = null, CancellationToken Token = default)
         {
+            LastError = null;
             foreach (var Port in ConsoleInventory.FtpPorts)
             {
                 // GoldHEN's server often drops the first connection
@@ -53,9 +57,10 @@ namespace DirectPackageInstaller.Services
                         Ftp = await FtpLite.ConnectAsync(ConsoleIP, Port, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(8), Token);
                     }
                     catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
-                    catch (System.Net.Sockets.SocketException) { break; }
-                    catch
+                    catch (System.Net.Sockets.SocketException ex) { LastError ??= $"port {Port}: {ex.Message}"; break; }
+                    catch (Exception ex)
                     {
+                        LastError ??= $"port {Port}: {ex.Message}";
                         await Task.Delay(1000, Token);
                         continue;
                     }
@@ -98,7 +103,11 @@ namespace DirectPackageInstaller.Services
             List<FtpEntry> Internal;
             try { Internal = await Ftp.ListAsync("/user/app", Token); }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                LastError ??= $"listing /user/app: {ex.GetType().Name}: {ex.Message}";
+                return null;
+            }
 
             var InternalApps = Internal.Select(x => x.Name).Where(IsTitleId).ToHashSet();
             var ExtApps = (await NamesAsync(Ftp, "/mnt/ext0/user/app", Token)).Where(IsTitleId).ToHashSet();

@@ -19,7 +19,8 @@ namespace DirectPackageInstaller.Services
         static string Suffix => string.Concat(Environment.UserName.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
 
         /// <summary>Pipe / mutex name; tests may override before calling anything else.</summary>
-        public static string Name { get; set; } = "DPIEnhanced-" + Suffix;
+        // DPI_INSTANCE: a separate instance (testing a build next to the one in use)
+        public static string Name { get; set; } = "DPIEnhanced-" + (Environment.GetEnvironmentVariable("DPI_INSTANCE") ?? Suffix);
 
         static string MutexName => "Local\\" + Name;
 

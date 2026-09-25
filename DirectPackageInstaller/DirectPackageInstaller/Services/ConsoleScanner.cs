@@ -242,7 +242,7 @@ namespace DirectPackageInstaller.Services
                 using var Client = new TcpClient();
                 using var Timeout = CancellationTokenSource.CreateLinkedTokenSource(Token);
                 Timeout.CancelAfter(400);
-                await Client.ConnectAsync(Host, Port, Timeout.Token);
+                await NetConnect.ConnectAsync(Client, Host, Port, Timeout.Token);
                 return true;
             }
             catch

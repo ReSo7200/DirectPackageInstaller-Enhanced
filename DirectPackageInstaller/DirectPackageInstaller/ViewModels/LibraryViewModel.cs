@@ -188,9 +188,6 @@ namespace DirectPackageInstaller.ViewModels
         public double RailFill => IsSending ? Math.Max(0.04, (Queued!.Progress) / 100.0) : 0;
         public bool ShowRailFill => IsSending;
 
-        /// <summary>Cover/rail width in the grid, in px.</summary>
-        public const double CardWidth = 176;
-        public double RailFillWidth => CardWidth * RailFill;
 
         public string StatusText
         {
@@ -259,7 +256,6 @@ namespace DirectPackageInstaller.ViewModels
             this.RaisePropertyChanged(nameof(CanUninstall));
             this.RaisePropertyChanged(nameof(RailBrush));
             this.RaisePropertyChanged(nameof(RailFill));
-            this.RaisePropertyChanged(nameof(RailFillWidth));
             this.RaisePropertyChanged(nameof(ShowRailFill));
             this.RaisePropertyChanged(nameof(StatusText));
             this.RaisePropertyChanged(nameof(StatusBrush));

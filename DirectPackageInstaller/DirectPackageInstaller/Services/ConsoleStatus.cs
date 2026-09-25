@@ -111,7 +111,7 @@ namespace DirectPackageInstaller.Services
                 {
                     using var Client = new System.Net.Sockets.TcpClient();
                     using var Timeout = new CancellationTokenSource(800);
-                    await Client.ConnectAsync(Host, Port, Timeout.Token);
+                    await NetConnect.ConnectAsync(Client, System.Net.IPAddress.Parse(Host), Port, Timeout.Token);
                     return true;
                 }
                 catch

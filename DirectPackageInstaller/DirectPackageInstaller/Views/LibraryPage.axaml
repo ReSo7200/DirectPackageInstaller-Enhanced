@@ -148,13 +148,18 @@
                             <!-- the shelf rail: install state, filled blue while sending -->
                             <Panel Height="4" Margin="2,7,2,0">
                                 <Border Background="{Binding RailBrush}" CornerRadius="2"/>
-                                <Border Background="{StaticResource Signal}" CornerRadius="2" HorizontalAlignment="Left"
-                                        Width="{Binding RailFillWidth}" IsVisible="{Binding ShowRailFill}">
-                                    <Border.Transitions>
-                                        <Transitions>
-                                            <DoubleTransition Property="Width" Duration="0:0:0.4"/>
-                                        </Transitions>
-                                    </Border.Transitions>
+                                <!-- scaled, not sized: tiles are narrower on phones -->
+                                <Border Background="{StaticResource Signal}" CornerRadius="2"
+                                        RenderTransformOrigin="0%,50%" IsVisible="{Binding ShowRailFill}">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="{Binding RailFill}" ScaleY="1">
+                                            <ScaleTransform.Transitions>
+                                                <Transitions>
+                                                    <DoubleTransition Property="ScaleX" Duration="0:0:0.4"/>
+                                                </Transitions>
+                                            </ScaleTransform.Transitions>
+                                        </ScaleTransform>
+                                    </Border.RenderTransform>
                                 </Border>
                             </Panel>
 

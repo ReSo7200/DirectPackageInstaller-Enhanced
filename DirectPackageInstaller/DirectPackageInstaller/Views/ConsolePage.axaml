@@ -11,7 +11,7 @@
                 <TextBlock Classes="h1" Text="On PS4"/>
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}" TextWrapping="Wrap"/>
                 <TextBlock FontFamily="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Text}"
-                           Text="{Binding FreeSpace}" IsVisible="{Binding HasFreeSpace}" Margin="0,4,0,0"/>
+                           Text="{Binding FreeSpace}" IsVisible="{Binding HasFreeSpace}" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
             <Button Name="BtnRefresh" Classes="primary headbutton" VerticalAlignment="Center" MinWidth="110"
                     IsEnabled="{Binding !IsLoading}" Content="{Binding RefreshText}"

@@ -130,7 +130,7 @@
             </Grid>
             <Border IsVisible="{Binding #IconBox.Source, Converter={x:Static ObjectConverters.IsNull}}"
                     Background="{StaticResource Deck}">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="420">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="420" Margin="16,0">
                     <TextBlock Classes="h2" Text="Nothing open yet" HorizontalAlignment="Center"/>
                     <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
                                Text="Press Open to pick a file, or paste a link and press Load. The cover and package details appear here before you install."/>

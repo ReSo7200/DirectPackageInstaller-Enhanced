@@ -80,12 +80,16 @@ namespace DirectPackageInstaller.Services
         public async Task ConnectAsync(CancellationToken ct = default)
         {
             if (_control != null) throw new InvalidOperationException("Already connected");
-            _control = new TcpClient { NoDelay = true };
+            // IPv4 socket for an IPv4 address; NetConnect works around Android's ConnectAsync
+            var address = IPAddress.TryParse(_host, out var parsed) ? parsed
+                : (await Dns.GetHostAddressesAsync(_host, ct).ConfigureAwait(false))[0];
+            _control = new TcpClient(address.AddressFamily);
             using (var cts = Linked(ct, ConnectTimeout))
             {
                 try
                 {
-                    await _control.ConnectAsync(_host, _port, cts.Token).ConfigureAwait(false);
+                    await NetConnect.ConnectAsync(_control, address, _port, cts.Token).ConfigureAwait(false);
+                    _control.NoDelay = true;
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
@@ -154,12 +158,13 @@ namespace DirectPackageInstaller.Services
         public async Task UploadAsync(string path, Stream Source, Action<long>? Progress = null, CancellationToken ct = default)
         {
             var ep = await EnterPassiveAsync(ct).ConfigureAwait(false);
-            using var data = new TcpClient { NoDelay = true };
+            using var data = new TcpClient(ep.AddressFamily);
             using (var cts = Linked(ct, ConnectTimeout))
             {
                 try
                 {
-                    await data.ConnectAsync(ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                    await NetConnect.ConnectAsync(data, ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                    data.NoDelay = true;
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
@@ -230,12 +235,13 @@ namespace DirectPackageInstaller.Services
         private async Task<byte[]> TransferAsync(string command, int maxBytes, CancellationToken ct)
         {
             var ep = await EnterPassiveAsync(ct).ConfigureAwait(false);
-            using var data = new TcpClient { NoDelay = true };
+            using var data = new TcpClient(ep.AddressFamily);
             using (var cts = Linked(ct, ConnectTimeout))
             {
                 try
                 {
-                    await data.ConnectAsync(ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                    await NetConnect.ConnectAsync(data, ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                    data.NoDelay = true;
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {

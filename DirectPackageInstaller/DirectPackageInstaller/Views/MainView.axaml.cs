@@ -96,6 +96,11 @@ namespace DirectPackageInstaller.Views
             btnLoad = this.Find<Button>("btnLoad");
             
             btnInstallAll.Click += BtnInstallAllOnClick;
+            Services.ConsoleStatus.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(Services.ConsoleStatus.CanInstall) or nameof(Services.ConsoleStatus.FtpOpen))
+                    SyncInstallButton();
+            };
             btnRestartServer.Click += RestartServer_OnClick;
             btnProxyDownload.Click += BtnProxyDownloadOnClick;
             btnAllDebirdEnabled.Click += BtnAllDebirdEnabledOnClick;
@@ -776,6 +781,7 @@ namespace DirectPackageInstaller.Views
             {
                 tbURL.IsEnabled = true;
                 btnLoad.IsEnabled = true;
+                SyncInstallButton();
             }
 
             PKGStream?.Close();
@@ -1044,7 +1050,31 @@ namespace DirectPackageInstaller.Views
                 btnLoad.IsEnabled = true;
                 tbURL.IsEnabled = true;
                 btnLoad.Content = "Install";
+                SyncInstallButton();
             }
+        }
+
+        /// <summary>
+        /// "Install" (and Install all) only when the console can take it: an installer
+        /// answering, or GoldHEN's FTP for an unlock key. Busy states keep their own
+        /// disabling (the URL box is off while loading or pushing).
+        /// </summary>
+        void SyncInstallButton()
+        {
+            var Console = Services.ConsoleStatus.Instance;
+            bool UnlockKey = LoadedPKG is { } Pkg && Services.UnlockKeys.IsUnlockKey(Pkg);
+            bool Ready = Console.CanInstall || (UnlockKey && Console.FtpOpen);
+
+            btnInstallAll.IsEnabled = Console.CanInstall;
+            if (btnLoad.Content as string != "Install" || !tbURL.IsEnabled)
+            {
+                ToolTip.SetTip(btnLoad, null);
+                return;
+            }
+
+            btnLoad.IsEnabled = Ready;
+            ToolTip.SetShowOnDisabled(btnLoad, true);
+            ToolTip.SetTip(btnLoad, Ready ? null : "The console can't install right now: " + Console.Mode);
         }
 
         /// <summary>Unlock-key DLC from a file on this PC: copy it to the console over FTP.</summary>

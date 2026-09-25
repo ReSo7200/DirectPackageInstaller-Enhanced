@@ -16,6 +16,12 @@ namespace DirectPackageInstaller.Views
             BtnClearFinished.Click += (_, _) => SendQueue.Instance.ClearFinished();
 
             SendQueue.Instance.Items.CollectionChanged += (_, _) => UpdateEmpty();
+            // "Clear finished" only with something finished (PendingCount changes with every state)
+            SendQueue.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SendQueue.PendingCount))
+                    UpdateEmpty();
+            };
             DownloadsList.ItemsSource = UpdateDownloads.Instance.Items;
             UpdateDownloads.Instance.Items.CollectionChanged += (_, _) => UpdateEmpty();
             UpdateEmpty();
@@ -25,6 +31,7 @@ namespace DirectPackageInstaller.Views
         {
             DownloadsPanel.IsVisible = UpdateDownloads.Instance.Items.Count > 0;
             EmptyState.IsVisible = SendQueue.Instance.Items.Count == 0 && UpdateDownloads.Instance.Items.Count == 0;
+            BtnClearFinished.IsEnabled = SendQueue.Instance.Items.Count > SendQueue.Instance.PendingCount;
         }
 
         void CancelDownloadClick(object? sender, RoutedEventArgs e)

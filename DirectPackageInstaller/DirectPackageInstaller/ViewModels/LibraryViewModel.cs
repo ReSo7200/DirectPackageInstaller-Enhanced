@@ -290,6 +290,20 @@ namespace DirectPackageInstaller.ViewModels
             {
                 this.RaisePropertyChanged(nameof(SelectionText));
                 this.RaisePropertyChanged(nameof(HasSelection));
+                this.RaisePropertyChanged(nameof(CanSend));
+                this.RaisePropertyChanged(nameof(CanSelectFamily));
+            };
+
+            // buttons that need the console follow its status
+            ConsoleStatus.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(ConsoleStatus.CanRead) or nameof(ConsoleStatus.CanInstall) or nameof(ConsoleStatus.Mode))
+                {
+                    this.RaisePropertyChanged(nameof(CanCheck));
+                    this.RaisePropertyChanged(nameof(CheckTip));
+                    this.RaisePropertyChanged(nameof(CanSend));
+                    this.RaisePropertyChanged(nameof(SendTip));
+                }
             };
 
             SendQueue.Instance.Items.CollectionChanged += (_, _) => LinkQueue();
@@ -370,6 +384,7 @@ namespace DirectPackageInstaller.ViewModels
             {
                 this.RaiseAndSetIfChanged(ref _IsScanning, value);
                 this.RaisePropertyChanged(nameof(IsEmpty));
+                this.RaisePropertyChanged(nameof(CanRescan));
             }
         }
 
@@ -381,10 +396,36 @@ namespace DirectPackageInstaller.ViewModels
             {
                 this.RaiseAndSetIfChanged(ref _IsChecking, value);
                 this.RaisePropertyChanged(nameof(CheckButtonText));
+                this.RaisePropertyChanged(nameof(CanCheck));
+                this.RaisePropertyChanged(nameof(CheckTip));
             }
         }
 
         public string CheckButtonText => IsChecking ? "Checking…" : "Check PS4";
+
+        // ----- what the buttons can do right now (disabled ones say why)
+
+        public bool CanCheck => !IsChecking && ConsoleStatus.Instance.CanRead;
+        public string CheckTip => ConsoleStatus.Instance.CanRead || IsChecking
+            ? "Ask the PS4 which of these are installed"
+            : "Needs GoldHEN's FTP server or Remote Package Installer running on the console";
+
+        public bool CanRescan => !IsScanning && HasFolders;
+
+        public bool CanSend => HasSelection && ConsoleStatus.Instance.CanInstall;
+        public string SendTip => ConsoleStatus.Instance.CanInstall
+            ? "Send the selected packages to the console"
+            : "The console can't install right now: " + ConsoleStatus.Instance.Mode;
+
+        /// <summary>A selected game has updates or DLC in the library that aren't selected yet.</summary>
+        public bool CanSelectFamily
+        {
+            get
+            {
+                var Games = Selected.Where(x => x.Entry.Kind == "Game").Select(x => x.Entry.TitleId).ToHashSet();
+                return Games.Count > 0 && Items.Any(x => x.Entry.Kind != "Game" && Games.Contains(x.Entry.TitleId) && !Selected.Contains(x));
+            }
+        }
 
         string _Summary = "";
         public string Summary
@@ -550,6 +591,7 @@ namespace DirectPackageInstaller.ViewModels
 
             this.RaisePropertyChanged(nameof(IsEmpty));
             this.RaisePropertyChanged(nameof(HasNoMatches));
+            this.RaisePropertyChanged(nameof(CanSelectFamily));
         }
 
         void UpdateSummary()
@@ -572,6 +614,7 @@ namespace DirectPackageInstaller.ViewModels
                 RefreshFolders();
 
             this.RaisePropertyChanged(nameof(HasFolders));
+            this.RaisePropertyChanged(nameof(CanRescan));
             this.RaisePropertyChanged(nameof(IsEmpty));
             await ScanAsync();
         }
@@ -581,6 +624,7 @@ namespace DirectPackageInstaller.ViewModels
             LibraryService.RemoveFolder(Folder);
             RefreshFolders();
             this.RaisePropertyChanged(nameof(HasFolders));
+            this.RaisePropertyChanged(nameof(CanRescan));
             Load(LibraryService.Cached);
             this.RaisePropertyChanged(nameof(IsEmpty));
             await Task.CompletedTask;

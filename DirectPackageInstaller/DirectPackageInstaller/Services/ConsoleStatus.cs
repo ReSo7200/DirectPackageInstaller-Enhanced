@@ -47,10 +47,33 @@ namespace DirectPackageInstaller.Services
                 this.RaisePropertyChanged(nameof(IsOnline));
                 this.RaisePropertyChanged(nameof(IsOffline));
                 this.RaisePropertyChanged(nameof(IsChecking));
+                this.RaisePropertyChanged(nameof(CanInstall));
             }
         }
 
         public bool IsOnline => Link == ConsoleLink.Online;
+
+        /// <summary>Something that installs answered (RPI, etaHEN, GoldHEN BinLoader or the payload).</summary>
+        public bool CanInstall => IsOnline;
+
+        bool _FtpOpen;
+        /// <summary>GoldHEN's FTP answers: the console's contents can be read.</summary>
+        public bool FtpOpen
+        {
+            get => _FtpOpen;
+            private set { this.RaiseAndSetIfChanged(ref _FtpOpen, value); this.RaisePropertyChanged(nameof(CanRead)); }
+        }
+
+        bool _HasRpi;
+        /// <summary>Remote Package Installer answers (needed to uninstall).</summary>
+        public bool HasRpi
+        {
+            get => _HasRpi;
+            private set { this.RaiseAndSetIfChanged(ref _HasRpi, value); this.RaisePropertyChanged(nameof(CanRead)); }
+        }
+
+        /// <summary>What's installed can be read (FTP, or RPI for games only).</summary>
+        public bool CanRead => FtpOpen || HasRpi;
         public bool IsOffline => Link is ConsoleLink.Offline or ConsoleLink.NoAddress;
         public bool IsChecking => Link == ConsoleLink.Checking;
 
@@ -103,24 +126,24 @@ namespace DirectPackageInstaller.Services
         /// Nothing that installs answered: say what does (so "offline" isn't
         /// misleading when the console is on and only BinLoader is off).
         /// </summary>
-        static async Task<string> WhyNotAsync(string IP)
+        static async Task<bool> Opens(string Host, int Port)
         {
-            static async Task<bool> Opens(string Host, int Port)
+            try
             {
-                try
-                {
-                    using var Client = new System.Net.Sockets.TcpClient();
-                    using var Timeout = new CancellationTokenSource(800);
-                    await NetConnect.ConnectAsync(Client, System.Net.IPAddress.Parse(Host), Port, Timeout.Token);
-                    return true;
-                }
-                catch
-                {
-                    return false;
-                }
+                using var Client = new System.Net.Sockets.TcpClient();
+                using var Timeout = new CancellationTokenSource(800);
+                await NetConnect.ConnectAsync(Client, System.Net.IPAddress.Parse(Host), Port, Timeout.Token);
+                return true;
             }
+            catch
+            {
+                return false;
+            }
+        }
 
-            if (await Opens(IP, 2121))
+        static async Task<string> WhyNotAsync(string IP, bool FtpOpen)
+        {
+            if (FtpOpen)
                 return "Only FTP answers: turn on BinLoader in GoldHEN";
             if (await Opens(IP, 12800))
                 return "RPI isn't responding: open it on the console";
@@ -137,6 +160,7 @@ namespace DirectPackageInstaller.Services
                 {
                     Link = ConsoleLink.NoAddress;
                     Mode = "Set the PS IP in Settings";
+                    FtpOpen = HasRpi = false;
                     return;
                 }
 
@@ -144,7 +168,9 @@ namespace DirectPackageInstaller.Services
                     Link = ConsoleLink.Checking;
 
                 string? Found = null;
-                if (await IPHelper.IsRPIOnline(IP))
+                bool Rpi = await IPHelper.IsRPIOnline(IP);
+                bool Ftp = await Opens(IP, 2121);
+                if (Rpi)
                     Found = "Remote Package Installer";
                 else if (await IPHelper.IsEtaHenOnline(IP))
                     Found = "etaHEN";
@@ -160,8 +186,10 @@ namespace DirectPackageInstaller.Services
                     return;
                 }
 
+                HasRpi = Rpi;
+                FtpOpen = Ftp;
                 Link = Found != null ? ConsoleLink.Online : ConsoleLink.Offline;
-                Mode = Found ?? await WhyNotAsync(IP);
+                Mode = Found ?? await WhyNotAsync(IP, Ftp);
             }
         }
     }

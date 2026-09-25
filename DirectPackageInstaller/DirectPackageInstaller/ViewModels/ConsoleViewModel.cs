@@ -99,6 +99,30 @@ namespace DirectPackageInstaller.ViewModels
     }
 
     /// <summary>"On PS4": what's installed on the console, read over GoldHEN FTP.</summary>
+    /// <summary>One drive in the "On PS4" storage boxes.</summary>
+    public sealed class StorageBox
+    {
+        public string Name { get; init; } = "";
+        public IBrush Accent { get; init; } = LibraryItem.Brush("Signal");
+        public string FreeText { get; init; } = "";
+        public string TotalText { get; init; } = "";
+        /// <summary>0..1 of the drive in use.</summary>
+        public double Used { get; init; }
+        public string UsedText => $"{Used * 100:0}% used";
+        public string TitlesText { get; init; } = "";
+        public IBrush BarBrush => LibraryItem.Brush(Used >= 0.9 ? "Alarm" : Used >= 0.75 ? "Amber" : "Go");
+
+        public static StorageBox Of(string Name, string Accent, ulong Free, ulong Total, int Titles) => new()
+        {
+            Name = Name,
+            Accent = LibraryItem.Brush(Accent),
+            FreeText = Host.TransferProgressInfo.FormatBytes(Free),
+            TotalText = "free of " + Host.TransferProgressInfo.FormatBytes(Total),
+            Used = Total == 0 ? 0 : Math.Clamp(1 - (double)Free / Total, 0, 1),
+            TitlesText = Titles == 1 ? "1 title" : $"{Titles} titles"
+        };
+    }
+
     public sealed class ConsoleViewModel : ReactiveObject
     {
         readonly Func<IReadOnlyList<LibraryEntry>> LibraryEntries;
@@ -107,7 +131,22 @@ namespace DirectPackageInstaller.ViewModels
         public ConsoleViewModel(Func<IReadOnlyList<LibraryEntry>> LibraryEntries)
         {
             this.LibraryEntries = LibraryEntries;
+
+            ConsoleStatus.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ConsoleStatus.CanRead))
+                {
+                    this.RaisePropertyChanged(nameof(CanRefresh));
+                    this.RaisePropertyChanged(nameof(RefreshTip));
+                }
+            };
         }
+
+        /// <summary>Reading needs GoldHEN's FTP (or RPI) answering.</summary>
+        public bool CanRefresh => !IsLoading && ConsoleStatus.Instance.CanRead;
+        public string RefreshTip => ConsoleStatus.Instance.CanRead || IsLoading
+            ? "Read what's installed on the console (GoldHEN FTP)"
+            : "Needs GoldHEN's FTP server running on the console (GoldHEN › Server Settings)";
 
         public ObservableCollection<ConsoleTitleItem> Items { get; } = new();
 
@@ -119,6 +158,8 @@ namespace DirectPackageInstaller.ViewModels
             {
                 this.RaiseAndSetIfChanged(ref _IsLoading, value);
                 this.RaisePropertyChanged(nameof(RefreshText));
+                this.RaisePropertyChanged(nameof(CanRefresh));
+                this.RaisePropertyChanged(nameof(RefreshTip));
             }
         }
         public string RefreshText => IsLoading ? "Reading…" : "Refresh";
@@ -155,27 +196,46 @@ namespace DirectPackageInstaller.ViewModels
         }
         public bool HasFreeSpace => FreeSpace.Length > 0;
 
-        static string Space(ulong Free, ulong Total) =>
-            $"{Host.TransferProgressInfo.FormatBytes(Free)} free of {Host.TransferProgressInfo.FormatBytes(Total)}";
+        IReadOnlyList<StorageBox> _Storage = Array.Empty<StorageBox>();
+        /// <summary>System and extended storage boxes (experimental payload's free space).</summary>
+        public IReadOnlyList<StorageBox> Storage
+        {
+            get => _Storage;
+            private set
+            {
+                this.RaiseAndSetIfChanged(ref _Storage, value);
+                this.RaisePropertyChanged(nameof(HasStorage));
+            }
+        }
+        public bool HasStorage => Storage.Count > 0;
 
         async Task ReadFreeSpaceAsync(string IP)
         {
             if (!App.Config.ExperimentalPayload)
             {
                 FreeSpace = "";
+                Storage = Array.Empty<StorageBox>();
                 return;
             }
 
-            FreeSpace = "Reading free space…";
+            // keep the last boxes while reading; the text only shows without them
+            FreeSpace = HasStorage ? "" : "Reading free space…";
             var Space_ = await Tasks.Installer.Payload.QueryFreeSpaceAsync(IP, App.Config.PCIP);
             if (Space_ is not { } S)
             {
+                Storage = Array.Empty<StorageBox>();
                 FreeSpace = "Free space: " + (Tasks.Installer.LastError ?? "not available");
                 return;
             }
 
-            FreeSpace = "System storage: " + (S.HasInternal ? Space(S.InternalFree, S.InternalTotal) : "unknown")
-                        + (S.HasExtended ? "   ·   Extended storage: " + Space(S.ExtendedFree, S.ExtendedTotal) : "");
+            int OnExt = All.Count(x => x.Title.OnExtended);
+            var Boxes = new List<StorageBox>();
+            if (S.HasInternal)
+                Boxes.Add(StorageBox.Of("SYSTEM STORAGE", "Signal", S.InternalFree, S.InternalTotal, All.Count - OnExt));
+            if (S.HasExtended)
+                Boxes.Add(StorageBox.Of("EXTENDED STORAGE", "Violet", S.ExtendedFree, S.ExtendedTotal, OnExt));
+            Storage = Boxes;
+            FreeSpace = Boxes.Count > 0 ? "" : "Free space: not reported by the console";
         }
 
         string _Search = "";

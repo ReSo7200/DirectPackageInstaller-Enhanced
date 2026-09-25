@@ -49,6 +49,25 @@ namespace DirectPackageInstaller.Views
 
         static ConsoleTitleItem? ItemOf(object? Sender) => (Sender as Control)?.Tag as ConsoleTitleItem;
 
+        /// <summary>Uninstalling needs Remote Package Installer; "Show in Library" needs PKGs of the title.</summary>
+        void TileMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (sender is not ContextMenu Menu)
+                return;
+
+            foreach (var Entry in System.Linq.Enumerable.OfType<MenuItem>(Menu.Items))
+            {
+                if (Entry.Classes.Contains("rpi"))
+                {
+                    Entry.IsEnabled = ConsoleStatus.Instance.HasRpi;
+                    ToolTip.SetTip(Entry, ConsoleStatus.Instance.HasRpi ? null : "Needs Remote Package Installer open on the console");
+                    ToolTip.SetShowOnDisabled(Entry, true);
+                }
+                if (Entry.Classes.Contains("library"))
+                    Entry.IsEnabled = Entry.Tag is ConsoleTitleItem Item && Item.LibraryPackages > 0;
+            }
+        }
+
         void MenuShowInLibraryClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)

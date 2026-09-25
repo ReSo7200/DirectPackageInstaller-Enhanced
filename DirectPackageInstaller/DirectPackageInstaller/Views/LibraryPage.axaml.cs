@@ -62,6 +62,28 @@ namespace DirectPackageInstaller.Views
                 SendQueue.Instance.Enqueue(new[] { Item.Entry });
         }
 
+        /// <summary>Enable a tile's menu items for what can be done right now (see their Classes).</summary>
+        void TileMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (sender is not ContextMenu Menu)
+                return;
+
+            var Console = ConsoleStatus.Instance;
+            foreach (var Entry in Menu.Items.OfType<MenuItem>())
+            {
+                bool Enabled = true;
+                if (Entry.Classes.Contains("install"))
+                    Enabled &= Console.CanInstall;
+                if (Entry.Classes.Contains("missing"))
+                    Enabled &= Entry.Tag is LibraryItem Item && Model.MissingFor(Item.Entry.TitleId).Count > 0;
+                if (Entry.Classes.Contains("rpi"))
+                    Enabled &= Console.HasRpi;
+                if (Entry.Classes.Contains("recycle"))
+                    Enabled &= OperatingSystem.IsWindows();
+                Entry.IsEnabled = Enabled;
+            }
+        }
+
         async void MenuSendMissingClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is not { } Item || string.IsNullOrEmpty(Item.Entry.TitleId))

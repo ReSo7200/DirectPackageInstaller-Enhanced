@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             xmlns:local="using:DirectPackageInstaller"
              x:Class="DirectPackageInstaller.Views.LibraryPage"
              x:DataType="vm:LibraryViewModel"
              x:CompileBindings="True"
@@ -18,10 +19,10 @@
                 <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}"/>
             </StackPanel>
             <WrapPanel ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center" Classes="headbuttons">
-                <Button Name="BtnCheck" ToolTip.Tip="Ask the PS4 which of these are installed">
+                <Button Name="BtnCheck" IsEnabled="{Binding CanCheck}" ToolTip.Tip="{Binding CheckTip}" ToolTip.ShowOnDisabled="True">
                     <TextBlock Text="{Binding CheckButtonText}"/>
                 </Button>
-                <Button Name="BtnRescan" IsEnabled="{Binding !IsScanning}" ToolTip.Tip="Look for new, changed or removed PKGs">Rescan</Button>
+                <Button Name="BtnRescan" IsEnabled="{Binding CanRescan}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="Look for new, changed or removed PKGs in the library folders">Rescan</Button>
                 <Button Name="BtnAddFolder" Classes="primary">Add folder</Button>
             </WrapPanel>
         </Grid>
@@ -66,8 +67,10 @@
                                 CornerRadius="4" Padding="9,2,2,2" Margin="0,0,6,6" ToolTip.Tip="{Binding Tip}">
                             <Border.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Organize into game folders…" Tag="{Binding Path}" Click="MenuOrganizeClick"/>
-                                    <MenuItem Header="Open in Explorer" Tag="{Binding Path}" Click="MenuOpenFolderClick"/>
+                                    <MenuItem Header="Organize into game folders…" Tag="{Binding Path}" Click="MenuOrganizeClick"
+                                              IsEnabled="{Binding Available}"/>
+                                    <MenuItem Header="Open in Explorer" Tag="{Binding Path}" Click="MenuOpenFolderClick"
+                                              IsEnabled="{Binding Available}" IsVisible="{x:Static local:App.IsDesktop}"/>
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <StackPanel Orientation="Horizontal" Spacing="4">
@@ -97,23 +100,25 @@
                     <DataTemplate x:DataType="vm:LibraryItem">
                         <StackPanel Classes="tile" ToolTip.Tip="{Binding Tooltip}">
                             <StackPanel.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Send to PS4" Tag="{Binding}" Click="MenuSendClick"/>
-                                    <MenuItem Header="Send what this title is missing" Tag="{Binding}" Click="MenuSendMissingClick"
+                                <!-- Classes: what an item needs; TileMenuOpening enables them -->
+                                <ContextMenu Opening="TileMenuOpening">
+                                    <MenuItem Header="Send to PS4" Tag="{Binding}" Click="MenuSendClick" Classes="install"/>
+                                    <MenuItem Header="Send what this title is missing" Tag="{Binding}" Click="MenuSendMissingClick" Classes="install missing"
                                               ToolTip.Tip="Game if not installed, newest update if newer than the console's, DLC not installed yet"/>
                                     <MenuItem Header="{Binding DownloadOfficialText}" Tag="{Binding}" Click="MenuDownloadUpdateClick"
                                               IsVisible="{Binding HasNewerOfficial}"/>
                                     <MenuItem Header="Open in Direct link" Tag="{Binding}" Click="MenuInspectClick"/>
                                     <Separator/>
-                                    <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"/>
+                                    <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"
+                                              IsVisible="{x:Static local:App.IsDesktop}"/>
                                     <MenuItem Header="Copy path" Tag="{Binding}" Click="MenuCopyClick"/>
                                     <MenuItem Header="Rename to a clear name…" Tag="{Binding}" Click="MenuRenameClick"
                                               IsVisible="{Binding CanRename}"/>
                                     <MenuItem Header="Move this copy to the Recycle Bin…" Tag="{Binding}" Click="MenuRecycleClick"
-                                              IsVisible="{Binding IsDuplicate}"/>
+                                              IsVisible="{Binding IsDuplicate}" Classes="recycle"/>
                                     <Separator IsVisible="{Binding CanUninstall}"/>
                                     <MenuItem Header="Uninstall from PS4…" Tag="{Binding}" Click="MenuUninstallClick"
-                                              IsVisible="{Binding CanUninstall}"/>
+                                              IsVisible="{Binding CanUninstall}" Classes="rpi"/>
                                 </ContextMenu>
                             </StackPanel.ContextMenu>
                             <Panel Classes="cover">
@@ -213,9 +218,11 @@
             <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
                 <TextBlock Text="{Binding SelectionText}" FontFamily="{StaticResource Mono}" FontSize="13"
                            VerticalAlignment="Center" TextWrapping="Wrap" Classes="selection"/>
-                <Button Name="BtnSelectFamily" Classes="ghost" ToolTip.Tip="Also select the updates and DLC of the selected games">Add updates &amp; DLC</Button>
+                <Button Name="BtnSelectFamily" Classes="ghost" IsEnabled="{Binding CanSelectFamily}" ToolTip.ShowOnDisabled="True"
+                        ToolTip.Tip="Also select the updates and DLC of the selected games (needs a game selected that has some)">Add updates &amp; DLC</Button>
                 <Button Name="BtnClearSelection" Classes="ghost">Clear</Button>
-                <Button Grid.Column="3" Name="BtnSend" Classes="primary" MinWidth="130">Send to PS4</Button>
+                <Button Grid.Column="3" Name="BtnSend" Classes="primary" MinWidth="130"
+                        IsEnabled="{Binding CanSend}" ToolTip.Tip="{Binding SendTip}" ToolTip.ShowOnDisabled="True">Send to PS4</Button>
             </Grid>
         </Border>
     </Grid>

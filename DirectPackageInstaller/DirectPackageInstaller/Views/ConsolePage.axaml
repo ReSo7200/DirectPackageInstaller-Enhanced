@@ -5,7 +5,7 @@
              x:DataType="vm:ConsoleViewModel"
              x:CompileBindings="True">
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
             <StackPanel Spacing="2">
                 <TextBlock Classes="h1" Text="On PS4"/>
@@ -14,11 +14,48 @@
                            Text="{Binding FreeSpace}" IsVisible="{Binding HasFreeSpace}" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
             <Button Name="BtnRefresh" Classes="primary headbutton" VerticalAlignment="Center" MinWidth="110"
-                    IsEnabled="{Binding !IsLoading}" Content="{Binding RefreshText}"
-                    ToolTip.Tip="Read what's installed on the console (GoldHEN FTP)"/>
+                    IsEnabled="{Binding CanRefresh}" Content="{Binding RefreshText}"
+                    ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True"/>
         </Grid>
 
-        <WrapPanel Grid.Row="1" Name="Filters" Orientation="Horizontal" IsVisible="{Binding Loaded}" Classes="pagebody chips">
+        <!-- storage boxes: free space per drive (experimental payload) -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Storage}" IsVisible="{Binding HasStorage}" Classes="storage">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1" ColumnSpacing="10"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StorageBox">
+                    <Border Classes="card" Padding="14,12">
+                        <StackPanel Spacing="3">
+                            <TextBlock Classes="eyebrow" Text="{Binding Name}" Foreground="{Binding Accent}"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding FreeText}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                           FontSize="24" Margin="0,0,6,0" VerticalAlignment="Bottom"/>
+                                <TextBlock Classes="muted" FontSize="12" Text="{Binding TotalText}" VerticalAlignment="Bottom"
+                                           Margin="0,0,0,4"/>
+                            </WrapPanel>
+                            <Panel Height="6" Margin="0,6,0,4">
+                                <Border Background="{StaticResource Line}" CornerRadius="3"/>
+                                <Border Background="{Binding BarBrush}" CornerRadius="3" RenderTransformOrigin="0%,50%">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="{Binding Used}" ScaleY="1"/>
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Panel>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="mono" FontSize="11.5" Text="{Binding UsedText}"/>
+                                <TextBlock Grid.Column="1" Classes="mono" FontSize="11.5" Text="{Binding TitlesText}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <WrapPanel Grid.Row="2" Name="Filters" Orientation="Horizontal" IsVisible="{Binding Loaded}" Classes="pagebody chips">
             <TextBox Name="SearchBox" Width="290" Text="{Binding Search}" Watermark="Search title or CUSA ID" Margin="0,0,8,0"/>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterAll" IsChecked="True" VerticalAlignment="Center">All</RadioButton>
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterGames" VerticalAlignment="Center">Games</RadioButton>
@@ -26,7 +63,7 @@
             <RadioButton Classes="chip" GroupName="consoleKind" Name="FilterExt" VerticalAlignment="Center">Extended storage</RadioButton>
         </WrapPanel>
 
-        <Panel Grid.Row="2">
+        <Panel Grid.Row="3">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding Items}" Classes="grid">
                     <ItemsControl.ItemsPanel>
@@ -38,13 +75,13 @@
                         <DataTemplate x:DataType="vm:ConsoleTitleItem">
                             <StackPanel Classes="tile" ToolTip.Tip="{Binding Tooltip}" Background="Transparent">
                                 <StackPanel.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick"/>
+                                    <ContextMenu Opening="TileMenuOpening">
+                                        <MenuItem Header="Show in Library" Tag="{Binding}" Click="MenuShowInLibraryClick" Classes="library"/>
                                         <MenuItem Header="Copy title ID" Tag="{Binding}" Click="MenuCopyIdClick"/>
                                         <Separator/>
                                         <MenuItem Header="Uninstall update…" Tag="{Binding}" Click="MenuUninstallUpdateClick"
-                                                  IsVisible="{Binding CanUninstallUpdate}"/>
-                                        <MenuItem Header="Uninstall…" Tag="{Binding}" Click="MenuUninstallClick"/>
+                                                  IsVisible="{Binding CanUninstallUpdate}" Classes="rpi"/>
+                                        <MenuItem Header="Uninstall…" Tag="{Binding}" Click="MenuUninstallClick" Classes="rpi"/>
                                     </ContextMenu>
                                 </StackPanel.ContextMenu>
                                 <Panel Classes="cover">
@@ -86,7 +123,8 @@
                 <TextBlock Classes="h2" Text="See everything installed on the console" TextAlignment="Center" TextWrapping="Wrap"/>
                 <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
                            Text="Games, apps, installed updates and DLC on system and extended storage, read from the console with GoldHEN's FTP server. Works without a library."/>
-                <Button Name="BtnRefreshIntro" Classes="primary" HorizontalAlignment="Center" Margin="0,6,0,0">Read the console</Button>
+                <Button Name="BtnRefreshIntro" Classes="primary" HorizontalAlignment="Center" Margin="0,6,0,0"
+                        IsEnabled="{Binding CanRefresh}" ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True">Read the console</Button>
             </StackPanel>
         </Panel>
     </Grid>
@@ -118,6 +156,16 @@
         </Style>
 
         <!-- phones and narrow windows (the search box width is set in code) -->
+        <Style Selector="ItemsControl.storage">
+            <Setter Property="Margin" Value="28,0,28,14"/>
+            <Setter Property="MaxWidth" Value="720"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow ItemsControl.storage">
+            <Setter Property="Margin" Value="14,0,14,10"/>
+            <Setter Property="MaxWidth" Value="100000"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
         <Style Selector=":is(UserControl).narrow Grid.pagehead">
             <Setter Property="Margin" Value="14,14,14,8"/>
         </Style>

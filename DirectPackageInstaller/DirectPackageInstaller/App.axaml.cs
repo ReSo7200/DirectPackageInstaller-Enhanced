@@ -408,6 +408,8 @@ namespace DirectPackageInstaller
 
         public static bool? _IsAndroid;
         internal static bool IsAndroid => _IsAndroid ??= OperatingSystem.IsAndroid();
+        /// <summary>Windows, Linux or macOS (has a file manager, Recycle Bin menus and so on).</summary>
+        public static bool IsDesktop => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
         internal static bool IsOSX => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         internal static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 

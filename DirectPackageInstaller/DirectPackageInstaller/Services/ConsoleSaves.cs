@@ -40,7 +40,7 @@ namespace DirectPackageInstaller.Services
                             if (!File.IsDirectory)
                                 Files.Add(($"{Folder_}/{File.Name}", File.Size));
                     }
-                    catch (FtpException ex) when (ex.Reply is { Code: >= 500 }) { }
+                    catch (FtpException ex) when (ex.Reply is { Code: >= 400 }) { }
                 }
                 if (Files.Count == 0)
                     continue;
@@ -48,12 +48,15 @@ namespace DirectPackageInstaller.Services
                 string Name = User.Name;
                 try
                 {
-                    var Raw = await Ftp.DownloadAsync($"{Home}/username.dat", 4096, Token);
+                    // its own connection: a failed read can leave the listing one unusable
+                    await using var NameFtp = await Connect(ConsoleIP, Token);
+                    var Raw = await NameFtp.DownloadAsync($"{Home}/username.dat", 4096, Token);
                     var Text = Encoding.UTF8.GetString(Raw).Split('\0')[0].Trim();
                     if (Text.Length > 0)
                         Name = Text;
                 }
-                catch (FtpException) { }
+                catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+                catch { /* the id will do */ }
 
                 Found.Add(new UserSaves(User.Name, Name, Files));
             }
@@ -64,16 +67,17 @@ namespace DirectPackageInstaller.Services
         public static async Task<string> BackupAsync(string ConsoleIP, string TitleId, string GameName, List<UserSaves> Users,
             IProgress<string>? Progress = null, CancellationToken Token = default)
         {
-            var Game = string.Concat(GameName.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
-            var Target = Path.Combine(Folder, Game.Length > 0 ? $"{Game} ({TitleId})" : TitleId);
+            var Target = Path.Combine(Folder, SafeNames.Of($"{GameName} ({TitleId})", SafeNames.Of(TitleId)));
             Directory.CreateDirectory(Target);
             var Stamp = DateTime.Now.ToString("yyyy-MM-dd HHmmss");
 
             foreach (var User in Users)
             {
-                var UserName = string.Concat(User.UserName.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
-                var Zip = Path.Combine(Target, $"{UserName} {Stamp}.zip");
+                // the console's user id too: two users may share a name
+                var Zip = Path.Combine(Target, SafeNames.Of($"{User.UserName} {User.UserId} {Stamp}") + ".zip");
                 var Partial = Zip + ".part";
+                try
+                {
                 using (var Archive = ZipFile.Open(Partial, ZipArchiveMode.Create))
                 {
                     int Index = 0;
@@ -90,6 +94,12 @@ namespace DirectPackageInstaller.Services
                 if (File.Exists(Zip))
                     File.Delete(Zip);
                 File.Move(Partial, Zip);
+                }
+                catch
+                {
+                    try { File.Delete(Partial); } catch { }
+                    throw;
+                }
             }
             return Target;
         }

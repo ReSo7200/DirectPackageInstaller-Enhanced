@@ -10,14 +10,14 @@
                 <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
                            Text="Free PS4 apps, downloaded from their authors' GitHub releases. Download &amp; send puts the package in the Queue."/>
             </StackPanel>
-            <Button Name="BtnRefresh" VerticalAlignment="Center" Classes="headbutton"
+            <Button Name="BtnRefresh" VerticalAlignment="Center" Classes="headbutton" ToolTip.ShowOnDisabled="True"
                     ToolTip.Tip="Check each project for a newer release">Check for updates</Button>
         </Grid>
 
         <!-- the user's own projects -->
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8" Classes="addrow">
             <TextBox Name="RepoBox" Watermark="Add a GitHub project: owner/name or its URL"/>
-            <Button Grid.Column="1" Name="BtnAdd" IsEnabled="False"
+            <Button Grid.Column="1" Name="BtnAdd" IsEnabled="False" ToolTip.ShowOnDisabled="True"
                     ToolTip.Tip="Its latest release must have a .pkg file">Add project</Button>
         </Grid>
 
@@ -36,8 +36,7 @@
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Classes="actions">
                                     <Button Classes="primary" Content="Download &amp; send" Tag="{Binding}" Click="GetClick"
-                                            IsEnabled="{Binding CanGet}" ToolTip.ShowOnDisabled="True"
-                                            ToolTip.Tip="Downloads the package from the project's release and adds it to the Queue"/>
+                                            IsEnabled="{Binding CanGet}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="{Binding GetTip}"/>
                                     <Button Classes="ghost" Content="Project page" Tag="{Binding}" Click="PageClick"/>
                                     <Button Classes="ghost danger" Content="Remove" Tag="{Binding}" Click="RemoveClick"
                                             IsVisible="{Binding Custom}"/>

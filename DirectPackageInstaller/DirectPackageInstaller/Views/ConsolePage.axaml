@@ -17,7 +17,7 @@
             </StackPanel>
             <WrapPanel Classes="headbutton" VerticalAlignment="Center" ItemSpacing="8" LineSpacing="8">
                 <Button Name="BtnCaptures" IsEnabled="{Binding CanCopyCaptures}" ToolTip.ShowOnDisabled="True"
-                        ToolTip.Tip="{Binding CapturesTip}">Copy captures</Button>
+                        ToolTip.Tip="{Binding CapturesTip}">Copy screenshots &amp; videos</Button>
                 <Button Name="BtnRefresh" Classes="primary" MinWidth="110"
                         IsEnabled="{Binding CanRefresh}" Content="{Binding RefreshText}"
                         ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True"/>

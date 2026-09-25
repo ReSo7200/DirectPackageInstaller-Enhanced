@@ -13,11 +13,11 @@ namespace DirectPackageInstaller.Services
     {
         static WindowNotificationManager? Manager;
 
-        public static void Attach(TopLevel Host)
+        public static void Attach(TopLevel Host, bool AtTop = false)
         {
             Manager = new WindowNotificationManager(Host)
             {
-                Position = NotificationPosition.BottomRight,
+                Position = AtTop ? NotificationPosition.TopCenter : NotificationPosition.BottomRight,
                 MaxItems = 3
             };
         }

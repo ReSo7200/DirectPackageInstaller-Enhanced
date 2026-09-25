@@ -86,9 +86,16 @@ namespace DirectPackageInstaller.Views
                     ToolTip.SetShowOnDisabled(Entry, true);
                 }
                 if (Entry.Classes.Contains("check"))
-                    Enabled &= Entry.Tag is LibraryItem { CheckStatus.Length: 0 };
+                {
+                    bool Idle = Entry.Tag is LibraryItem { CheckStatus.Length: 0 };
+                    Enabled &= Idle;
+                    ToolTip.SetTip(Entry, Idle
+                        ? "Recomputes the checksums inside the PKG (reads the whole file) to catch a broken download before sending it"
+                        : "This package is being checked");
+                    ToolTip.SetShowOnDisabled(Entry, true);
+                }
                 if (Entry.Classes.Contains("recycle"))
-                    Enabled &= OperatingSystem.IsWindows();
+                    Enabled &= LibraryTidy.CanRecycle;
                 Entry.IsEnabled = Enabled;
             }
         }
@@ -103,8 +110,12 @@ namespace DirectPackageInstaller.Views
             {
                 var Result = await PackageCheck.CheckAsync(Item.Entry.Path, new Progress<string>(Text => Item.CheckStatus = Text));
                 Item.CheckStatus = "";
-                if (Result.Damaged)
-                    await MessageBox.ShowAsync($"{Item.Entry.Title} ({Path.GetFileName(Item.Entry.Path)}) is damaged:\n\n• {string.Join("\n• ", Result.Failed)}\n\nDownload it again before sending it; the console would fail to install it or the game would crash.",
+                var Name = $"{Item.Entry.Title} ({Path.GetFileName(Item.Entry.Path)})";
+                if (Result.IsDamaged)
+                    await MessageBox.ShowAsync($"{Name} is damaged. These parts don't match their checksums:\n\n• {string.Join("\n• ", Result.Damaged)}\n\nDownload it again before sending it; the console would fail to install it or the game would crash.",
+                        "Package check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                else if (Result.CouldNotRead)
+                    await MessageBox.ShowAsync($"{Name} couldn't be read to the end, so the check isn't complete:\n\n• {string.Join("\n• ", Result.Unreadable)}\n\nCheck that the drive is connected and every part of a split package is there, then try again.",
                         "Package check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 else
                     await MessageBox.ShowAsync($"{Item.Entry.Title} ({Path.GetFileName(Item.Entry.Path)}): all {Result.Passed} checksums match. The file isn't damaged.",

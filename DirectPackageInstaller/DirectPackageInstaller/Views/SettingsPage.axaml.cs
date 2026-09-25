@@ -25,12 +25,7 @@ namespace DirectPackageInstaller.Views
             DhcpSwitch.Click += DhcpClick;
             BtnRestartServer.Click += (_, _) => Host?.RestartServer_OnClick(this, null);
 
-            // payload sender: only while BinLoader answers
-            void SyncPayloadButton()
-            {
-                BtnSendPayload.IsEnabled = Services.ConsoleStatus.Instance.HasBinLoader;
-                ToolTip.SetTip(BtnSendPayload, BtnSendPayload.IsEnabled ? "Pick the payload file to send" : "Needs GoldHEN's BinLoader turned on");
-            }
+            // payload sender: only while BinLoader answers, and not twice at once
             SyncPayloadButton();
             Services.ConsoleStatus.Instance.PropertyChanged += (_, e) =>
             {
@@ -201,20 +196,37 @@ namespace DirectPackageInstaller.Views
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
 
-            BtnSendPayload.IsEnabled = false;
+            SendingPayload = true;
+            SyncPayloadButton();
             try
             {
-                await Services.PayloadSender.SendAsync(App.Config.PSIP.Trim(), File);
-                PayloadHint.Text = $"Sent {Name}.";
+                using var Timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(60));
+                await Services.PayloadSender.SendAsync(App.Config.PSIP.Trim(), File, Timeout.Token);
+                PayloadStatus.Text = $"Sent {Name}.";
+            }
+            catch (OperationCanceledException)
+            {
+                PayloadStatus.Text = $"Couldn't send {Name}: the console stopped taking it.";
             }
             catch (Exception ex)
             {
-                PayloadHint.Text = $"Couldn't send {Name}: {ex.Message}";
+                PayloadStatus.Text = $"Couldn't send {Name}: {ex.Message}";
             }
             finally
             {
-                BtnSendPayload.IsEnabled = Services.ConsoleStatus.Instance.HasBinLoader;
+                SendingPayload = false;
+                PayloadStatus.IsVisible = true;
+                SyncPayloadButton();
             }
+        }
+
+        bool SendingPayload;
+
+        void SyncPayloadButton()
+        {
+            bool Ready = Services.ConsoleStatus.Instance.HasBinLoader;
+            BtnSendPayload.IsEnabled = Ready && !SendingPayload;
+            ToolTip.SetTip(BtnSendPayload, SendingPayload ? "Sending…" : Ready ? "Pick the payload file to send" : "Needs GoldHEN's BinLoader turned on");
         }
 
         readonly Avalonia.Threading.DispatcherTimer AdaptersChanged = new() { Interval = TimeSpan.FromMilliseconds(600) };

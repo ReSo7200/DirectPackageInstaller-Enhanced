@@ -155,11 +155,29 @@ namespace DirectPackageInstaller.Services
             return (Moved, Failed);
         }
 
-        /// <summary>Move a package (all parts of a split one) to the Recycle Bin. Windows only.</summary>
+        /// <summary>The desktop's trash can take files here (Windows, Linux with gio, macOS).</summary>
+        public static bool CanRecycle => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                                         || (OperatingSystem.IsLinux() && !OperatingSystem.IsAndroid());
+
+        /// <summary>Move a package (all parts of a split one) to the Recycle Bin / Trash.</summary>
         public static void Recycle(LibraryEntry Entry)
         {
+            var Parts = SplitPackages.PartsOf(Entry.Path) ?? new[] { Entry.Path };
+            if (OperatingSystem.IsMacOS())
+            {
+                // Finder's Trash (put back works); one call for all parts
+                var Items = string.Join(", ", Parts.Select(x => $"POSIX file \"{x.Replace("\\", "\\\\").Replace("\"", "\\\"")}\""));
+                RunTrash("osascript", new[] { "-e", $"tell application \"Finder\" to delete {{{Items}}}" }, Entry);
+                return;
+            }
+            if (OperatingSystem.IsLinux() && !OperatingSystem.IsAndroid())
+            {
+                // the freedesktop trash, as the file manager does it
+                RunTrash("gio", new[] { "trash", "--" }.Concat(Parts).ToArray(), Entry);
+                return;
+            }
             if (!OperatingSystem.IsWindows())
-                throw new PlatformNotSupportedException("Moving to the Recycle Bin is only available on Windows.");
+                throw new PlatformNotSupportedException("There's no Recycle Bin to move files to on this device.");
 
             // all parts in one operation (a split package goes as a whole). FOF_WANTNUKEWARNING:
             // when a file can't be recycled (bigger than the bin, network/USB drive) Windows
@@ -176,6 +194,25 @@ namespace DirectPackageInstaller.Services
                 throw new IOException(Operation.fAnyOperationsAborted
                     ? "Cancelled: nothing was deleted."
                     : $"Windows couldn't move \"{Path.GetFileName(Entry.Path)}\" to the Recycle Bin (code {Result}).");
+        }
+
+        static void RunTrash(string Program, string[] Args, LibraryEntry Entry)
+        {
+            var Start = new System.Diagnostics.ProcessStartInfo(Program) { RedirectStandardError = true, UseShellExecute = false };
+            foreach (var Arg in Args)
+                Start.ArgumentList.Add(Arg);
+            try
+            {
+                using var Process = System.Diagnostics.Process.Start(Start)!;
+                var Error = Process.StandardError.ReadToEnd();
+                Process.WaitForExit(60000);
+                if (Process.ExitCode != 0)
+                    throw new IOException($"Couldn't move \"{Path.GetFileName(Entry.Path)}\" to the Trash: {Error.Trim()}");
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                throw new IOException($"Couldn't move \"{Path.GetFileName(Entry.Path)}\" to the Trash ({Program} isn't available).");
+            }
         }
 
         const uint FO_DELETE = 3;

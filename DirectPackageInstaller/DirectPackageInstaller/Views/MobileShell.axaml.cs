@@ -21,6 +21,14 @@ namespace DirectPackageInstaller.Views
             InitializeComponent();
             AppShell.Current = this;
 
+            // pop-ups need the window this shell ends up in (not known in the constructor);
+            // at the top on phones, where the bottom belongs to the tab bar
+            AttachedToVisualTree += (_, _) =>
+            {
+                if (TopLevel.GetTopLevel(this) is { } Top)
+                    Notices.Attach(Top, AtTop: true);
+            };
+
             // Direct link is the existing MainView (it also owns the servers)
             LinkHost.Children.Add(Main);
             // its 28 px side margins are for the desktop window: phones get 14
@@ -68,8 +76,6 @@ namespace DirectPackageInstaller.Views
         /// <summary>After MainView loaded the settings (same order as the desktop window).</summary>
         public void OnStarted()
         {
-            if (TopLevel.GetTopLevel(this) is { } Top)
-                Notices.Attach(Top);
             LibraryPage.OnShown();
             ConsoleStatus.Instance.Start();
             LibraryPage.AutoCheck();

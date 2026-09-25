@@ -39,14 +39,23 @@ namespace DirectPackageInstaller.Services
         public string Status { get => _Status; set => this.RaiseAndSetIfChanged(ref _Status, value); }
 
         bool _Busy;
-        public bool Busy { get => _Busy; set { this.RaiseAndSetIfChanged(ref _Busy, value); this.RaisePropertyChanged(nameof(CanGet)); } }
+        public bool Busy { get => _Busy; set { this.RaiseAndSetIfChanged(ref _Busy, value); this.RaisePropertyChanged(nameof(CanGet)); this.RaisePropertyChanged(nameof(GetTip)); } }
 
         public bool CanGet => !Busy && DownloadUrl.Length > 0;
 
         public string Detail => Version.Length == 0 ? Repo
-            : $"{Repo}  ·  {Version}  ·  {Released}  ·  {Host.TransferProgressInfo.FormatBytes(Size)}";
+            : $"{Repo}  ·  {Version}  ·  {Released}  ·  {FileName}  ·  {Host.TransferProgressInfo.FormatBytes(Size)}";
 
-        internal void Changed() => this.RaisePropertyChanged(nameof(CanGet));
+        /// <summary>Why Download &amp; send is off, for its tooltip.</summary>
+        public string GetTip => Busy ? "Downloading…"
+            : DownloadUrl.Length == 0 ? "Its latest release has no PS4 package"
+            : "Downloads the package from the project's release and adds it to the Queue";
+
+        internal void Changed()
+        {
+            this.RaisePropertyChanged(nameof(CanGet));
+            this.RaisePropertyChanged(nameof(GetTip));
+        }
     }
 
     /// <summary>
@@ -127,31 +136,60 @@ namespace DirectPackageInstaller.Services
             File.WriteAllLines(CustomFile, List);
         }
 
-        /// <summary>Fill in each app's latest release (version, date, size, download URL).</summary>
-        public static async Task RefreshAsync(IEnumerable<HomebrewApp> Apps, CancellationToken Token = default)
+        /// <summary>GitHub's hourly allowance ran out: when it comes back.</summary>
+        sealed class RateLimited : Exception
+        {
+            public RateLimited(DateTime Until) : base($"GitHub's hourly limit for this network is used up; try again after {Until.ToLocalTime():HH:mm}.") { }
+        }
+
+        /// <summary>
+        /// Fill in each app's latest release (version, date, size, download URL).
+        /// Force: ask GitHub even if checked within the hour (an unchanged answer is free).
+        /// </summary>
+        public static async Task RefreshAsync(IEnumerable<HomebrewApp> Apps, bool Force = false, CancellationToken Token = default)
         {
             var Cache = LoadCache();
-            foreach (var App in Apps)
+            // a copy: the page's list may change while this runs
+            var List = Apps.ToList();
+            for (int i = 0; i < List.Count; i++)
             {
                 try
                 {
-                    var Json = await LatestReleaseAsync(App.Repo, Cache, Token);
-                    Apply(App, Json);
+                    Apply(List[i], await LatestReleaseAsync(List[i].Repo, Cache, Force, Token));
                 }
                 catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+                catch (RateLimited ex)
+                {
+                    // the rest would fail the same way: show what's cached
+                    foreach (var App in List.Skip(i))
+                    {
+                        if (Cache.TryGetValue(App.Repo, out var Known))
+                            Apply(App, Known.Json);
+                        else
+                            App.Status = ex.Message;
+                    }
+                    break;
+                }
                 catch (Exception ex)
                 {
-                    App.Status = "Couldn't read its releases: " + ex.Message;
+                    List[i].Status = "Couldn't read its releases: " + Plain(ex);
                 }
             }
             SaveCache(Cache);
         }
 
-        static async Task<string?> LatestReleaseAsync(string Repo, Dictionary<string, CachedRelease> Cache, CancellationToken Token)
+        static string Plain(Exception ex) => ex switch
+        {
+            HttpRequestException => "GitHub couldn't be reached (check the internet connection).",
+            TaskCanceledException or TimeoutException => "GitHub didn't answer in time.",
+            _ => ex.Message
+        };
+
+        static async Task<string?> LatestReleaseAsync(string Repo, Dictionary<string, CachedRelease> Cache, bool Force, CancellationToken Token)
         {
             Cache.TryGetValue(Repo, out var Cached);
             // recently checked: don't spend the hourly allowance
-            if (Cached != null && DateTime.UtcNow - Cached.Checked < TimeSpan.FromHours(1))
+            if (!Force && Cached != null && DateTime.UtcNow - Cached.Checked < TimeSpan.FromHours(1))
                 return Cached.Json;
 
             using var Request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{Repo}/releases/latest");
@@ -165,12 +203,19 @@ namespace DirectPackageInstaller.Services
                 return Cached.Json;
             }
             if (Response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                throw new InvalidOperationException("no releases (or the project doesn't exist)");
+                throw new InvalidOperationException("it has no releases, or the project doesn't exist.");
+            if ((int)Response.StatusCode is 403 or 429
+                && Response.Headers.TryGetValues("X-RateLimit-Remaining", out var Left) && Left.FirstOrDefault() == "0")
+            {
+                var Reset = Response.Headers.TryGetValues("X-RateLimit-Reset", out var R) && long.TryParse(R.FirstOrDefault(), out var Epoch)
+                    ? DateTimeOffset.FromUnixTimeSeconds(Epoch).UtcDateTime : DateTime.UtcNow.AddHours(1);
+                throw new RateLimited(Reset);
+            }
             if (!Response.IsSuccessStatusCode)
             {
                 if (Cached != null)
-                    return Cached.Json;   // rate-limited or offline: last known
-                throw new InvalidOperationException($"GitHub answered {(int)Response.StatusCode}");
+                    return Cached.Json;   // offline: last known
+                throw new InvalidOperationException($"GitHub couldn't answer right now (error {(int)Response.StatusCode}).");
             }
 
             var Json = await Response.Content.ReadAsStringAsync(Token);
@@ -208,9 +253,9 @@ namespace DirectPackageInstaller.Services
 
         /// <summary>Where an app's package goes (one folder per project and version).</summary>
         public static string LocalPath(HomebrewApp App) =>
-            Path.Combine(Folder, App.Repo.Replace('/', '_'), Sanitize(App.Version), Sanitize(App.FileName));
+            Path.Combine(ProjectFolder(App), SafeNames.Of(App.Version), SafeNames.Of(App.FileName));
 
-        static string Sanitize(string Name) => string.Concat(Name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+        static string ProjectFolder(HomebrewApp App) => Path.Combine(Folder, SafeNames.Of(App.Repo.Replace('/', '_')));
 
         /// <summary>Download the app's package (kept, so sending it again is instant).</summary>
         public static async Task<string> DownloadAsync(HomebrewApp App, IProgress<string>? Progress = null, CancellationToken Token = default)
@@ -221,25 +266,54 @@ namespace DirectPackageInstaller.Services
 
             Directory.CreateDirectory(Path.GetDirectoryName(Target)!);
             var Partial = Target + ".part";
-            using (var Response = await Http.GetAsync(App.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, Token))
+            try
             {
-                Response.EnsureSuccessStatusCode();
-                await using var Source = await Response.Content.ReadAsStreamAsync(Token);
-                await using var File_ = File.Create(Partial);
-                var Buffer = new byte[81920];
-                long Done = 0;
-                int Read;
-                while ((Read = await Source.ReadAsync(Buffer, Token)) > 0)
+                using (var Response = await Http.GetAsync(App.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, Token))
                 {
-                    await File_.WriteAsync(Buffer.AsMemory(0, Read), Token);
-                    Done += Read;
-                    if (App.Size > 0)
-                        Progress?.Report($"Downloading… {Done * 100 / App.Size}%");
+                    if (!Response.IsSuccessStatusCode)
+                        throw new IOException($"GitHub didn't send the file (error {(int)Response.StatusCode}).");
+                    await using var Source = await Response.Content.ReadAsStreamAsync(Token);
+                    await using var Out = File.Create(Partial);
+                    var Buffer = new byte[81920];
+                    long Done = 0, Shown = -1;
+                    while (true)
+                    {
+                        // HttpClient's timeout stops at the headers: each read gets its own
+                        using var Stall = CancellationTokenSource.CreateLinkedTokenSource(Token);
+                        Stall.CancelAfter(TimeSpan.FromSeconds(30));
+                        int Read;
+                        try { Read = await Source.ReadAsync(Buffer, Stall.Token); }
+                        catch (OperationCanceledException) when (!Token.IsCancellationRequested)
+                        {
+                            throw new IOException("The download stalled for 30 seconds.");
+                        }
+                        if (Read <= 0)
+                            break;
+                        await Out.WriteAsync(Buffer.AsMemory(0, Read), Token);
+                        Done += Read;
+                        long Percent = App.Size > 0 ? Done * 100 / App.Size : -1;
+                        if (Percent != Shown)
+                        {
+                            Shown = Percent;
+                            Progress?.Report($"Downloading… {Percent}%");
+                        }
+                    }
                 }
+                if (App.Size > 0 && new FileInfo(Partial).Length != App.Size)
+                    throw new IOException("The download ended early; press Download & send again.");
+                if (File.Exists(Target))
+                    File.Delete(Target);
+                File.Move(Partial, Target);
             }
-            if (File.Exists(Target))
-                File.Delete(Target);
-            File.Move(Partial, Target);
+            catch
+            {
+                try { File.Delete(Partial); } catch { }
+                throw;
+            }
+
+            // older versions of this app aren't needed any more
+            foreach (var Old in Directory.GetDirectories(ProjectFolder(App)).Where(x => !Target.StartsWith(x + Path.DirectorySeparatorChar)))
+                try { Directory.Delete(Old, true); } catch { }
             return Target;
         }
 

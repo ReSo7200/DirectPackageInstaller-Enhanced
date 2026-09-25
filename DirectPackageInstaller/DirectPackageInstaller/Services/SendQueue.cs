@@ -257,12 +257,17 @@ namespace DirectPackageInstaller.Services
                     this.RaisePropertyChanged(nameof(PendingCount));
                     // sent, installed or copied: the console's contents changed
                     if (Item.State == QueueState.Done)
-                    {
                         ConsoleStatus.Instance.NotifyContentsChanged();
-                        Notices.Post(Item.Title, Item.Message.Length > 0 ? Item.Message : Item.StateText);
-                    }
-                    else if (Item.State == QueueState.Failed)
-                        Notices.Post(Item.Title + " failed", Item.Message, Error: true);
+
+                    // the message is set just after the state: read it once that code finished
+                    if (Item.State is QueueState.Done or QueueState.Failed)
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            if (Item.State == QueueState.Done)
+                                Notices.Post(Item.Title, Item.Message.Length > 0 ? Item.Message : Item.StateText);
+                            else if (Item.State == QueueState.Failed)
+                                Notices.Post(Item.Title + " failed", Item.Message, Error: true);
+                        }, Avalonia.Threading.DispatcherPriority.Background);
                 };
                 Items.Add(Item);
             }

@@ -62,25 +62,34 @@ namespace DirectPackageInstaller.Services
                 // videos can be large: stream to a .part file, one connection per file
                 await using var Ftp = await Connect(ConsoleIP, Token);
                 var Partial = To + ".part";
-                await using (var Out = File.Create(Partial))
-                    await Ftp.DownloadToAsync(Item.ConsolePath, Out, Got =>
-                    {
-                        if (Item.Size > 0)
-                            Progress?.Report($"Copying {Done + 1} of {Todo.Count}: {Item.Name} ({Got * 100 / Item.Size}%)");
-                    }, Token);
-                if (File.Exists(To))
-                    File.Delete(To);
-                File.Move(Partial, To);
+                try
+                {
+                    long Shown = -1;
+                    await using (var Out = File.Create(Partial))
+                        await Ftp.DownloadToAsync(Item.ConsolePath, Out, Got =>
+                        {
+                            // only when the percentage changes: every block would flood the UI
+                            long Percent = Item.Size > 0 ? Got * 100 / Item.Size : -1;
+                            if (Percent == Shown) return;
+                            Shown = Percent;
+                            Progress?.Report($"Copying {Done + 1} of {Todo.Count}: {Item.Name} ({Percent}%)");
+                        }, Token);
+                    if (File.Exists(To))
+                        File.Delete(To);
+                    File.Move(Partial, To);
+                }
+                catch
+                {
+                    try { File.Delete(Partial); } catch { }
+                    throw;
+                }
                 Done++;
             }
             return Done;
         }
 
-        static string Target(Capture Item, Func<string, string> GameName)
-        {
-            var Game = string.Concat(GameName(Item.TitleId).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
-            return Path.Combine(Folder, Game.Length > 0 ? Game : Item.TitleId, Item.Name);
-        }
+        static string Target(Capture Item, Func<string, string> GameName) =>
+            Path.Combine(Folder, SafeNames.Of(GameName(Item.TitleId), SafeNames.Of(Item.TitleId)), SafeNames.Of(Item.Name));
 
         static bool Exists(string Path_, long Size) => File.Exists(Path_) && (Size < 0 || new FileInfo(Path_).Length == Size);
 

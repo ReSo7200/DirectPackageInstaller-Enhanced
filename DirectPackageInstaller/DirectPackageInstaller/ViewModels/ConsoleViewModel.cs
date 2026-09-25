@@ -156,6 +156,7 @@ namespace DirectPackageInstaller.ViewModels
                 {
                     this.RaisePropertyChanged(nameof(CanCopyCaptures));
                     this.RaisePropertyChanged(nameof(CapturesTip));
+                    this.RaisePropertyChanged(nameof(CapturesTip));
                 }
                 if (e.PropertyName == nameof(ConsoleStatus.CanRead))
                 {
@@ -169,9 +170,10 @@ namespace DirectPackageInstaller.ViewModels
 
         bool CopyingCaptures;
         public bool CanCopyCaptures => !CopyingCaptures && ConsoleStatus.Instance.FtpOpen;
-        public string CapturesTip => ConsoleStatus.Instance.FtpOpen
-            ? $"Copy the console's screenshots and video clips to {ConsoleCaptures.Folder} (a folder per game; ones already copied are skipped)"
-            : "Needs GoldHEN's FTP server running on the console";
+        public string CapturesTip => CopyingCaptures ? "Another copy is running"
+            : ConsoleStatus.Instance.FtpOpen
+                ? $"Copy the console's screenshots and video clips to {ConsoleCaptures.Folder} (a folder per game; ones already copied are skipped)"
+                : "Needs GoldHEN's FTP server running on the console";
 
         string _CapturesStatus = "";
         public string CapturesStatus
@@ -189,6 +191,7 @@ namespace DirectPackageInstaller.ViewModels
 
             CopyingCaptures = true;
             this.RaisePropertyChanged(nameof(CanCopyCaptures));
+            this.RaisePropertyChanged(nameof(CapturesTip));
             try
             {
                 CapturesStatus = "Looking for screenshots and videos…";
@@ -219,6 +222,7 @@ namespace DirectPackageInstaller.ViewModels
             {
                 CopyingCaptures = false;
                 this.RaisePropertyChanged(nameof(CanCopyCaptures));
+                this.RaisePropertyChanged(nameof(CapturesTip));
             }
         }
 
@@ -231,8 +235,15 @@ namespace DirectPackageInstaller.ViewModels
 
             CopyingCaptures = true;
             this.RaisePropertyChanged(nameof(CanCopyCaptures));
+            this.RaisePropertyChanged(nameof(CapturesTip));
             try
             {
+                if (string.Equals(ConsoleStatus.Instance.RunningTitleId, Item.TitleId, StringComparison.OrdinalIgnoreCase))
+                {
+                    CapturesStatus = $"{Item.Name} is running on the console: close it first, so its saves aren't copied half-written.";
+                    return;
+                }
+
                 CapturesStatus = $"Looking for {Item.Name}'s saves…";
                 var Users = await ConsoleSaves.FindAsync(IP, Item.TitleId);
                 if (Users.Count == 0)
@@ -253,6 +264,7 @@ namespace DirectPackageInstaller.ViewModels
             {
                 CopyingCaptures = false;
                 this.RaisePropertyChanged(nameof(CanCopyCaptures));
+                this.RaisePropertyChanged(nameof(CapturesTip));
             }
         }
 

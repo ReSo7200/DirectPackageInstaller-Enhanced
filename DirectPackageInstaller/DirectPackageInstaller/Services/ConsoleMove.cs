@@ -178,6 +178,11 @@ namespace DirectPackageInstaller.Services
             bool Held = false;
             try
             {
+                // the status is up to 20 s old: ask again right before touching anything
+                var Running = await ConsoleScanner.RunningAppAsync(IP);
+                if (Running is { } R && string.Equals(R.TitleId, Job.TitleId, StringComparison.OrdinalIgnoreCase))
+                    throw new MoveException($"{Job.Title} is running on the console: close it, then try again.");
+
                 if (!Job.Uninstalled)
                 {
                     await PrepareAsync(IP, Job);

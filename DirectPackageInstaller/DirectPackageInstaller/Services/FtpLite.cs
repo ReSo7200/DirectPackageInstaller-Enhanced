@@ -244,7 +244,11 @@ namespace DirectPackageInstaller.Services
             await SendAsync("RETR " + path, ct).ConfigureAwait(false);
             var prelim = await ReadReplyAsync(ct).ConfigureAwait(false);
             if (prelim.Code != 125 && prelim.Code != 150)
+            {
+                // some servers answer an empty file with 226 straight away
+                if (prelim.Code == 226 || prelim.Code == 250) return;
                 throw new FtpException($"Download of '{path}' was refused", prelim);
+            }
 
             var ds = data.GetStream();
             var chunk = new byte[65536];
@@ -265,7 +269,16 @@ namespace DirectPackageInstaller.Services
                     }
                 }
                 if (n <= 0) break;
-                await Target.WriteAsync(chunk.AsMemory(0, n), ct).ConfigureAwait(false);
+                try
+                {
+                    await Target.WriteAsync(chunk.AsMemory(0, n), ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // the transfer is abandoned mid-way: the control connection is out of step
+                    Abort();
+                    throw;
+                }
                 got += n;
                 Progress?.Invoke(got);
             }

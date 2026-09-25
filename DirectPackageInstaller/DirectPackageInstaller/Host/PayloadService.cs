@@ -60,6 +60,7 @@ namespace DirectPackageInstaller.Host
             }
             catch (ArgumentException ex)
             {
+                Installer.LastError = ex.Message;
                 if (!Silent)
                     await MessageBox.ShowAsync("Failed:\n" + ex.Message, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;

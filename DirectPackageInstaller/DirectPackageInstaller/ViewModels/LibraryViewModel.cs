@@ -216,11 +216,20 @@ namespace DirectPackageInstaller.ViewModels
         }
 
         /// <summary>Another file in the library is the same package (content ID, type and version).</summary>
-        public bool IsDuplicate { get; set; }
+        bool _IsDuplicate;
+        public bool IsDuplicate
+        {
+            get => _IsDuplicate;
+            set => this.RaiseAndSetIfChanged(ref _IsDuplicate, value);
+        }
+
+        /// <summary>The last PS4 check saw some update installed for this title.</summary>
+        public bool PatchOnConsole { get; set; }
 
         /// <summary>The last PS4 check found this on the console (so it can be uninstalled).</summary>
         public bool CanUninstall => State is InstallState.Installed or InstallState.NewerInstalled
-                                    || (State == InstallState.UpdateAvailable && Entry.Kind == "Update");
+                                    // an update of this title is installed, even if not this version
+                                    || (Entry.Kind == "Update" && PatchOnConsole && State is InstallState.UpdateAvailable or InstallState.Unknown);
 
         void RaiseRail()
         {
@@ -418,6 +427,7 @@ namespace DirectPackageInstaller.ViewModels
 
         static void Apply(LibraryItem Item, ConsoleSnapshot Snapshot)
         {
+            Item.PatchOnConsole = !Snapshot.IsAppsOnly && Snapshot.Patches.Contains(Item.Entry.TitleId);
             Item.UnknownText =
                 Snapshot.IsAppsOnly && Snapshot.Apps.Contains(Item.Entry.TitleId) && Item.Entry.Kind is "Update" or "DLC" ? "Game on PS4"
                 : !Snapshot.IsAppsOnly && Item.Entry.Kind == "Update" && Snapshot.Patches.Contains(Item.Entry.TitleId) ? "An update is on PS4"
@@ -476,7 +486,8 @@ namespace DirectPackageInstaller.ViewModels
                 Selected.Remove(Hidden);
 
             // update in place: Clear() would reset the list and drop the selection on
-            // every search keystroke
+            // every search keystroke; Move can still deselect, so restore it after
+            var WasSelected = Selected.Where(Visible.Contains).ToList();
             var Keep = new HashSet<LibraryItem>(Visible);
             for (int i = Items.Count - 1; i >= 0; i--)
             {
@@ -492,6 +503,12 @@ namespace DirectPackageInstaller.ViewModels
                     Items.Insert(i, Visible[i]);
                 else
                     Items.Move(Current, i);
+            }
+
+            foreach (var Item in WasSelected)
+            {
+                if (!Selected.Contains(Item))
+                    Selected.Add(Item);
             }
 
             this.RaisePropertyChanged(nameof(IsEmpty));
@@ -646,8 +663,14 @@ namespace DirectPackageInstaller.ViewModels
         /// Ask Sony's patch server for each title's latest update and flag the
         /// title's newest local game/update card when something newer exists.
         /// </summary>
+        int OfficialCheckRunning;
+
         public async Task CheckOfficialUpdatesAsync()
         {
+            // startup can ask twice (first scan + auto check): one run is enough
+            if (System.Threading.Interlocked.Exchange(ref OfficialCheckRunning, 1) == 1)
+                return;
+
             try
             {
                 var Families = All.Where(x => x.Entry.Kind is "Game" or "Update" && x.Entry.TitleId.Length > 0)
@@ -672,6 +695,17 @@ namespace DirectPackageInstaller.ViewModels
             {
                 // offline: nothing to show
             }
+            finally
+            {
+                System.Threading.Interlocked.Exchange(ref OfficialCheckRunning, 0);
+            }
+        }
+
+        /// <summary>Setting turned off: drop the "Update X is out" tags.</summary>
+        public void ClearOfficialUpdates()
+        {
+            foreach (var Item in All)
+                Item.NewerOfficial = "";
         }
 
         public void SendSelected()

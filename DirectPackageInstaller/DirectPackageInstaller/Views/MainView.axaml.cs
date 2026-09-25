@@ -142,6 +142,13 @@ namespace DirectPackageInstaller.Views
             if (Model == null)
                 return;
 
+            // a push or load is running: don't swap the stream and package under it
+            if (!btnLoad.IsEnabled)
+            {
+                _ = SetStatus("Busy with the current package. Try again when it's done.");
+                return;
+            }
+
             Model.CurrentURL = Source;
             BtnLoadOnClick(null, new RoutedEventArgs());
         }

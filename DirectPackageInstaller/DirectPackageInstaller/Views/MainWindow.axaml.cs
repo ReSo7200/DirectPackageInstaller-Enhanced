@@ -42,6 +42,14 @@ namespace DirectPackageInstaller.Views
             {
                 // debounced (typing an IP fires per keystroke); by the time it runs
                 // MainView has copied PS4IP into App.Config
+                if (e.PropertyName == nameof(MainViewModel.CheckOfficialUpdates) && LibraryPage.DataContext is LibraryViewModel Library)
+                {
+                    if (((MainViewModel)View.DataContext!).CheckOfficialUpdates)
+                        _ = Library.CheckOfficialUpdatesAsync();
+                    else
+                        Library.ClearOfficialUpdates();
+                }
+
                 if (e.PropertyName == nameof(MainViewModel.PS4IP))
                 {
                     IpChanged.Stop();

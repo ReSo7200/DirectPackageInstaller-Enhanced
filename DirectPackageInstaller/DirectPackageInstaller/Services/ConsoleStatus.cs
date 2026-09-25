@@ -92,6 +92,11 @@ namespace DirectPackageInstaller.Services
             {
                 Interlocked.Exchange(ref Refreshing, 0);
             }
+
+            // a request that arrived after the loop's last check but before the
+            // flag cleared would otherwise be lost
+            if (Volatile.Read(ref RefreshAgain) == 1)
+                _ = RefreshAsync();
         }
 
         async Task ProbeAsync()

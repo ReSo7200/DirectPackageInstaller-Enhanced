@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using DirectPackageInstaller.Host;
 using DirectPackageInstaller.IO;
+using DirectPackageInstaller.Services;
 using DirectPackageInstaller.Tasks;
 
 namespace DirectPackageInstaller.Desktop
@@ -33,6 +34,24 @@ namespace DirectPackageInstaller.Desktop
         [STAThread]
         public static void Main(string[] args)
         {
+            // Explorer context menu: "--send <pkg>" / "--add-folder <dir>".
+            // Hand it to the running window if there is one, else start the UI and handle it here.
+            if (ShellIntegration.IsShellInvocation(args))
+            {
+                var ShellArgs = ShellIntegration.ToArgs(ShellIntegration.Parse(args));
+
+                // StartServer fails when another instance owns the pipe (multi-select starts
+                // several processes at once: exactly one wins, the rest forward to it)
+                if (!SingleInstance.StartServer() && SingleInstance.TryForward(ShellArgs))
+                {
+                    Environment.Exit(0);
+                    return;
+                }
+
+                SingleInstance.Post(ShellArgs);
+                args = Array.Empty<string>();
+            }
+
             bool UILaunch = args == null || args.Length == 0;
 
             if (!UILaunch)
@@ -45,6 +64,7 @@ namespace DirectPackageInstaller.Desktop
 
             if (UILaunch)
             {
+                SingleInstance.StartServer();
                 TempHelper.Clear();
                 BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); 
                 TempHelper.Clear();

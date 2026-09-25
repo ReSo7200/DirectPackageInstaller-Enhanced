@@ -212,6 +212,13 @@ namespace DirectPackageInstaller.Services
             }
         }
 
+        /// <summary>
+        /// Read one package outside any library folder (e.g. "Send to PS4" from
+        /// Explorer). Returns null when the file does not exist; check Error for unreadable files.
+        /// </summary>
+        public static LibraryEntry? ReadPackage(string File) =>
+            ReadEntry(System.IO.Path.GetFullPath(File), new Dictionary<string, LibraryEntry>(StringComparer.OrdinalIgnoreCase));
+
         static LibraryEntry? ReadEntry(string File, Dictionary<string, LibraryEntry> Previous)
         {
             FileInfo Info;

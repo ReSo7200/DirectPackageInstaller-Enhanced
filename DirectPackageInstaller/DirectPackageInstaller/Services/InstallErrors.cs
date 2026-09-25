@@ -12,7 +12,7 @@ namespace DirectPackageInstaller.Services
     {
         static readonly Dictionary<uint, string> Known = new()
         {
-            [0x80990006] = "This console doesn't support this install method.",
+            [0x80990006] = "The console refused this package type. Unlock-key DLC can't be downloaded by the PS4; this version of DPI copies it to /data/pkg for the Package Installer instead.",
             [0x80990015] = "The console already has a download for this package. Delete it from Notifications › Downloads on the console, then send again.",
             [0x8099002C] = "The console lost its connection to this PC while downloading. Check the PC address in Settings and that nothing (firewall, VPN) blocks port 9898.",
             [0x80990033] = "The console couldn't download from this PC. Check the PC address in Settings and allow port 9898 in Windows Firewall.",

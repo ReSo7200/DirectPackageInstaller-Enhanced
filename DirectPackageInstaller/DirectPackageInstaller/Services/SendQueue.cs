@@ -352,6 +352,17 @@ namespace DirectPackageInstaller.Services
 
                 Stream.Position = 0;
 
+                // unlock-key DLC: the console won't download it, copy it for the Package Installer
+                if (UnlockKeys.IsUnlockKey(Info.Value))
+                {
+                    var Copied = await UnlockKeys.CopyToConsoleAsync(App.Config.PSIP, Info.Value, Stream,
+                        new Progress<string>(Status => Item.Message = Status));
+                    Item.State = QueueState.Done;
+                    Item.Progress = 100;
+                    Item.Message = $"Unlock key copied to {Copied}. {UnlockKeys.HowToInstall}";
+                    return;
+                }
+
                 string LastStatus = "";
                 bool OK;
                 bool AlreadyInstalled;

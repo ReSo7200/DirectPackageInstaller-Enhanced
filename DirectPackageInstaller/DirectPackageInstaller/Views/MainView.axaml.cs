@@ -1000,6 +1000,10 @@ namespace DirectPackageInstaller.Views
                 return false;
             }
 
+            // unlock-key DLC: the console won't download it, copy it for the Package Installer
+            if ((Package ?? LoadedPKG) is { } Key && Services.UnlockKeys.IsUnlockKey(Key))
+                return await CopyUnlockKey(URL, Key, Silent);
+
             var OriStatus = Status.Text;
             btnLoad.Content = "Pushing...";
             PackagesMenu.IsEnabled = false;
@@ -1042,7 +1046,43 @@ namespace DirectPackageInstaller.Views
                 btnLoad.Content = "Install";
             }
         }
-        
+
+        /// <summary>Unlock-key DLC from a file on this PC: copy it to the console over FTP.</summary>
+        private async Task<bool> CopyUnlockKey(string Source, PKGHelper.PKGInfo Key, bool Silent)
+        {
+            if (!File.Exists(Source))
+            {
+                if (!Silent)
+                    await MessageBox.ShowAsync(Parent, "This is an unlock-key DLC (a license with no data). The PS4 can't download these, so DPI copies them to the console over FTP instead.\n\nSave the .pkg on this PC first, then send it from the Library or open the file here.",
+                        "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
+
+            var OriStatus = Status.Text;
+            btnLoad.IsEnabled = false;
+            try
+            {
+                await using var Stream = Services.SplitPackages.Open(Source);
+                var Copied = await Services.UnlockKeys.CopyToConsoleAsync(App.Config.PSIP, Key, Stream,
+                    new Progress<string>(Text => _ = SetStatus(Text)));
+                if (!Silent)
+                    await MessageBox.ShowAsync(Parent, $"Unlock key copied to {Copied}.\n\n{Services.UnlockKeys.HowToInstall}",
+                        "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!Silent)
+                    await MessageBox.ShowAsync(Parent, ex.Message, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+            finally
+            {
+                await SetStatus(OriStatus);
+                btnLoad.IsEnabled = true;
+            }
+        }
+
         private async void BtnInstallAllOnClick(object? sender, RoutedEventArgs? e)
         {
             if (e != null)

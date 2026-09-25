@@ -150,6 +150,59 @@ namespace DirectPackageInstaller.Services
         public Task<byte[]> DownloadAsync(string path, int maxBytes = DefaultMaxDownload, CancellationToken ct = default)
             => TransferAsync("RETR " + path, maxBytes, ct);
 
+        /// <summary>STOR the rest of Source to path. Progress gets the bytes sent so far.</summary>
+        public async Task UploadAsync(string path, Stream Source, Action<long>? Progress = null, CancellationToken ct = default)
+        {
+            var ep = await EnterPassiveAsync(ct).ConfigureAwait(false);
+            using var data = new TcpClient { NoDelay = true };
+            using (var cts = Linked(ct, ConnectTimeout))
+            {
+                try
+                {
+                    await data.ConnectAsync(ep.Address, ep.Port, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    Abort();
+                    throw new TimeoutException($"FTP data connection to {ep} timed out");
+                }
+            }
+
+            await SendAsync("STOR " + path, ct).ConfigureAwait(false);
+            var prelim = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (prelim.Code != 125 && prelim.Code != 150)
+                throw new FtpException($"Upload of '{path}' was refused", prelim);
+
+            var ds = data.GetStream();
+            var chunk = new byte[65536];
+            long sent = 0;
+            while (true)
+            {
+                int n = await Source.ReadAsync(chunk.AsMemory(), ct).ConfigureAwait(false);
+                if (n <= 0) break;
+                using (var cts = Linked(ct, OperationTimeout))
+                {
+                    try
+                    {
+                        await ds.WriteAsync(chunk.AsMemory(0, n), cts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        Abort();
+                        throw new TimeoutException($"FTP upload of '{path}' timed out");
+                    }
+                }
+                sent += n;
+                Progress?.Invoke(sent);
+            }
+            try { data.Client.Shutdown(SocketShutdown.Both); } catch { }
+            data.Close();
+
+            var done = await ReadReplyAsync(ct).ConfigureAwait(false);
+            if (done.Code != 226 && done.Code != 250)
+                throw new FtpException($"Upload of '{path}' did not complete", done);
+        }
+
         public async Task QuitAsync(CancellationToken ct = default)
         {
             if (_stream == null) return;

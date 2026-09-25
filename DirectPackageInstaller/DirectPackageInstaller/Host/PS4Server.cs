@@ -199,7 +199,8 @@ namespace DirectPackageInstaller.Host
             Context.Response.StatusCode = Partial ? 206 : 200;
             Context.Response.StatusDescription = Partial ? "Partial Content" : "OK";
 
-            Stream Origin = new FileStream(
+            // part 0 of a split package (name_0.pkg, name_1.pkg, ...) is served as the whole package
+            Stream Origin = Services.SplitPackages.OpenMerged(Path) ?? new FileStream(
                 Path,
                 FileMode.Open,
                 FileAccess.Read,
@@ -376,7 +377,7 @@ namespace DirectPackageInstaller.Host
                         else if (SubQuery.AllKeys.Contains("b64"))
                             File = Encoding.UTF8.GetString(Convert.FromBase64String(SubQuery["b64"]));
 
-                        Source = new FileStream(
+                        Source = Services.SplitPackages.OpenMerged(File) ?? new FileStream(
                             File,
                             FileMode.Open,
                             FileAccess.Read,

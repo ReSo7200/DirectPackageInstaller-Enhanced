@@ -335,7 +335,8 @@ namespace DirectPackageInstaller.Services
 
             try
             {
-                using var Stream = new FileStream(Item.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                // split packages read as one (the PS4 must be told the full size)
+                using var Stream = SplitPackages.Open(Item.Path);
                 var Info = Stream.GetPKGInfo();
                 if (Info == null)
                 {

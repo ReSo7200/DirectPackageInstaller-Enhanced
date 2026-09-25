@@ -56,7 +56,7 @@ namespace DirectPackageInstaller.ViewModels
         public string Kind => Entry.Kind.ToUpperInvariant();
         public string TitleId => string.IsNullOrEmpty(Entry.TitleId) ? "—" : Entry.TitleId;
         public string VersionText => string.IsNullOrEmpty(Entry.AppVersion) ? "" : "v" + Entry.AppVersion;
-        public string SizeText => TransferProgressInfo.FormatBytes(Entry.Size);
+        public string SizeText => TransferProgressInfo.FormatBytes(Entry.Size) + (Entry.Parts > 1 ? $" · {Entry.Parts} parts" : "");
         public string Tooltip => $"{Entry.Title}\n{Entry.ContentId}\n{Entry.Path}"
                                  + (string.IsNullOrEmpty(Entry.SystemVersion) ? "" : $"\nRequires firmware {Entry.SystemVersion}")
                                  + (Entry.Error != null ? $"\n{Entry.Error}" : "")

@@ -26,6 +26,12 @@ namespace DirectPackageInstaller.Services
         public string SystemVersion { get; set; } = "";
         public bool Fake { get; set; }
 
+        /// <summary>Number of files for a split package (name_0.pkg, name_1.pkg, ...); 1 otherwise.</summary>
+        public int Parts { get; set; } = 1;
+
+        /// <summary>Length of the file at Path itself (part 0 for split packages), for the scan cache.</summary>
+        public long FileLength { get; set; }
+
         /// <summary>Cached ICON0.png on disk, or null.</summary>
         public string? IconFile { get; set; }
 
@@ -198,13 +204,14 @@ namespace DirectPackageInstaller.Services
 
             try
             {
+                // later parts of split packages are listed through their part 0
                 return Directory.EnumerateFiles(Folder, "*.pkg", new EnumerationOptions
                 {
                     RecurseSubdirectories = true,
                     IgnoreInaccessible = true,
                     MatchCasing = MatchCasing.CaseInsensitive,
                     AttributesToSkip = FileAttributes.System
-                }).ToList();
+                }).Where(x => !SplitPackages.IsLaterPart(x)).ToList();
             }
             catch
             {
@@ -235,7 +242,7 @@ namespace DirectPackageInstaller.Services
             }
 
             // unreadable entries are retried every scan (the file may have been locked or still copying)
-            if (Previous.TryGetValue(File, out var Cached) && Cached.Error == null && Cached.Size == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
+            if (Previous.TryGetValue(File, out var Cached) && Cached.Error == null && (Cached.FileLength > 0 ? Cached.FileLength : Cached.Size) == Info.Length && Cached.Modified == Info.LastWriteTimeUtc
                 && (Cached.IconFile == null || System.IO.File.Exists(Cached.IconFile)))
                 return Cached;
 
@@ -243,13 +250,21 @@ namespace DirectPackageInstaller.Services
             {
                 Path = File,
                 Size = Info.Length,
+                FileLength = Info.Length,
                 Modified = Info.LastWriteTimeUtc,
                 Title = System.IO.Path.GetFileNameWithoutExtension(File)
             };
 
             try
             {
-                using var Stream = new FileStream(File, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.RandomAccess);
+                var Parts = SplitPackages.PartsOf(File);
+                if (Parts != null)
+                {
+                    Entry.Parts = Parts.Length;
+                    Entry.Size = Parts.Sum(x => new FileInfo(x).Length);
+                }
+
+                using var Stream = SplitPackages.Open(File);
                 var Pkg = Stream.GetPKGInfo();
                 if (Pkg == null)
                 {

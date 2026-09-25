@@ -654,7 +654,8 @@ namespace DirectPackageInstaller.Views
                     }
                     else if (SourcePackage.IsFilePath())
                     {
-                        PKGStream = File.Open(SourcePackage, FileMode.Open, FileAccess.Read, FileShare.Read);
+                        // split package parts (name_0.pkg, name_1.pkg, ...) open as one package
+                        PKGStream = Services.SplitPackages.Open(SourcePackage);
                         InputType = Source.File;
                     }
                     else

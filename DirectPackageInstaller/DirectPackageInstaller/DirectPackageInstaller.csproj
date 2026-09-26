@@ -8,6 +8,8 @@
     </PropertyGroup>
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
+        <!-- opt-in experimental GoldHEN payload (free space, storage choice); see Payload/main_experimental.c -->
+        <EmbeddedResource Include="..\..\Payload\payload_experimental.bin" LogicalName="payload_experimental.bin" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Avalonia" Version="11.3.8" />

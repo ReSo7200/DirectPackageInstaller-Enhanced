@@ -1,5 +1,6 @@
-﻿using DirectPackageInstaller.Views;
+using DirectPackageInstaller.Views;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -11,6 +12,14 @@ using DirectPackageInstaller.Tasks;
 
 namespace DirectPackageInstaller.Host
 {
+    /// <summary>
+    /// GoldHEN install path. The PS4 payload (Payload/main.c) is resident: every
+    /// loop iteration it opens a NEW connection to ServiceSocket, reads one
+    /// package (cmd 1) or an exit request (cmd 0), then closes it. If it can't
+    /// connect it shows "DPI: GET INFO ERROR" and exits. So ServiceSocket must
+    /// stay open for the whole session, each queued connection is used exactly
+    /// once, and the payload is injected only when no connection is waiting.
+    /// </summary>
     public class PayloadService
     {
 
@@ -22,11 +31,20 @@ namespace DirectPackageInstaller.Host
         private Socket? ServiceSocket = null;
         private Socket? PayloadSocket;
 
-        public bool ClientRunning { get; private set; } = false;
+        /// <summary>A resident payload is waiting for a package.</summary>
+        public bool ClientRunning => !Queue.IsEmpty;
 
         private bool ServerRunning = false;
 
-        private Queue<Socket> Queue = new Queue<Socket>();
+        private readonly ConcurrentQueue<Socket> Queue = new ConcurrentQueue<Socket>();
+
+        private readonly SemaphoreSlim SendLock = new SemaphoreSlim(1, 1);
+
+        /// <summary>How long a freshly injected payload gets to connect back.</summary>
+        const int CallbackTimeoutMs = 15000;
+
+        // Payload/info.c buffer sizes (the payload rejects longer strings).
+        const int MaxUrl = 0x800, MaxName = 0x259, MaxId = 0x30, MaxType = 0x10;
 
         public async Task<bool> SendPKGPayload(string PS4IP, string PCIP, string URL, bool Silent, bool AutoSplit)
         {
@@ -35,43 +53,326 @@ namespace DirectPackageInstaller.Host
 
             URL = Installer.Server.RegisterJSON(URL, PCIP, Installer.CurrentPKG, AutoSplit);
 
-            if (!await EnsureServer(PCIP, PS4IP))
+            byte[] PKGInfo;
+            try
+            {
+                PKGInfo = BuildPkgInfo(URL);
+                // experimental payload + a chosen storage: "package v2" carries it
+                if (App.Config.ExperimentalPayload && ExperimentalPayloadProtocol.StorageChoiceWorks && App.Config.InstallStorage != ExperimentalPayloadProtocol.StorageDefault)
+                    PKGInfoV2 = ExperimentalPayloadProtocol.BuildPackageV2(URL, Installer.CurrentPKG.FriendlyName, Installer.CurrentPKG.ContentID,
+                        Installer.CurrentPKG.BGFTContentType, Installer.CurrentPKG.PackageSize, Installer.CurrentPKG.IconData, App.Config.InstallStorage);
+                else
+                    PKGInfoV2 = null;
+            }
+            catch (ArgumentException ex)
+            {
+                Installer.LastError = ex.Message;
+                if (!Silent)
+                    await MessageBox.ShowAsync("Failed:\n" + ex.Message, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
+            }
 
-            if (!EnsureClient(PCIP))
+            await SendLock.WaitAsync();
+            try
+            {
+                // a dead queued connection fails the send: try the next one / inject
+                for (int Attempt = 0; Attempt < 3; Attempt++)
+                {
+                    var Connection = await GetConnectionAsync(PS4IP, PCIP);
+                    if (Connection == null)
+                        return false;
+
+                    // only the experimental payload understands v2
+                    var Data = ResidentExperimental && PKGInfoV2 != null ? PKGInfoV2 : PKGInfo;
+                    if (await TrySend(Connection, Data))
+                        return await Sent(Silent);
+                }
+
+                Installer.LastError = "The PS4 payload connection kept dropping. Try again.";
                 return false;
+            }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Install a package that is already on the console (an absolute path there) to
+        /// the given storage. Experimental payload only: it installs from the file with
+        /// BGFT's ByStorage registration. Sets Installer.LastError on failure.
+        /// </summary>
+        /// <returns>The console's registration result and BGFT task id (task -1 when it failed), or null if nothing answered.</returns>
+        public async Task<(int Result, int Task)?> SendLocalPackageAsync(string PS4IP, string PCIP, string ConsolePath, PKGHelper.PKGInfo Info, int Storage)
+        {
+            if (!App.Config.ExperimentalPayload)
+            {
+                Installer.LastError = "Needs the experimental GoldHEN payload (Settings › Experimental).";
+                return null;
+            }
+
+            byte[] Data;
+            try
+            {
+                Data = ExperimentalPayloadProtocol.BuildPackageV3(ConsolePath, Info.FriendlyName, Info.ContentID,
+                    Info.BGFTContentType, Info.PackageSize, Info.IconData, Storage);
+            }
+            catch (ArgumentException ex)
+            {
+                Installer.LastError = ex.Message;
+                return null;
+            }
+
+            await SendLock.WaitAsync();
+            try
+            {
+                // a resident default payload doesn't know local files or storages: replace it
+                if (!ResidentExperimental)
+                    await ReleaseResidentLockedAsync();
+
+                for (int Attempt = 0; Attempt < 3; Attempt++)
+                {
+                    var Connection = await GetConnectionAsync(PS4IP, PCIP);
+                    if (Connection == null)
+                        return null;
+                    if (!ResidentExperimental)
+                    {
+                        Installer.LastError = "The experimental GoldHEN payload didn't start on the console.";
+                        return null;
+                    }
+
+                    try
+                    {
+                        await Connection.SendAsync(new ArraySegment<byte>(Data), SocketFlags.None);
+                    }
+                    catch
+                    {
+                        Connection.Close();
+                        continue;   // a dead queued connection: take the next one
+                    }
+
+                    // the payload answers once BGFT registered (or refused) the task
+                    try
+                    {
+                        var Reply = new byte[8];
+                        int Got = 0;
+                        using var Timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                        while (Got < Reply.Length)
+                        {
+                            int Count = await Connection.ReceiveAsync(new ArraySegment<byte>(Reply, Got, Reply.Length - Got), SocketFlags.None, Timeout.Token);
+                            if (Count <= 0)
+                                break;
+                            Got += Count;
+                        }
+                        if (Got == Reply.Length)
+                            return (BitConverter.ToInt32(Reply, 0), BitConverter.ToInt32(Reply, 4));
+                        Installer.LastError = "The console took the request but didn't say whether it started the install (check Notifications › Downloads).";
+                        return null;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Installer.LastError = "The console didn't confirm the install within a minute (check Notifications › Downloads).";
+                        return null;
+                    }
+                    finally
+                    {
+                        Connection.Close();
+                    }
+                }
+
+                Installer.LastError = "The PS4 payload connection kept dropping. Try again.";
+                return null;
+            }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
+
+        byte[]? PKGInfoV2;
+
+        DateTime LastInject = DateTime.MinValue;
+
+        /// <summary>The payload running on the console is the experimental build (commands 2 and 3).</summary>
+        public bool ResidentExperimental { get; private set; }
+
+        /// <summary>
+        /// A connection from the payload on the console: a waiting resident one, or
+        /// inject the payload and wait for it to call back. Sets LastError on failure.
+        /// </summary>
+        async Task<Socket?> GetConnectionAsync(string PS4IP, string PCIP)
+        {
+            if (!EnsureListener(PCIP))
+            {
+                Installer.LastError = "Couldn't open the port the PS4 payload connects back to.";
+                return null;
+            }
+
+            // 1) a resident payload is already waiting
+            var Connection = TakeLiveConnection();
+            if (Connection != null)
+                return Connection;
+
+            // a payload injected moments ago reconnects for its next package: wait for
+            // it rather than injecting a second one that would compete for connections
+            if (DateTime.Now - LastInject < TimeSpan.FromMilliseconds(CallbackTimeoutMs))
+            {
+                var Until = LastInject.AddMilliseconds(CallbackTimeoutMs);
+                while (DateTime.Now < Until)
+                {
+                    Connection = TakeLiveConnection();
+                    if (Connection != null)
+                        return Connection;
+                    await Task.Delay(100);
+                }
+            }
+
+            // 2) none (or it died): inject once, wait for its callback
+            if (!await TryConnectSocket(PS4IP))
+            {
+                Installer.LastError = "GoldHEN's payload server isn't answering (ports 9090/9021/9020). Turn on BinLoader in GoldHEN settings, or open Remote Package Installer.";
+                return null;
+            }
+
+            bool Experimental = App.Config.ExperimentalPayload;
+            if (!InjectPayload(PCIP, Experimental))
+            {
+                Installer.LastError = "Sending the installer payload to GoldHEN failed. Try again.";
+                return null;
+            }
+            ResidentExperimental = Experimental;
+            LastInject = DateTime.Now;
 
             DateTime WaitBegin = DateTime.Now;
-            while (Queue.Count == 0 && (DateTime.Now - WaitBegin).TotalSeconds < 10)
+            while ((DateTime.Now - WaitBegin).TotalMilliseconds < CallbackTimeoutMs)
             {
-                if (!ServerRunning)
-                    await EnsureServer(PCIP, PS4IP);
-
+                Connection = TakeLiveConnection();
+                if (Connection != null)
+                    return Connection;
                 await Task.Delay(100);
             }
 
-            if (Queue.Count == 0)
+            Installer.LastError = "The PS4 payload didn't connect back to this PC. Check the PC address in Settings and that Windows Firewall allows DirectPackageInstaller.";
+            return null;
+        }
+
+        /// <summary>
+        /// Free space on system and extended storage, from the experimental payload
+        /// (injected if needed). Null when it can't be read; see Installer.LastError.
+        /// </summary>
+        public async Task<PayloadFreeSpace?> QueryFreeSpaceAsync(string PS4IP, string PCIP)
+        {
+            if (!App.Config.ExperimentalPayload)
+                return null;
+
+            await SendLock.WaitAsync();
+            try
             {
-                ServiceSocket?.Dispose();
-                ServiceSocket = null;
-                ServerRunning = false;
-                return false;
+                // a resident default payload doesn't know command 3: replace it
+                if (!ResidentExperimental)
+                    await ReleaseResidentLockedAsync();
+
+                for (int Attempt = 0; Attempt < 3; Attempt++)
+                {
+                    var Connection = await GetConnectionAsync(PS4IP, PCIP);
+                    if (Connection == null)
+                        return null;
+                    if (!ResidentExperimental)
+                        return null;
+
+                    try
+                    {
+                        var Query = ExperimentalPayloadProtocol.BuildFreeSpaceQuery();
+                        await Connection.SendAsync(new ArraySegment<byte>(Query), SocketFlags.None);
+
+                        var Reply = new byte[32];
+                        int Got = 0;
+                        using var Timeout = new CancellationTokenSource(5000);
+                        while (Got < Reply.Length)
+                        {
+                            int Count = await Connection.ReceiveAsync(new ArraySegment<byte>(Reply, Got, Reply.Length - Got), SocketFlags.None, Timeout.Token);
+                            if (Count <= 0)
+                                break;
+                            Got += Count;
+                        }
+
+                        if (Got == Reply.Length)
+                            return ExperimentalPayloadProtocol.ParseFreeSpaceReply(Reply);
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        Connection.Close();
+                    }
+                }
+
+                Installer.LastError = "The payload didn't report free space.";
+                return null;
             }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
 
+        /// <summary>Tell waiting payloads to exit (cmd 0) so the next push injects a fresh one.</summary>
+        public async Task ReleaseResidentAsync()
+        {
+            // never while a push is waiting for its payload to call back
+            await SendLock.WaitAsync();
+            try
+            {
+                await ReleaseResidentLockedAsync();
+            }
+            finally
+            {
+                SendLock.Release();
+            }
+        }
 
-            var PKGInfoSocket = Queue.Dequeue();
+        async Task ReleaseResidentLockedAsync()
+        {
+            while (TakeLiveConnection() is { } Connection)
+            {
+                try { await Connection.SendAsync(new ArraySegment<byte>(new byte[4]), SocketFlags.None); } catch { }
+                Connection.Close();
+            }
+            ResidentExperimental = false;
+        }
 
-            ClientRunning = Queue.Count > 0;
+        private static async Task<bool> Sent(bool Silent)
+        {
+            if (!Silent)
+                await MessageBox.ShowAsync("Package Sent!", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
+            return true;
+        }
+
+        /// <summary>
+        /// Wire format read by Payload/info.c get_pkg_info:
+        /// u32 cmd(1), [u32 len + bytes] URL, Name, ID, Type, u64 size, [u32 len + bytes] icon.
+        /// </summary>
+        private static byte[] BuildPkgInfo(string URL)
+        {
             var UrlData = Encoding.UTF8.GetBytes(URL);
-            var NameData = Encoding.UTF8.GetBytes(Installer.CurrentPKG.FriendlyName);
-            var IDData = Encoding.UTF8.GetBytes(Installer.CurrentPKG.ContentID);
+            var NameData = Encoding.UTF8.GetBytes(Installer.CurrentPKG.FriendlyName ?? "");
+            var IDData = Encoding.UTF8.GetBytes(Installer.CurrentPKG.ContentID ?? "");
             var PKGType = Encoding.UTF8.GetBytes(Installer.CurrentPKG.BGFTContentType);
             var PackageSize = BitConverter.GetBytes(Installer.CurrentPKG.PackageSize);
-            var IconData = Installer.CurrentPKG.IconData;
+            var IconData = Installer.CurrentPKG.IconData ?? new byte[0];
 
-            if (IconData == null)
-                IconData = new byte[0];
+            // The payload drops fields that don't fit its buffers (plus NUL),
+            // shows GET INFO ERROR and exits; fail here instead.
+            if (UrlData.Length >= MaxUrl)
+                throw new ArgumentException($"Package URL is too long for the PS4 payload ({UrlData.Length} bytes, max {MaxUrl - 1}).");
+            if (IDData.Length >= MaxId)
+                throw new ArgumentException("Content ID is too long for the PS4 payload.");
+            if (PKGType.Length >= MaxType)
+                throw new ArgumentException("Package type is too long for the PS4 payload.");
+            if (NameData.Length >= MaxName)
+                NameData = TruncateUtf8(Installer.CurrentPKG.FriendlyName!, MaxName - 1);
 
             List<byte> PKGInfoBuffer = new List<byte>();
 
@@ -89,34 +390,87 @@ namespace DirectPackageInstaller.Host
 
             PKGInfoBuffer.AddRange(PackageSize);
 
-            if (IconData.Length == 0)
+            PKGInfoBuffer.AddRange(BitConverter.GetBytes(IconData.Length));
+            PKGInfoBuffer.AddRange(IconData);
+
+            return PKGInfoBuffer.ToArray();
+        }
+
+        private static byte[] TruncateUtf8(string Value, int MaxBytes)
+        {
+            var Result = Encoding.UTF8.GetBytes(Value);
+            while (Result.Length > MaxBytes && Value.Length > 0)
             {
-                PKGInfoBuffer.AddRange(new byte[4]);
+                Value = Value.Substring(0, Value.Length - 1);
+                Result = Encoding.UTF8.GetBytes(Value);
             }
-            else
+            return Result;
+        }
+
+        /// <summary>
+        /// Send one package over a payload connection, then close it: the payload
+        /// reads a single package per connection and reconnects for the next.
+        /// </summary>
+        private static async Task<bool> TrySend(Socket Connection, byte[] Data)
+        {
+            try
             {
-                PKGInfoBuffer.AddRange(BitConverter.GetBytes(IconData.Length));
-                PKGInfoBuffer.AddRange(IconData);
+                int Sent = 0;
+                while (Sent < Data.Length)
+                {
+                    int Count = await Connection.SendAsync(new ArraySegment<byte>(Data, Sent, Data.Length - Sent), SocketFlags.None);
+                    if (Count <= 0)
+                        return false;
+                    Sent += Count;
+                }
+
+                try { Connection.Shutdown(SocketShutdown.Send); } catch { }
+                return true;
             }
-
-            TaskCompletionSource SendTask = new TaskCompletionSource();
-
-            SocketAsyncEventArgs PkgInfoEvent = new SocketAsyncEventArgs();
-            PkgInfoEvent.RemoteEndPoint = PKGInfoSocket.RemoteEndPoint;
-            PkgInfoEvent.SetBuffer(PKGInfoBuffer.ToArray());
-            PkgInfoEvent.Completed += (sender, e) => ReturnToQueue(PKGInfoSocket, PkgInfoEvent, SendTask);
-
-            if (!PKGInfoSocket.SendAsync(PkgInfoEvent))
+            catch
             {
-                ReturnToQueue(PKGInfoSocket, PkgInfoEvent, SendTask);
+                return false;
+            }
+            finally
+            {
+                Connection.Close();
+            }
+        }
+
+        /// <summary>Oldest queued payload connection that is still open, or null.</summary>
+        private Socket? TakeLiveConnection()
+        {
+            while (Queue.TryDequeue(out var Connection))
+            {
+                bool Alive;
+                try
+                {
+                    // readable with nothing to read = the payload side closed it
+                    Alive = !(Connection.Poll(0, SelectMode.SelectRead) && Connection.Available == 0);
+                }
+                catch
+                {
+                    Alive = false;
+                }
+
+                if (Alive)
+                    return Connection;
+
+                Connection.Close();
             }
 
-            await SendTask.Task;
+            return null;
+        }
 
-            if (!Silent)
-                await MessageBox.ShowAsync("Package Sent!", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-            return true;
+        /// <summary>Payload/payload_experimental.bin, embedded at build time (a fresh copy to patch).</summary>
+        static byte[] ExperimentalPayloadBytes()
+        {
+            using var Stream = typeof(PayloadService).Assembly.GetManifestResourceStream("payload_experimental.bin");
+            if (Stream == null)
+                return Array.Empty<byte>();
+            using var Buffer = new System.IO.MemoryStream();
+            Stream.CopyTo(Buffer);
+            return Buffer.ToArray();
         }
 
         public async Task StopServer()
@@ -126,36 +480,23 @@ namespace DirectPackageInstaller.Host
 
             ServerRunning = false;
 
+            try { ServiceSocket?.Close(); } catch { }
+
             while (ServiceSocket != null)
                 await Task.Delay(100);
 
-            while (Queue.Count != 0)
+            // cmd 0: the payload shows "DirectPackageInstaller Exited" and quits cleanly
+            while (Queue.TryDequeue(out var Connection))
             {
-                var Connection = Queue.Dequeue();
-
-                TaskCompletionSource Source = new TaskCompletionSource();
-
                 try
                 {
-                    SocketAsyncEventArgs ConnectionEvent = new SocketAsyncEventArgs();
-                    ConnectionEvent.RemoteEndPoint = Connection.RemoteEndPoint;
-                    ConnectionEvent.SetBuffer(new byte[4]);
-                    ConnectionEvent.Completed += (sender, e) => CloseAndDispose(Connection, ConnectionEvent, Source);
-
-                    if (!Connection.SendAsync(ConnectionEvent))
-                    {
-                        CloseAndDispose(Connection, ConnectionEvent, Source);
-                    }
+                    await Connection.SendAsync(new ArraySegment<byte>(new byte[4]), SocketFlags.None);
+                    Connection.Shutdown(SocketShutdown.Both);
                 }
-                catch
-                {
-                    Source.SetResult();
-                }
+                catch { }
 
-                await Source.Task;
+                Connection.Close();
             }
-
-            ClientRunning = false;
         }
 
         /// <summary>
@@ -181,10 +522,8 @@ namespace DirectPackageInstaller.Host
                 {
                     var Endpoint = new IPEndPoint(IPAddress.Parse(IP), Port);
 
-                    if (App.IsAndroid)
-                        socket.Connect(Endpoint);
-                    else
-                        await socket.ConnectAsync(Endpoint, CToken.Token);
+                    // NetConnect: Android's ConnectAsync is broken and a plain Connect has no timeout
+                    await Services.NetConnect.ConnectAsync(socket, Endpoint, CToken.Token);
 
                     if (socket.Connected)
                     {
@@ -212,145 +551,95 @@ namespace DirectPackageInstaller.Host
         }
 
         /// <summary>
-        /// Ensure the PKG Info Server is Listening
+        /// Ensure the PKG Info Server is listening. It stays open for the whole
+        /// session so a resident payload can always reconnect.
         /// </summary>
-        /// <param name="PS4IP"></param>
-        /// <returns></returns>
-        private async Task<bool> EnsureServer(string PCIP, string PS4IP)
+        private bool EnsureListener(string PCIP)
         {
+            if (ServerRunning && ServiceSocket != null)
+                return true;
+
             try
             {
-                if (!ServerRunning)
-                {
-                    if (ServiceSocket == null)
-                    {
-                        ServiceSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                        ServiceSocket.NoDelay = true;
+                var Listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                Listener.NoDelay = true;
 
-                        if (App.IsAndroid)
-                            ServiceSocket.Bind(new IPEndPoint(IPAddress.Parse(PCIP), App.Config.PayloadPort ?? 0));
-                        else
-                            ServiceSocket.Bind(new IPEndPoint(IPAddress.Any, App.Config.PayloadPort ?? 0));
+                if (App.IsAndroid)
+                    Listener.Bind(new IPEndPoint(IPAddress.Parse(PCIP), App.Config.PayloadPort ?? 0));
+                else
+                    Listener.Bind(new IPEndPoint(IPAddress.Any, App.Config.PayloadPort ?? 0));
 
-                        ServiceSocket.Listen();
-                    }
+                Listener.Listen();
 
+                ServiceSocket = Listener;
+                ServerRunning = true;
 
-                    ServerRunning = true;
-
-                    _ = ServerLoop();
-                }
-
-                if (PayloadSocket == null || !PayloadSocket.Connected)
-                {
-                    if (!await TryConnectSocket(PS4IP))
-                        return false;
-                }
+                _ = ServerLoop(Listener);
+                return true;
             }
             catch (Exception ex)
             {
 #if DEBUG
-                await MessageBox.ShowAsync("EnsureServer Failed\n" + ex.ToString());
+                MessageBox.ShowSync("EnsureListener Failed\n" + ex.ToString());
 #endif
-                throw;
+                return false;
             }
-            return true;
         }
 
         /// <summary>
         /// Runs the PKG Info Socket connection accept loop.
         /// </summary>
-        /// <exception cref="NullReferenceException"></exception>
-        private async Task ServerLoop()
+        private async Task ServerLoop(Socket Listener)
         {
-            if (ServiceSocket == null)
-                throw new NullReferenceException(nameof(ServiceSocket));
-
-            do
+            while (ServerRunning)
             {
-                CancellationTokenSource CToken = new CancellationTokenSource();
-                CToken.CancelAfter(10000);
-
+                Socket ClientSocket;
                 try
                 {
-                    if (App.IsAndroid)
-                    {
-                        var ClientSocket = await AcceptConnectionInBackground(CToken.Token);
-                        if (ClientSocket == null) throw new NullReferenceException();
-                        ClientSocket.NoDelay = true;
-                        Queue.Enqueue(ClientSocket);
-                    }
-                    else
-                    {
-                        var ClientSocket = await ServiceSocket.AcceptAsync(CToken.Token);
-                        if (ClientSocket == null) throw new NullReferenceException();
-                        ClientSocket.NoDelay = true;
-                        Queue.Enqueue(ClientSocket);
-                    }
+                    // AcceptAsync is cancelled by closing the listener (StopServer);
+                    // unlike Thread.Interrupt it really unblocks, also on Android.
+                    ClientSocket = await Listener.AcceptAsync();
                 }
                 catch
                 {
-                    continue;
+                    break;
                 }
-                finally
+
+                try
                 {
-                    ClientRunning = Queue.Count > 0;
-                    CToken.Dispose();
+                    ClientSocket.NoDelay = true;
+                    // detect a payload lost to rest mode / reboot
+                    ClientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 }
+                catch { }
 
-            } while (ServerRunning);
-
-            ServiceSocket?.Close();
-            ServiceSocket = null;
-        }
-
-        private async Task<Socket?> AcceptConnectionInBackground(CancellationToken Token)
-        {
-            Socket? ClientSocket = null;
-
-            var thread = new Thread(() =>
-            {
-                ClientSocket = ServiceSocket.Accept();
-            });
-
-            thread.IsBackground = true;
-            thread.Start();
-
-            while (thread.IsAlive && !Token.IsCancellationRequested)
-            {
-                await Task.Delay(100);
+                Queue.Enqueue(ClientSocket);
             }
 
-            try
+            try { Listener.Close(); } catch { }
+
+            if (ServiceSocket == Listener)
             {
-                if (thread.IsAlive)
-                    thread.Interrupt();
+                ServiceSocket = null;
+                ServerRunning = false;
             }
-            catch { }
-
-            if (ClientSocket == null)
-                throw new NullReferenceException(nameof(ClientSocket));
-
-            return ClientSocket;
         }
 
         /// <summary>
-        /// Ensure the Client Installer Payload is running in the PS4 System
+        /// Send the installer payload to the GoldHEN/MiraLoader bin loader,
+        /// patched with this PC's IP and the listener port.
         /// </summary>
         /// <param name="PCIP">The PC IP</param>
-        /// <returns>If is running/started returns true, otherwise false</returns>
-        private bool EnsureClient(string PCIP)
+        /// <returns>True when the payload was sent</returns>
+        private bool InjectPayload(string PCIP, bool Experimental = false)
         {
-            if (ClientRunning)
-                return true;
-
-            if (ServiceSocket == null)
+            if (ServiceSocket == null || PayloadSocket == null)
                 return false;
 
-            if (PayloadSocket == null)
+            // patch a copy: never mutate the shared resource bytes
+            var Payload = Experimental ? ExperimentalPayloadBytes() : (byte[])Resources.Payload.Clone();
+            if (Payload.Length == 0)
                 return false;
-
-            var Payload = Resources.Payload;
 
             var Offset = Payload.IndexOf(new byte[] { 0xB4, 0xB4, 0xB4, 0xB4, 0xB4, 0xB4 });
             if (Offset == -1)
@@ -368,59 +657,27 @@ namespace DirectPackageInstaller.Host
 
                 PayloadSocket.SendBufferSize = Payload.Length;
 
-                if (PayloadSocket.Send(Payload) != Payload.Length)
-                    return false;
+                int Sent = 0;
+                while (Sent < Payload.Length)
+                {
+                    int Count = PayloadSocket.Send(Payload, Sent, Payload.Length - Sent, SocketFlags.None);
+                    if (Count <= 0)
+                        return false;
+                    Sent += Count;
+                }
             }
-            catch (Exception ex)
+            catch
             {
                 return false;
             }
             finally
             {
-                if (PayloadSocket != null)
-                {
-                    try { PayloadSocket.Shutdown(SocketShutdown.Both); } catch { }
-                    PayloadSocket.Close();
-                    PayloadSocket = null;
-                }
+                try { PayloadSocket.Shutdown(SocketShutdown.Both); } catch { }
+                PayloadSocket.Close();
+                PayloadSocket = null;
             }
 
             return true;
-        }
-
-        private void ReturnToQueue(Socket socket, SocketAsyncEventArgs e, TaskCompletionSource? tcs = null)
-        {
-            if (socket.Connected)
-            {
-                Queue.Enqueue(socket);
-                ClientRunning = true;
-            }
-            else
-            {
-                socket.Close();
-                ClientRunning = Queue.Count > 0;
-            }
-
-            e.Dispose();
-
-            if (tcs != null)
-                tcs.TrySetResult();
-        }
-
-        private void CloseAndDispose(Socket socket, SocketAsyncEventArgs e, TaskCompletionSource? tcs = null)
-        {
-            try
-            {
-                if (socket.Connected)
-                    socket.Shutdown(SocketShutdown.Both);
-            }
-            catch { }
-
-            socket.Close();
-            e.Dispose();
-
-            if (tcs != null)
-                tcs.TrySetResult();
         }
     }
 }

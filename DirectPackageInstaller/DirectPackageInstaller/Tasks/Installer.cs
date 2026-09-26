@@ -12,6 +12,7 @@ using DirectPackageInstaller.Views;
 using DirectPackageInstaller.Host;
 using DirectPackageInstaller.IO;
 using DirectPackageInstaller.Others;
+using DirectPackageInstaller.Services;
 using SharpCompress.Archives;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -29,25 +30,61 @@ namespace DirectPackageInstaller.Tasks
 
         public static string? EntryFileName;
 
-        private static bool ForceProxy;
-
         public static PayloadService Payload = new PayloadService();
+
+        /// <summary>
+        /// One push at a time. CurrentPKG is shared state read deep inside the push
+        /// (preload length, GoldHEN PKG info), so callers set it and push while
+        /// holding this lock: Direct link and the Library queue can't mix them up.
+        /// </summary>
+        public static readonly SemaphoreSlim PushLock = new SemaphoreSlim(1, 1);
+
+        /// <summary>Why the last PushPackage failed, in plain words (queue rows show it).</summary>
+        public static string? LastError;
+
+        /// <summary>Set when the console reported the package as already installed.</summary>
+        public static bool LastAlreadyInstalled;
+
+        /// <summary>RPI task ID of the last push (for live progress), or null for other install methods.</summary>
+        public static long? LastTaskId;
+
+        /// <summary>
+        /// Base64 value for a ?b64= query parameter. Escaped because
+        /// ParseQueryString turns a raw '+' into a space, which breaks decoding.
+        /// </summary>
+        public static string B64Query(string Value) =>
+            Uri.EscapeDataString(Convert.ToBase64String(Encoding.UTF8.GetBytes(Value)));
 
         public static async Task<bool> PushPackage(Settings Config, Source InputType, Stream? PKGStream, string URL, IArchive? Decompressor, DecompressorHelperStream[]? DecompressorStreams, Func<string, Task> SetStatus, Func<string> GetStatus, bool Silent)
         {
+            LastError = null;
+            LastAlreadyInstalled = false;
+            LastTaskId = null;
+
             if (string.IsNullOrEmpty(Config.PSIP) || Config.PSIP == "0.0.0.0")
             {
-                await MessageBox.ShowAsync("PS IP not defined, please, type the PS IP in the Options Menu", "PS IP Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-            
-            if (string.IsNullOrEmpty(Config.PCIP) || Config.PCIP == "0.0.0.0")
-            {
-                await MessageBox.ShowAsync("PC IP not defined, please, type your PC LAN IP in the Options Menu", "PS4 IP Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LastError = "The console address isn't set. Enter it in Settings.";
+                if (!Silent)
+                    await MessageBox.ShowAsync("PS IP not defined, please, type the PS IP in Settings", "PS IP Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
 
-            await StartServer(Config.PCIP);
+            if (string.IsNullOrEmpty(Config.PCIP) || Config.PCIP == "0.0.0.0")
+            {
+                LastError = "This PC's address isn't set. Pick it in Settings.";
+                if (!Silent)
+                    await MessageBox.ShowAsync("PC IP not defined, please, pick your PC's LAN address in Settings", "PC IP Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+
+            if (!await StartServer(Config.PCIP, Silent))
+            {
+                LastError = $"Couldn't start the file server on port {ServerPort}. Is another installer (or DPI) already running?";
+                return false;
+            }
+
+            // per push: a non-direct link must not force proxy mode on every later install
+            bool ForceProxy = false;
 
             if (PKGStream is FileHostStream)
             {
@@ -151,6 +188,12 @@ namespace DirectPackageInstaller.Tasks
 
                     while (DecompressTask.SafeTotalDecompressed < LastResource)
                     {
+                        if (DecompressTask.Failed || DecompressTask.Error != null)
+                        {
+                            await SetStatus(OriStatus);
+                            await MessageBox.ShowAsync("Failed to decompress the package:\n" + (DecompressTask.Error?.Message ?? "unknown error"), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return false;
+                        }
                         await SetStatus($"Preloading Compressed PKG... ({(double)DecompressTask.SafeTotalDecompressed / LastResource:P})");
                         await Task.Delay(100);
                     }
@@ -169,24 +212,30 @@ namespace DirectPackageInstaller.Tasks
                     OriStatus = GetStatus();
                     while (CacheTask.SafeReadyLength < LastResource)
                     {
+                        if (CacheTask.Failed || CacheTask.Error != null)
+                        {
+                            await SetStatus(OriStatus);
+                            await MessageBox.ShowAsync("Failed to download the package:\n" + (CacheTask.Error?.Message ?? "unknown error"), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return false;
+                        }
                         await SetStatus($"Preloading PKG... ({(double)(CacheTask.SafeReadyLength) / LastResource:P})");
                         await Task.Delay(100);
                     }
                     await SetStatus(OriStatus);
 
-                    URL = $"http://{Config.PCIP}:{ServerPort}/cache/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/cache/?b64={Installer.B64Query(URL)}";
                     break;
 
                 case Source.URL | Source.Proxy:
-                    URL = $"http://{Config.PCIP}:{ServerPort}/proxy/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/proxy/?b64={Installer.B64Query(URL)}";
                     break;
 
                 case Source.JSON:
-                    URL = $"http://{Config.PCIP}:{ServerPort}/merge/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/merge/?b64={Installer.B64Query(URL)}";
                     break;
                 
                 case Source.File:
-                    URL = $"http://{Config.PCIP}:{ServerPort}/file/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}";
+                    URL = $"http://{Config.PCIP}:{ServerPort}/file/?b64={Installer.B64Query(URL)}";
                     break;
 
                 case Source.URL:
@@ -201,13 +250,23 @@ namespace DirectPackageInstaller.Tasks
             if (!Config.AutoSplitPKG)
                 CanSplit = false;
 
+            // a chosen install storage only works through the experimental payload:
+            // prefer it over RPI/etaHEN when GoldHEN can take it
+            bool WantsStorage = Config.ExperimentalPayload && ExperimentalPayloadProtocol.StorageChoiceWorks
+                                && Config.InstallStorage != ExperimentalPayloadProtocol.StorageDefault;
+            bool PayloadFirst = WantsStorage && (Payload.ClientRunning || await IPHelper.IsGoldHENOnline(Config.PSIP));
+
             bool OK;
-            if (await IPHelper.IsRPIOnline(Config.PSIP))
+            if (!PayloadFirst && await IPHelper.IsRPIOnline(Config.PSIP))
                 OK = await PushRPI(URL, Config, Silent);
-            else if (await IPHelper.IsEtaHenOnline(Config.PSIP))
+            else if (!PayloadFirst && await IPHelper.IsEtaHenOnline(Config.PSIP))
                 OK = await PushEtaHen(URL, Config, Silent);
             else
+            {
                 OK = await Payload.SendPKGPayload(Config.PSIP, Config.PCIP, URL, Silent, CanSplit);
+                if (!OK)
+                    LastError ??= "GoldHEN didn't take the package. Turn on the payload server (BinLoader, port 9090) in GoldHEN settings, or open Remote Package Installer.";
+            }
             
             return OK;
         }
@@ -219,7 +278,7 @@ namespace DirectPackageInstaller.Tasks
             {
                 string Boundary = GetBoundary();
 
-                using var client = new HttpClient();
+                using var client = Services.NetConnect.ConsoleHttp(TimeSpan.FromSeconds(100));
                 var requestUri = $"http://{Config.PSIP}:12800/upload";
 
                 var content = new MultipartFormDataContent(Boundary);
@@ -227,6 +286,13 @@ namespace DirectPackageInstaller.Tasks
                 using (var buffer = new MemoryStream(Encoding.UTF8.GetBytes(URL)))
                 {
                     content.Add(new StreamContent(buffer), "\"url\"");
+
+                    // DPI v2 also takes the name/ID shown in the console's download list
+                    // (otherwise it reads "etaHEN DPI"); older etaHEN ignores extra fields.
+                    if (!string.IsNullOrWhiteSpace(CurrentPKG.FriendlyName))
+                        content.Add(new StringContent(CurrentPKG.FriendlyName, Encoding.UTF8), "\"content_name\"");
+                    if (!string.IsNullOrWhiteSpace(CurrentPKG.ContentID))
+                        content.Add(new StringContent(CurrentPKG.ContentID, Encoding.UTF8), "\"content_id\"");
 
                     var Response = await client.PostAsync(requestUri, content);
 
@@ -244,10 +310,9 @@ namespace DirectPackageInstaller.Tasks
                     }
                     else
                     {
-                        if (Result.Contains("0x80990085"))
-                            Result += "\nVerify if your playstation has free space.";
-
-                        await MessageBox.ShowAsync("Failed:\n" + Result, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        LastError = InstallErrors.Describe(Result);
+                        if (!Silent)
+                            await MessageBox.ShowAsync("Failed:\n" + LastError, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return false;
                     }
                 }
@@ -270,7 +335,9 @@ namespace DirectPackageInstaller.Tasks
                 }
 
                 await File.WriteAllTextAsync(Path.Combine(App.WorkingDirectory, "DPI-ERROR.log"), ex.ToString());
-                await MessageBox.ShowAsync("Failed:\n" + (Result == null ? ex.ToString() : Result), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LastError = Result != null ? InstallErrors.Describe(Result) : "Couldn't reach the console: " + ex.Message;
+                if (!Silent)
+                    await MessageBox.ShowAsync("Failed:\n" + (Result == null ? ex.ToString() : LastError), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
@@ -290,7 +357,7 @@ namespace DirectPackageInstaller.Tasks
         {
             try
             {
-                using var client = new HttpClient();
+                using var client = Services.NetConnect.ConsoleHttp(TimeSpan.FromSeconds(100));
                 var requestUri = $"http://{Config.PSIP}:12800/api/install";
 
 
@@ -308,17 +375,21 @@ namespace DirectPackageInstaller.Tasks
 
                 if (Result.Contains("\"success\""))
                 {
+                    // RPI reports "same version already installed" as success with task_id -1
+                    LastAlreadyInstalled = System.Text.RegularExpressions.Regex.IsMatch(Result, "\"task_id\"\\s*:\\s*-1");
+                    var TaskId = RpiTasks.Number(Result, "task_id");
+                    LastTaskId = TaskId is >= 0 ? TaskId : null;
+
                     if (!Silent)
-                        await MessageBox.ShowAsync("Package Sent!", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        await MessageBox.ShowAsync(LastAlreadyInstalled ? "Already installed on the console." : "Package Sent!", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     return true;
                 }
                 else
                 {
-                    if (Result.Contains("0x80990085"))
-                        Result += "\nVerify if your playstation has free space.";
-
-                    await MessageBox.ShowAsync("Failed:\n" + Result, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    LastError = InstallErrors.Describe(Result);
+                    if (!Silent)
+                        await MessageBox.ShowAsync("Failed:\n" + LastError, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
             }
@@ -340,38 +411,49 @@ namespace DirectPackageInstaller.Tasks
                 }
 
                 await File.WriteAllTextAsync(Path.Combine(App.WorkingDirectory, "DPI-ERROR.log"), ex.ToString());
-                await MessageBox.ShowAsync("Failed:\n" + (Result == null ? ex.ToString() : Result), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LastError = Result != null ? InstallErrors.Describe(Result) : "Couldn't reach the console: " + ex.Message;
+                if (!Silent)
+                    await MessageBox.ShowAsync("Failed:\n" + (Result == null ? ex.ToString() : LastError), "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
         #endregion
 
         #region DirectPackageInstaller
-        public static async Task StartServer(string LocalIP)
+        /// <summary>
+        /// Start the PKG HTTP server once. Server is only set after Start()
+        /// succeeds, so a busy port 9898 is retried on the next push instead of
+        /// handing the console URLs that nobody serves.
+        /// </summary>
+        public static async Task<bool> StartServer(string LocalIP, bool Silent = false)
         {
+            if (Server != null)
+                return true;
+
             if (string.IsNullOrEmpty(LocalIP))
                 LocalIP = "0.0.0.0";
-            
-            try
+
+            Exception? StartError = null;
+            foreach (var BindIP in new[] { LocalIP, "0.0.0.0" }.Distinct())
             {
-                if (Server == null)
-                {
-                    Server = new PS4Server(LocalIP, ServerPort);
-                    Server.Start();
-                }
-            }
-            catch
-            {
+                PS4Server? NewServer = null;
                 try
                 {
-                    Server = new PS4Server("0.0.0.0", ServerPort);
-                    Server.Start();
+                    NewServer = new PS4Server(BindIP, ServerPort);
+                    NewServer.Start();
+                    Server = NewServer;
+                    return true;
                 }
                 catch (Exception ex)
                 {
-                    await MessageBox.ShowAsync($"Failed to Open the Http Server\n{ex}", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    StartError = ex;
+                    NewServer?.Stop();
                 }
             }
+
+            if (!Silent)
+                await MessageBox.ShowAsync($"Failed to open the HTTP server on port {ServerPort}.\nIs another DirectPackageInstaller or PKG sender already running?\n\n{StartError?.Message}", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
         }
 
         #endregion

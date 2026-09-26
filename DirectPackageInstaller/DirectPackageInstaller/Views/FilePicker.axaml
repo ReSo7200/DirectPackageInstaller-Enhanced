@@ -36,7 +36,7 @@
         <ScrollViewer Name="lbEntriesScroll" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Classes="lbEntriesScroll" AllowAutoHide="False">
 			<ItemsControl Name="lbEntries" ItemsSource="{Binding CurrentDirEntries}"/>
         </ScrollViewer>
-        <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Classes="btnOK" IsVisible="{Binding InMultiselect}" Click="Open_OnClick"/>
+        <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Classes="btnOK" Name="btnOK" IsVisible="{Binding InMultiselect}" Click="Open_OnClick"/>
     </Grid>
     <UserControl.DataTemplates>
         <DataTemplate DataType="others:FileEntry">
@@ -52,7 +52,7 @@
                         Classes.Pkg="{Binding IsPKG}"
                         Classes.Phone="{Binding IsPhone}"
                         Classes.SDCard="{Binding IsSDCard}"/>
-                    <Label Grid.Column="1" Content="{Binding Name}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="4,0,0,0"/>
                 </Grid>
             </controls:HoldToToggleButton>
         </DataTemplate>
@@ -139,7 +139,7 @@
                 <DrawingImage Drawing="{DynamicResource Phone}" />
             </Setter>
         </Style>
-        <Style Selector="Grid.EntryGrid > Label">
+        <Style Selector="Grid.EntryGrid > TextBlock">
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="FontSize" Value="20"/>
         </Style>

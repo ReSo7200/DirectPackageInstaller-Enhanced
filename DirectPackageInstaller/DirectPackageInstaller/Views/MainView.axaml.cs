@@ -38,6 +38,12 @@ namespace DirectPackageInstaller.Views
         public INetworkManagement? AdapterHelper = null;
 
         private Stream? PKGStream;
+
+        /// <summary>
+        /// The package shown on this page. Installer.CurrentPKG is only set from it
+        /// under Installer.PushLock, so a Library queue push can't swap it underneath.
+        /// </summary>
+        private PKGHelper.PKGInfo LoadedPKG;
         
         private PkgReader PKGParser;
         private Pkg PKG;
@@ -90,6 +96,11 @@ namespace DirectPackageInstaller.Views
             btnLoad = this.Find<Button>("btnLoad");
             
             btnInstallAll.Click += BtnInstallAllOnClick;
+            Services.ConsoleStatus.Instance.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(Services.ConsoleStatus.CanInstall) or nameof(Services.ConsoleStatus.FtpOpen))
+                    SyncInstallButton();
+            };
             btnRestartServer.Click += RestartServer_OnClick;
             btnProxyDownload.Click += BtnProxyDownloadOnClick;
             btnAllDebirdEnabled.Click += BtnAllDebirdEnabledOnClick;
@@ -116,7 +127,37 @@ namespace DirectPackageInstaller.Views
             AddHandler(DragDrop.DropEvent, DropEventEvent);
 
             btnDHCPService.IsVisible = App.IsWindows;
+
+            // Desktop: options moved to the Settings page, so the menu bar only
+            // appears for the per-archive Packages menu. Phones keep the old menu.
+            var TopMenu = this.Find<Menu>("TopMenu")!;
+            var OptionsMenu = this.Find<MenuItem>("OptionsMenu")!;
+            this.Find<StackPanel>("LinkHeader")!.IsVisible = !App.IsSingleView;
+            OptionsMenu.IsVisible = false;
+            TopMenu.IsVisible = false;
+            PackagesMenu.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == IsVisibleProperty)
+                    TopMenu.IsVisible = PackagesMenu.IsVisible;
+            };
         }
+        /// <summary>Load a file or link as if it was typed in and Open was pressed (Library "Open in Direct link").</summary>
+        public void OpenSource(string Source)
+        {
+            if (Model == null)
+                return;
+
+            // a push or load is running: don't swap the stream and package under it
+            if (!btnLoad.IsEnabled)
+            {
+                _ = SetStatus("Busy with the current package. Try again when it's done.");
+                return;
+            }
+
+            Model.CurrentURL = Source;
+            BtnLoadOnClick(null, new RoutedEventArgs());
+        }
+
         public async Task OnShown(MainWindow? Parent)
         {
             if (Model == null)
@@ -153,6 +194,14 @@ namespace DirectPackageInstaller.Views
                 var ShowTransferProgress = IniReader.GetValue("ShowTransferProgress");
                 App.Config.ShowTransferProgress = string.IsNullOrWhiteSpace(ShowTransferProgress) || IniReader.GetBooleanValue("ShowTransferProgress");
                 App.Config.SkipUpdateCheck = IniReader.GetBooleanValue("SkipUpdateCheck");
+                // on unless explicitly turned off (older Settings.ini files don't have it)
+                var AutoCheckConsole = IniReader.GetValue("AutoCheckConsole");
+                App.Config.AutoCheckConsole = string.IsNullOrWhiteSpace(AutoCheckConsole) || IniReader.GetBooleanValue("AutoCheckConsole");
+                var CheckOfficialUpdates = IniReader.GetValue("CheckOfficialUpdates");
+                App.Config.CheckOfficialUpdates = string.IsNullOrWhiteSpace(CheckOfficialUpdates) || IniReader.GetBooleanValue("CheckOfficialUpdates");
+                App.Config.ExperimentalPayload = IniReader.GetBooleanValue("ExperimentalPayload");
+                App.Config.InstallStorage = IniReader.GetIntValue("InstallStorage") ?? -1;
+                App.Config.SaveBackupFolder = IniReader.GetValue("SaveBackupFolder") ?? "";
                 App.Config.AutoSplitPKG = IniReader.GetBooleanValue("AutoSplitPKG");
 
                 App.Config.PayloadPort = IniReader.GetIntValue("PayloadPort");
@@ -181,6 +230,9 @@ namespace DirectPackageInstaller.Views
                     EnableCNL = true,
                     ShowError = false,
                     ShowTransferProgress = true,
+                    AutoCheckConsole = true,
+                    CheckOfficialUpdates = true,
+                    InstallStorage = -1,
                     SkipUpdateCheck = false,
                     EnableDHCP = false,
                     AllDebridApiKey = null,
@@ -204,6 +256,8 @@ namespace DirectPackageInstaller.Views
             Model.CNLService = App.Config.EnableCNL;
             Model.ProxyMode = App.Config.ProxyDownload;
             Model.ShowTransferProgress = App.Config.ShowTransferProgress;
+            Model.AutoCheckConsole = App.Config.AutoCheckConsole;
+            Model.CheckOfficialUpdates = App.Config.CheckOfficialUpdates;
             Model.UseAllDebrid = App.Config.UseAllDebrid;
             Model.UseDebridLink = App.Config.UseDebridLink;
             Model.SegmentedMode = App.Config.SegmentedDownload;
@@ -213,6 +267,7 @@ namespace DirectPackageInstaller.Views
             Model.AllDebridApiKey = App.Config.AllDebridApiKey;
             Model.RealDebridApiKey = App.Config.RealDebridApiKey;
             Model.DebridLinkApiKey = App.Config.DebridLinkApiKey;
+            App.SettingsLoaded = true;
              
             if (App.Config.SearchPS4 || string.IsNullOrEmpty(App.Config.PSIP))
             {
@@ -244,26 +299,25 @@ namespace DirectPackageInstaller.Views
 
              Model.PropertyChanged += ModelOnPropertyChanged;
              
+             // new versions come from the fork's GitHub releases: a notice, nothing automatic
              App.Callback(async () =>
              {
-                 var MissingRuntime = await App.Updater.RequiresNewRuntime();
-                 if (!App.Config.SkipUpdateCheck && MissingRuntime != null)
-                 {
-                     var Response = await MessageBox.ShowAsync($"A New update has been released, but you can't update because a required program is missing.\nNow, the DirectPackageInstaller will use .NET {MissingRuntime}, and you can update only after install the Runtime, Press Yes to Visit the Download Page.", "DirectPackageInstaller - MISSING RUNTIME", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                     if (Response == DialogResult.Yes)
-                     { 
-                         OpenUrl($"https://dotnet.microsoft.com/en-us/download/dotnet/{MissingRuntime}/runtime");
-                     }
+                 if (App.Config.SkipUpdateCheck)
                      return;
-                 }
-                 
-                 if (!App.Config.SkipUpdateCheck && await App.Updater.HasUpdates())
+                 try
                  {
-                     var Response = await MessageBox.ShowAsync($"New Update Found, You're using the {SelfUpdate.CurrentVersion} the last version is {SelfUpdate.LastVersion},\nDo you wanna update the DirectPackageInstaller now?", "DirectPackageInstaller", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                     if (Response != DialogResult.Yes)
-                         return;
-                     
-                     await App.Updater.DownloadUpdate();
+                     if (await Services.AppUpdates.NewerAsync() is { } New)
+                     {
+                         var Reply = await MessageBox.ShowAsync(
+                             $"DPI Enhanced {New.Version} is available (you have {Services.AppUpdates.Current}).\n\nOpen the download now?",
+                             "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                         if (Reply == DialogResult.Yes)
+                             OpenUrl(New.DownloadUrl ?? New.PageUrl);
+                     }
+                 }
+                 catch
+                 {
+                     // offline or GitHub busy: Settings › About can check later
                  }
              });
 
@@ -288,7 +342,8 @@ namespace DirectPackageInstaller.Views
                     Model.PS4IP = PS4IP.ToString();
 
                     var NewPCIP = PCIP?.ToString() ?? IPHelper.FindLocalIP(PS4IP.ToString()) ?? "";
-                    if (!string.IsNullOrWhiteSpace(NewPCIP) && NewPCIP != "0.0.0.0")
+                    // keep the PC address the user picked; only fill it when unset
+                    if (!string.IsNullOrWhiteSpace(NewPCIP) && NewPCIP != "0.0.0.0" && (string.IsNullOrWhiteSpace(Model.PCIP) || Model.PCIP == "0.0.0.0"))
                         Model.PCIP = NewPCIP;
 
                     RestartServer_OnClick(null, null);
@@ -425,7 +480,7 @@ namespace DirectPackageInstaller.Views
                 }
             }
         }
-        private async void BtnDHCPServiceOnClick(object? sender, RoutedEventArgs e)
+        internal async void BtnDHCPServiceOnClick(object? sender, RoutedEventArgs e)
         {
             if (Model == null)
                 return;
@@ -605,7 +660,8 @@ namespace DirectPackageInstaller.Views
                     }
                     else if (SourcePackage.IsFilePath())
                     {
-                        PKGStream = File.Open(SourcePackage, FileMode.Open, FileAccess.Read, FileShare.Read);
+                        // split package parts (name_0.pkg, name_1.pkg, ...) open as one package
+                        PKGStream = Services.SplitPackages.Open(SourcePackage);
                         InputType = Source.File;
                     }
                     else
@@ -681,7 +737,7 @@ namespace DirectPackageInstaller.Views
 
                 await SetStatus("Reading PKG...");
 
-                var Info = Installer.CurrentPKG = PKGStream.GetPKGInfo() ?? throw new AbortException("Failed to read the PKG information");
+                var Info = LoadedPKG = PKGStream.GetPKGInfo() ?? throw new AbortException("Failed to read the PKG information");
 
                 await SetStatus(Info.Description);
 
@@ -725,6 +781,7 @@ namespace DirectPackageInstaller.Views
             {
                 tbURL.IsEnabled = true;
                 btnLoad.IsEnabled = true;
+                SyncInstallButton();
             }
 
             PKGStream?.Close();
@@ -821,6 +878,12 @@ namespace DirectPackageInstaller.Views
                     break;
                 case "ShowTransferProgress":
                     App.Config.ShowTransferProgress = Model.ShowTransferProgress;
+                    break;
+                case "AutoCheckConsole":
+                    App.Config.AutoCheckConsole = Model.AutoCheckConsole;
+                    break;
+                case "CheckOfficialUpdates":
+                    App.Config.CheckOfficialUpdates = Model.CheckOfficialUpdates;
                     break;
                 case "PS4IP":
                     App.Config.PSIP = Model.PS4IP;
@@ -935,13 +998,17 @@ namespace DirectPackageInstaller.Views
             Model.UseDebridLink = !Model.UseDebridLink;
         }
 
-        private async Task<bool> Install(string URL, bool Silent)
+        private async Task<bool> Install(string URL, bool Silent, PKGHelper.PKGInfo? Package = null)
         {
             if (string.IsNullOrWhiteSpace(App.Config.PSIP) || string.IsNullOrWhiteSpace(App.Config.PCIP))
             {
                 await MessageBox.ShowAsync(Parent, "Failed to detect your playstation IP.\nPlease, Type your PS/PC IP in the options menu", "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
+
+            // unlock-key DLC: the console won't download it, copy it for the Package Installer
+            if ((Package ?? LoadedPKG) is { } Key && Services.UnlockKeys.IsUnlockKey(Key))
+                return await CopyUnlockKey(URL, Key, Silent);
 
             var OriStatus = Status.Text;
             btnLoad.Content = "Pushing...";
@@ -961,7 +1028,16 @@ namespace DirectPackageInstaller.Views
                     }
                 }
 
-                return await Installer.PushPackage(App.Config, InputType, PKGStream!, URL, CurrentDecompressor, CurrentDecompressorVolumes, SetStatus, () => Status.Text, Silent);
+                await Installer.PushLock.WaitAsync();
+                try
+                {
+                    Installer.CurrentPKG = Package ?? LoadedPKG;
+                    return await Installer.PushPackage(App.Config, InputType, PKGStream!, URL, CurrentDecompressor, CurrentDecompressorVolumes, SetStatus, () => Status.Text, Silent);
+                }
+                finally
+                {
+                    Installer.PushLock.Release();
+                }
             }
             catch
             {
@@ -974,9 +1050,69 @@ namespace DirectPackageInstaller.Views
                 btnLoad.IsEnabled = true;
                 tbURL.IsEnabled = true;
                 btnLoad.Content = "Install";
+                SyncInstallButton();
             }
         }
-        
+
+        /// <summary>
+        /// "Install" (and Install all) only when the console can take it: an installer
+        /// answering, or GoldHEN's FTP for an unlock key. Busy states keep their own
+        /// disabling (the URL box is off while loading or pushing).
+        /// </summary>
+        void SyncInstallButton()
+        {
+            var Console = Services.ConsoleStatus.Instance;
+            bool UnlockKey = LoadedPKG is { } Pkg && Services.UnlockKeys.IsUnlockKey(Pkg);
+            bool Ready = Console.CanInstall || (UnlockKey && Console.FtpOpen);
+
+            btnInstallAll.IsEnabled = Console.CanInstall;
+            if (btnLoad.Content as string != "Install" || !tbURL.IsEnabled)
+            {
+                ToolTip.SetTip(btnLoad, null);
+                return;
+            }
+
+            btnLoad.IsEnabled = Ready;
+            ToolTip.SetShowOnDisabled(btnLoad, true);
+            ToolTip.SetTip(btnLoad, Ready ? null : "The console can't install right now: " + Console.Mode);
+        }
+
+        /// <summary>Unlock-key DLC from a file on this PC: copy it to the console over FTP.</summary>
+        private async Task<bool> CopyUnlockKey(string Source, PKGHelper.PKGInfo Key, bool Silent)
+        {
+            if (!File.Exists(Source))
+            {
+                if (!Silent)
+                    await MessageBox.ShowAsync(Parent, "This is an unlock-key DLC (a license with no data). The PS4 can't download these, so DPI copies them to the console over FTP instead.\n\nSave the .pkg on this PC first, then send it from the Library or open the file here.",
+                        "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
+
+            var OriStatus = Status.Text;
+            btnLoad.IsEnabled = false;
+            try
+            {
+                await using var Stream = Services.SplitPackages.Open(Source);
+                var Copied = await Services.UnlockKeys.CopyToConsoleAsync(App.Config.PSIP, Key, Stream,
+                    new Progress<string>(Text => _ = SetStatus(Text)));
+                if (!Silent)
+                    await MessageBox.ShowAsync(Parent, $"Unlock key copied to {Copied}.\n\n{Services.UnlockKeys.HowToInstall}",
+                        "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!Silent)
+                    await MessageBox.ShowAsync(Parent, ex.Message, "DirectPackageInstaller", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+            finally
+            {
+                await SetStatus(OriStatus);
+                btnLoad.IsEnabled = true;
+            }
+        }
+
         private async void BtnInstallAllOnClick(object? sender, RoutedEventArgs? e)
         {
             if (e != null)
@@ -995,6 +1131,7 @@ namespace DirectPackageInstaller.Views
             foreach (var File in Files.ToArray())
             {
                 var ContentSource = tbURL.Text;
+                PKGHelper.PKGInfo? ItemPKG = null;
                 
                 if (string.IsNullOrWhiteSpace(ContentSource))
                     ContentSource = File;
@@ -1013,7 +1150,7 @@ namespace DirectPackageInstaller.Views
                         if (!Stream.CanSeek)
                             Stream = new ReadSeekableStream(Stream, TempHelper.GetTempFile(null));
 
-                        Installer.CurrentPKG = Stream.GetPKGInfo() ?? throw new Exception();
+                        ItemPKG = Stream.GetPKGInfo() ?? throw new Exception();
                     }
                     catch
                     {
@@ -1031,7 +1168,7 @@ namespace DirectPackageInstaller.Views
                     try
                     {
                         using FileStream Stream = new FileStream(File, FileMode.Open);
-                        Installer.CurrentPKG = Stream.GetPKGInfo() ?? throw new Exception();
+                        ItemPKG = Stream.GetPKGInfo() ?? throw new Exception();
                     } 
                     catch 
                     { 
@@ -1039,7 +1176,7 @@ namespace DirectPackageInstaller.Views
                     }
                 }
 
-                if (!await Install(ContentSource, true) && !ErrorIgnored)
+                if (!await Install(ContentSource, true, ItemPKG) && !ErrorIgnored)
                 {
                     var Reply = await MessageBox.ShowAsync("Continue trying install the others packages?","DirectPackageInstaller", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     if (Reply != DialogResult.Yes){
@@ -1197,8 +1334,36 @@ namespace DirectPackageInstaller.Views
                 e.DragEffects = DragDropEffects.None;
         }
 
+        /// <summary>
+        /// Explorer's "Copy as path" wraps paths in quotes ("D:\Games\x.pkg");
+        /// strip matching quotes and surrounding whitespace from single-line input.
+        /// </summary>
+        public static string CleanPastedSource(string? Value)
+        {
+            static bool Quoted(string s) => s.Length >= 2 && ((s[0] == '"' && s[^1] == '"') || (s[0] == '\'' && s[^1] == '\''));
+
+            var Clean = (Value ?? "").Trim();
+
+            // only touch quoted input: trimming while typing would eat the space in "D:\My Games"
+            if (Clean.Contains('\n') || !Quoted(Clean))
+                return Value ?? "";
+
+            while (Quoted(Clean))
+                Clean = Clean.Substring(1, Clean.Length - 2).Trim();
+
+            return Clean;
+        }
+
         private void UrlChanged(string Url)
         {
+            var Clean = CleanPastedSource(Url);
+            if (Clean != Url)
+            {
+                // re-enters UrlChanged with the cleaned value
+                App.Callback(() => Model!.CurrentURL = Clean);
+                return;
+            }
+
             InputType = Source.NONE;
 
             btnLoad.Content = (string.IsNullOrWhiteSpace(Url) && !File.Exists(Url)) ? "Open" : "Load";
@@ -1322,25 +1487,18 @@ namespace DirectPackageInstaller.Views
             return $"Sending {Sent} / {Total} ({Info.Percent:P1}) - {Speed}/s";
         }
         
-        private async void RestartServer_OnClick(object? sender, RoutedEventArgs? e)
+        internal async void RestartServer_OnClick(object? sender, RoutedEventArgs? e)
         {
             if (Model == null)
                 return;
             
-            try
-            {
-                Installer.Server?.Stop();
-
-                PS4Server pS4Server = new PS4Server(Model.PCIP);
-                Installer.Server = pS4Server;
-                Installer.Server.Start();
-            }
-            catch (Exception ex){
-                await MessageBox.ShowAsync($"Failed to restart the server, Report a Bug:\n{ex.ToString()}", "Server Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            // StartServer only keeps a server that actually started, and explains a busy port
+            Installer.Server?.Stop();
+            Installer.Server = null;
+            await Installer.StartServer(Model.PCIP);
         }
 
-        private void btnExitOnClick(object? sender, RoutedEventArgs? e)
+        internal void btnExitOnClick(object? sender, RoutedEventArgs? e)
         {
             App.SaveSettings();
             TempHelper.Clear();

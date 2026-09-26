@@ -15,7 +15,8 @@ namespace DirectPackageInstaller.ViewModels
             {
                 _PS4IP = value;
                 
-                if (IPAddress.TryParse(value, out _))
+                // the PC address is the user's choice (Settings); only fill it when unset
+                if (IPAddress.TryParse(value, out _) && (string.IsNullOrWhiteSpace(PCIP) || PCIP == "0.0.0.0"))
                     PCIP = IPHelper.FindLocalIP(value) ?? PCIP;
                 
                 this.RaisePropertyChanged();
@@ -74,6 +75,20 @@ namespace DirectPackageInstaller.ViewModels
         {
             get => _SegmentedMode;
             set => this.RaiseAndSetIfChanged(ref _SegmentedMode, value);
+        }
+
+        private bool _CheckOfficialUpdates = true;
+        public bool CheckOfficialUpdates
+        {
+            get => _CheckOfficialUpdates;
+            set => this.RaiseAndSetIfChanged(ref _CheckOfficialUpdates, value);
+        }
+
+        private bool _AutoCheckConsole = true;
+        public bool AutoCheckConsole
+        {
+            get => _AutoCheckConsole;
+            set => this.RaiseAndSetIfChanged(ref _AutoCheckConsole, value);
         }
 
         private bool _ShowTransferProgress = true;

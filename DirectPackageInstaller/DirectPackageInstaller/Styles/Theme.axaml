@@ -1,0 +1,271 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+      DPI Enhanced theme. Slate-indigo surfaces; accent colours only ever mean
+      an install state (the "shelf rail" under every cover):
+        Signal  = sending / primary action
+        Go      = installed on the PS4
+        Amber   = update available
+        Alarm   = failed
+    -->
+    <Styles.Resources>
+        <ResourceDictionary>
+            <Color x:Key="InkColor">#12141C</Color>
+            <Color x:Key="DeckColor">#1A1D29</Color>
+            <Color x:Key="RaisedColor">#232838</Color>
+            <Color x:Key="HoverColor">#2A3044</Color>
+            <Color x:Key="LineColor">#2E3346</Color>
+            <Color x:Key="TextColor">#E6E8F0</Color>
+            <Color x:Key="MutedColor">#8B91A7</Color>
+            <Color x:Key="FaintColor">#5C6279</Color>
+            <Color x:Key="SignalColor">#4C9DFF</Color>
+            <Color x:Key="GoColor">#3DD68C</Color>
+            <Color x:Key="AmberColor">#F5B94A</Color>
+            <Color x:Key="AlarmColor">#FF6B7A</Color>
+            <Color x:Key="VioletColor">#A78BFA</Color>
+
+            <SolidColorBrush x:Key="Ink" Color="{StaticResource InkColor}"/>
+            <SolidColorBrush x:Key="Deck" Color="{StaticResource DeckColor}"/>
+            <SolidColorBrush x:Key="Raised" Color="{StaticResource RaisedColor}"/>
+            <SolidColorBrush x:Key="Hover" Color="{StaticResource HoverColor}"/>
+            <SolidColorBrush x:Key="Line" Color="{StaticResource LineColor}"/>
+            <SolidColorBrush x:Key="Text" Color="{StaticResource TextColor}"/>
+            <SolidColorBrush x:Key="Muted" Color="{StaticResource MutedColor}"/>
+            <SolidColorBrush x:Key="Faint" Color="{StaticResource FaintColor}"/>
+            <SolidColorBrush x:Key="Signal" Color="{StaticResource SignalColor}"/>
+            <SolidColorBrush x:Key="SignalSoft" Color="#264C9DFF"/>
+            <SolidColorBrush x:Key="Go" Color="{StaticResource GoColor}"/>
+            <SolidColorBrush x:Key="GoSoft" Color="#223DD68C"/>
+            <SolidColorBrush x:Key="Amber" Color="{StaticResource AmberColor}"/>
+            <SolidColorBrush x:Key="AmberSoft" Color="#26F5B94A"/>
+            <SolidColorBrush x:Key="Alarm" Color="{StaticResource AlarmColor}"/>
+            <SolidColorBrush x:Key="AlarmSoft" Color="#26FF6B7A"/>
+            <SolidColorBrush x:Key="Violet" Color="{StaticResource VioletColor}"/>
+
+            <!-- "update available": amber hatching, like a pending bar -->
+            <LinearGradientBrush x:Key="AmberHatch" StartPoint="0,0" EndPoint="8,8" SpreadMethod="Repeat">
+                <LinearGradientBrush.Transform>
+                    <ScaleTransform/>
+                </LinearGradientBrush.Transform>
+                <GradientStop Offset="0" Color="{StaticResource AmberColor}"/>
+                <GradientStop Offset="0.5" Color="{StaticResource AmberColor}"/>
+                <GradientStop Offset="0.5" Color="#66F5B94A"/>
+                <GradientStop Offset="1" Color="#66F5B94A"/>
+            </LinearGradientBrush>
+
+            <FontFamily x:Key="Display">avares://DirectPackageInstaller/Assets/Fonts#Barlow Condensed</FontFamily>
+            <FontFamily x:Key="Mono">avares://DirectPackageInstaller/Assets/Fonts#JetBrains Mono</FontFamily>
+            <FontFamily x:Key="Body">fonts:Inter#Inter, $Default</FontFamily>
+
+            <CornerRadius x:Key="Radius">8</CornerRadius>
+            <CornerRadius x:Key="RadiusSmall">5</CornerRadius>
+
+            <!-- Fluent overrides so stock controls sit on our surfaces -->
+            <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{StaticResource InkColor}"/>
+            <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource InkColor}"/>
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource InkColor}"/>
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource InkColor}"/>
+            <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource LineColor}"/>
+            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource FaintColor}"/>
+            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource SignalColor}"/>
+            <SolidColorBrush x:Key="TextControlForeground" Color="{StaticResource TextColor}"/>
+            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource TextColor}"/>
+            <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{StaticResource FaintColor}"/>
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="{StaticResource FaintColor}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{StaticResource SignalColor}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#6BAEFF"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{StaticResource InkColor}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{StaticResource FaintColor}"/>
+            <SolidColorBrush x:Key="DataGridColumnHeaderBackgroundBrush" Color="{StaticResource DeckColor}"/>
+            <SolidColorBrush x:Key="DataGridRowBackgroundBrush" Color="Transparent"/>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+    <Style Selector=":is(Window), :is(UserControl)">
+        <Setter Property="FontFamily" Value="{StaticResource Body}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+
+    <!-- type roles -->
+    <Style Selector="TextBlock.h1">
+        <Setter Property="FontFamily" Value="{StaticResource Display}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="30"/>
+        <Setter Property="LetterSpacing" Value="0.3"/>
+    </Style>
+    <Style Selector="TextBlock.h2">
+        <Setter Property="FontFamily" Value="{StaticResource Display}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="20"/>
+    </Style>
+    <Style Selector="TextBlock.eyebrow">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="LetterSpacing" Value="1.2"/>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+    <Style Selector="TextBlock.muted">
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+
+    <!-- buttons -->
+    <Style Selector="Button">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}"/>
+        <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Background" Value="{StaticResource Raised}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource Hover}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Faint}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{StaticResource Signal}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Signal}"/>
+        <Setter Property="Foreground" Value="#0B1220"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#6BAEFF"/>
+        <Setter Property="BorderBrush" Value="#6BAEFF"/>
+        <Setter Property="Foreground" Value="#0B1220"/>
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource Raised}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        <Setter Property="Foreground" Value="{StaticResource Faint}"/>
+    </Style>
+    <Style Selector="Button.ghost">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource Raised}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{StaticResource Alarm}"/>
+    </Style>
+
+    <!-- top navigation: RadioButtons drawn as tabs with an underline -->
+    <Style Selector="RadioButton.nav">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Root" Background="Transparent" Padding="14,0" Cursor="Hand">
+                    <Grid RowDefinitions="*,3">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="7">
+                            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                              VerticalAlignment="Center" TextElement.FontSize="14"
+                                              TextElement.FontWeight="Medium"/>
+                            <Border Name="Badge" IsVisible="{Binding $parent[RadioButton].Tag, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                    Background="{StaticResource Signal}" CornerRadius="9" MinWidth="18" Height="18" Padding="5,0">
+                                <TextBlock Text="{Binding $parent[RadioButton].Tag}" FontSize="11" FontWeight="Bold"
+                                           Foreground="#0B1220" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </StackPanel>
+                        <Border Name="Underline" Grid.Row="1" Background="Transparent" CornerRadius="2,2,0,0"/>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="RadioButton.nav:checked">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="RadioButton.nav:checked /template/ Border#Underline">
+        <Setter Property="Background" Value="{StaticResource Signal}"/>
+    </Style>
+    <Style Selector="RadioButton.nav:focus-visible /template/ Border#Root">
+        <Setter Property="Background" Value="{StaticResource Raised}"/>
+    </Style>
+
+    <!-- filter chips -->
+    <Style Selector="RadioButton.chip, ToggleButton.chip">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Root" Background="Transparent" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                        CornerRadius="14" Padding="12,4" Cursor="Hand">
+                    <ContentPresenter Content="{TemplateBinding Content}" TextElement.FontSize="12.5"
+                                      TextElement.FontWeight="Medium" VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    </Style>
+    <Style Selector="RadioButton.chip:pointerover /template/ Border#Root, ToggleButton.chip:pointerover /template/ Border#Root">
+        <Setter Property="BorderBrush" Value="{StaticResource Faint}"/>
+    </Style>
+    <Style Selector="RadioButton.chip:checked, ToggleButton.chip:checked">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="RadioButton.chip:checked /template/ Border#Root, ToggleButton.chip:checked /template/ Border#Root">
+        <Setter Property="Background" Value="{StaticResource SignalSoft}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Signal}"/>
+    </Style>
+    <Style Selector="RadioButton.chip:focus-visible /template/ Border#Root, ToggleButton.chip:focus-visible /template/ Border#Root">
+        <Setter Property="BorderBrush" Value="{StaticResource Text}"/>
+    </Style>
+
+    <!-- surfaces -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{StaticResource Deck}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{StaticResource Radius}"/>
+    </Style>
+    <Style Selector="Border.kind">
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="Background" Value="#CC12141C"/>
+    </Style>
+    <Style Selector="Border.kind > TextBlock">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="LetterSpacing" Value="0.8"/>
+    </Style>
+
+    <Style Selector="TextBox">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}"/>
+        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="ComboBox">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}"/>
+        <Setter Property="Background" Value="{StaticResource Ink}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+    </Style>
+    <Style Selector="ComboBox:pointerover /template/ Border#Background">
+        <Setter Property="Background" Value="{StaticResource Raised}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Faint}"/>
+    </Style>
+
+    <Style Selector="ProgressBar.rail">
+        <Setter Property="MinHeight" Value="4"/>
+        <Setter Property="Height" Value="4"/>
+        <Setter Property="CornerRadius" Value="2"/>
+        <Setter Property="Background" Value="{StaticResource Line}"/>
+        <Setter Property="Foreground" Value="{StaticResource Signal}"/>
+    </Style>
+
+    <Style Selector="ScrollViewer">
+        <Setter Property="AllowAutoHide" Value="True"/>
+    </Style>
+</Styles>

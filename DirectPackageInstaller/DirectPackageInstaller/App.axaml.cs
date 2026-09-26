@@ -127,8 +127,16 @@ namespace DirectPackageInstaller
             base.OnFrameworkInitializationCompleted();
         }
 
+        /// <summary>
+        /// Set once MainView has read Settings.ini. Until then App.Config holds blank
+        /// defaults, and saving would overwrite the user's settings with them.
+        /// </summary>
+        public static bool SettingsLoaded { get; set; }
+
         public static void SaveSettings()
         {
+            if (!SettingsLoaded)
+                return;
             try
             {
                 var IniWriter = new Ini(App.SettingsPath, "Settings");
@@ -148,6 +156,11 @@ namespace DirectPackageInstaller
                 IniWriter.SetValue("Concurrency", SegmentedStream.DefaultConcurrency.ToString());
                 IniWriter.SetValue("ShowError", Config.ShowError.ToString());
                 IniWriter.SetValue("ShowTransferProgress", Config.ShowTransferProgress.ToString());
+                IniWriter.SetValue("AutoCheckConsole", Config.AutoCheckConsole.ToString());
+                IniWriter.SetValue("CheckOfficialUpdates", Config.CheckOfficialUpdates.ToString());
+                IniWriter.SetValue("ExperimentalPayload", Config.ExperimentalPayload.ToString());
+                IniWriter.SetValue("InstallStorage", Config.InstallStorage.ToString());
+                IniWriter.SetValue("SaveBackupFolder", Config.SaveBackupFolder ?? "");
                 IniWriter.SetValue("SkipUpdateCheck", Config.SkipUpdateCheck.ToString());
                 IniWriter.SetValue("EthernetAdapter", Config.EthernetAdapter);
                 IniWriter.SetValue("EnableDHCP", Config.EnableDHCP.ToString());
@@ -396,6 +409,8 @@ namespace DirectPackageInstaller
 
         public static bool? _IsAndroid;
         internal static bool IsAndroid => _IsAndroid ??= OperatingSystem.IsAndroid();
+        /// <summary>Windows, Linux or macOS (has a file manager, Recycle Bin menus and so on).</summary>
+        public static bool IsDesktop => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
         internal static bool IsOSX => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         internal static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 

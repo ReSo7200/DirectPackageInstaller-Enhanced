@@ -60,7 +60,7 @@ namespace DirectPackageInstaller.Host
 
             Server.Logger = (str) => LOG(str);
 #else
-            if (App.Config.ShowError)
+            if (App.Config.ShowError && LOGWRITER == null)
                 LOGWRITER = System.IO.File.CreateText(Path.Combine(App.WorkingDirectory, "DPIServer.log"));
 #endif
 
@@ -199,7 +199,8 @@ namespace DirectPackageInstaller.Host
             Context.Response.StatusCode = Partial ? 206 : 200;
             Context.Response.StatusDescription = Partial ? "Partial Content" : "OK";
 
-            Stream Origin = new FileStream(
+            // part 0 of a split package (name_0.pkg, name_1.pkg, ...) is served as the whole package
+            Stream Origin = Services.SplitPackages.OpenMerged(Path) ?? new FileStream(
                 Path,
                 FileMode.Open,
                 FileAccess.Read,
@@ -233,8 +234,15 @@ namespace DirectPackageInstaller.Host
 
             var Length = (Stream as SegmentedStream)?.Length ?? Task.SafeLength;
 
-            while (Length == 0)
+            // the length arrives with the first upstream response; don't spin forever
+            for (int Waited = 0; Length == 0; Waited += 100)
+            {
+                if (Task.Failed || Task.Error != null || Waited >= TransferTuning.UpstreamConnectTimeoutMs)
+                    throw new IOException("Upstream download did not start: " + (Task.Error?.Message ?? "timeout"));
+
                 await System.Threading.Tasks.Task.Delay(100);
+                Length = (Stream as SegmentedStream)?.Length ?? Task.SafeLength;
+            }
 
             if (FromPS4)
             {
@@ -369,7 +377,7 @@ namespace DirectPackageInstaller.Host
                         else if (SubQuery.AllKeys.Contains("b64"))
                             File = Encoding.UTF8.GetString(Convert.FromBase64String(SubQuery["b64"]));
 
-                        Source = new FileStream(
+                        Source = Services.SplitPackages.OpenMerged(File) ?? new FileStream(
                             File,
                             FileMode.Open,
                             FileAccess.Read,
@@ -521,19 +529,31 @@ namespace DirectPackageInstaller.Host
                 }
 
                 var Token = new CancellationTokenSource();
-                await Context.Response.SendAsync(Context.Response.ContentLength.Value, Origin, Token.Token);
-
-                if (trackProgress)
+                try
                 {
-                    ReportTransferProgress(new TransferProgressInfo(
-                        Context.Request.Url.Full,
-                        transferStart + responseLength,
-                        totalLength,
-                        responseLength,
-                        responseLength,
-                        transferStarted,
-                        DateTime.Now,
-                        true));
+                    await Context.Response.SendAsync(Context.Response.ContentLength.Value, Origin, Token.Token);
+                }
+                finally
+                {
+                    // The console often closes the connection as soon as it has the
+                    // last byte, which throws here: still report how far it got,
+                    // or the queue never learns the file finished.
+                    if (trackProgress)
+                    {
+                        long Sent;
+                        lock (progressLock)
+                            Sent = Math.Min(responseSent, responseLength);
+
+                        ReportTransferProgress(new TransferProgressInfo(
+                            Context.Request.Url.Full,
+                            transferStart + Sent,
+                            totalLength,
+                            Sent,
+                            responseLength,
+                            transferStarted,
+                            DateTime.Now,
+                            true));
+                    }
                 }
             }
             finally
@@ -587,7 +607,7 @@ namespace DirectPackageInstaller.Host
                         {
                             fileOffset = Offset,
                             fileSize = PieceSize,
-                            url = $"http://{PCIP}:{Installer.ServerPort}/split/?b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(URL))}&offset={Offset}&size={PieceSize}",
+                            url = $"http://{PCIP}:{Installer.ServerPort}/split/?b64={Installer.B64Query(URL)}&offset={Offset}&size={PieceSize}",
                             hashValue = "0000000000000000000000000000000000000000"
                         });
 

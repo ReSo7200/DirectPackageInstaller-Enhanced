@@ -9,7 +9,7 @@
         MinWidth="380"
         MinHeight="180"
         WindowStartupLocation="CenterOwner"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/dpi.ico"
         CanResize="False"
         SizeToContent="WidthAndHeight"
         Title="{Binding Title}">

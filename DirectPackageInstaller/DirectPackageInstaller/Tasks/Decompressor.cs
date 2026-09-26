@@ -394,7 +394,8 @@ namespace DirectPackageInstaller.Tasks
                 return null;
 
             var SelectedEntries = PKGs.Where(x => Path.GetFileName(x.Key) == EntryName);
-            var SelectedEntry = SelectedEntries.Any() ? PKGs.First() : SelectedEntries.Single();
+            // the chosen entry, else the first PKG (the branches were swapped upstream)
+            var SelectedEntry = SelectedEntries.Any() ? SelectedEntries.First() : PKGs.First();
             var SelectedFile = Path.GetFileName(SelectedEntry.Key);
 
             var Stream = SelectedEntry.OpenEntryStream();

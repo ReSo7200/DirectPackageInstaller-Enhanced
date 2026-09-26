@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:DirectPackageInstaller.Views"
+             xmlns:svc="using:DirectPackageInstaller.Services"
+             x:Class="DirectPackageInstaller.Views.MobileShell"
+             Background="{StaticResource Ink}">
+
+    <!-- phones/tablets: the desktop pages under a compact top bar, tabs at the bottom -->
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Border Background="{StaticResource Deck}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="14,8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                    <TextBlock Text="DPI" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22"
+                               Foreground="{StaticResource Signal}"/>
+                    <TextBlock Text="ENHANCED" Classes="eyebrow" VerticalAlignment="Center" Margin="0,3,0,0"/>
+                </StackPanel>
+                <Button Grid.Column="2" Name="ConsolePill" Classes="ghost" Padding="8,4"
+                        x:DataType="svc:ConsoleStatus" x:CompileBindings="True">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Width="9" Height="9" Classes="dot"
+                                 Classes.online="{Binding IsOnline}" Classes.checking="{Binding IsChecking}"
+                                 VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Address}" FontFamily="{StaticResource Mono}" FontSize="12"
+                                       Foreground="{StaticResource Text}" HorizontalAlignment="Right"/>
+                            <TextBlock Text="{Binding Mode}" FontSize="10.5" Foreground="{StaticResource Muted}"
+                                       HorizontalAlignment="Right" MaxWidth="190" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Panel Grid.Row="1" Name="Pages">
+            <views:LibraryPage Name="LibraryPage"/>
+            <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
+            <views:SavesPage Name="SavesPage" IsVisible="False"/>
+            <Panel Name="LinkHost" IsVisible="False"/>
+            <views:HomebrewPage Name="HomebrewPage" IsVisible="False"/>
+            <views:QueuePage Name="QueuePage" IsVisible="False"/>
+            <views:SettingsPage Name="SettingsPage" IsVisible="False"/>
+        </Panel>
+
+        <Border Grid.Row="2" Background="{StaticResource Deck}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+            <UniformGrid Rows="1" Height="58">
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabLibrary" IsChecked="True" Content="Library"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabConsole" Content="On PS4"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabSaves" Content="Saves"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabLink" Content="Link"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabHomebrew" Content="Apps"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabQueue" Content="Queue"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabSettings" Content="Settings"/>
+            </UniformGrid>
+        </Border>
+    </Grid>
+
+    <UserControl.Styles>
+        <Style Selector="RadioButton.tab">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="Root" Background="Transparent" Cursor="Hand">
+                        <Grid RowDefinitions="3,*">
+                            <Border Name="Bar" Background="Transparent" Margin="18,0" CornerRadius="0,0,2,2"/>
+                            <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="2">
+                                <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center"
+                                                  TextElement.FontSize="12" TextElement.FontWeight="Medium"/>
+                                <Border Name="Badge" HorizontalAlignment="Center" IsVisible="{Binding $parent[RadioButton].Tag, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                        Background="{StaticResource Signal}" CornerRadius="8" MinWidth="16" Height="16" Padding="4,0">
+                                    <TextBlock Text="{Binding $parent[RadioButton].Tag}" FontSize="10" FontWeight="Bold"
+                                               Foreground="#0B1220" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="RadioButton.tab:checked">
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        </Style>
+        <Style Selector="RadioButton.tab:checked /template/ Border#Bar">
+            <Setter Property="Background" Value="{StaticResource Signal}"/>
+        </Style>
+        <Style Selector="Ellipse.dot">
+            <Setter Property="Fill" Value="{StaticResource Alarm}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.checking">
+            <Setter Property="Fill" Value="{StaticResource Amber}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.online">
+            <Setter Property="Fill" Value="{StaticResource Go}"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

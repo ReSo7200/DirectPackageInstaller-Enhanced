@@ -1,0 +1,197 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:DirectPackageInstaller.Services"
+             x:Class="DirectPackageInstaller.Views.QueuePage"
+             x:DataType="svc:SendQueue"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="Auto,*">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="h1" Text="Queue"/>
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Packages go to the PS4 one at a time; it downloads them in order. Keep this app open until they finish."/>
+            </StackPanel>
+            <Button Name="BtnClearFinished" VerticalAlignment="Center" Classes="headbutton">Clear finished</Button>
+        </Grid>
+
+        <Panel Grid.Row="1">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+              <StackPanel>
+                <!-- titles moving between system and extended storage (done by the console) -->
+                <StackPanel Name="MovesPanel" IsVisible="False" Classes="list downloads">
+                    <TextBlock Classes="eyebrow" Text="MOVES ON THE CONSOLE" Margin="0,0,0,8"/>
+                    <ItemsControl Name="MovesList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="svc:MoveJob">
+                                <Border Classes="card" Padding="14,12" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14" Classes="entry">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Heading}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                       FontSize="17" TextWrapping="Wrap"/>
+                                            <TextBlock Classes="mono" Text="{Binding TitleId}"/>
+                                            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsRunning}" Margin="0,5,0,1"/>
+                                            <TextBlock Text="{Binding Status}" Classes="muted" FontSize="12.5" TextWrapping="Wrap"
+                                                       Classes.failed="{Binding Failed}"/>
+                                        </StackPanel>
+                                        <StackPanel Spacing="4" VerticalAlignment="Center" Orientation="Horizontal" Classes="actions">
+                                            <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding CanRetry}"
+                                                    Tag="{Binding}" Click="RetryMoveClick"
+                                                    ToolTip.Tip="Install the packages kept on the console again"/>
+                                            <Button Classes="ghost" Padding="10,4" Content="Remove" IsVisible="{Binding CanRemove}"
+                                                    Tag="{Binding}" Click="RemoveMoveClick"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Name="MovesSendingLabel" Classes="eyebrow" Text="SENDING TO THE CONSOLE" Margin="0,8,0,0"/>
+                </StackPanel>
+                <StackPanel Name="DownloadsPanel" IsVisible="False" Classes="list downloads">
+                    <TextBlock Classes="eyebrow" Text="DOWNLOADS FROM PLAYSTATION NETWORK" Margin="0,0,0,8"/>
+                    <ItemsControl Name="DownloadsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="svc:UpdateDownload">
+                                <Border Classes="card" Padding="14,12" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14" Classes="entry">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="17"/>
+                                            <TextBlock Classes="mono" Text="{Binding Detail}" TextTrimming="CharacterEllipsis"/>
+                                            <ProgressBar Classes="rail" Value="{Binding Progress}" Maximum="100" Margin="0,5,0,1"/>
+                                            <TextBlock Text="{Binding Message}" Classes="muted" FontSize="12.5" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Spacing="6" VerticalAlignment="Center" Classes="actions">
+                                            <TextBlock Text="{Binding StateText}" FontWeight="SemiBold" FontSize="12.5"
+                                                       Foreground="{StaticResource Signal}"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <Button Classes="ghost danger" Padding="10,4" Content="Cancel" IsVisible="{Binding CanCancel}"
+                                                        Tag="{Binding}" Click="CancelDownloadClick"/>
+                                                <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding IsFinished}"
+                                                        Tag="{Binding}" Click="RetryDownloadClick"/>
+                                                <Button Classes="ghost" Padding="10,4" Content="Remove" IsVisible="{Binding IsFinished}"
+                                                        Tag="{Binding}" Click="RemoveDownloadClick"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="eyebrow" Text="SENDING TO THE CONSOLE" Margin="0,8,0,0"/>
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding Items}" Classes="list">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="svc:QueueItem">
+                            <Border Classes="card" Padding="12" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="56,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14" Classes="entry">
+                                    <Border Width="56" Height="56" CornerRadius="5" ClipToBounds="True"
+                                            Background="{StaticResource Raised}" VerticalAlignment="Top">
+                                        <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}"
+                                                       FontWeight="SemiBold" FontSize="17" TextTrimming="CharacterEllipsis"/>
+                                            <Border Classes="kind" Background="{StaticResource Raised}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Kind}" Foreground="{StaticResource Muted}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Classes="mono" Text="{Binding Detail}"/>
+                                        <ProgressBar Classes="rail" Value="{Binding Progress}" Maximum="100"
+                                                     IsVisible="{Binding ShowProgress}" Margin="0,5,0,1"/>
+                                        <TextBlock Text="{Binding Message}" Classes="muted" FontSize="12.5"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6" VerticalAlignment="Center" Classes="actions">
+                                        <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}"
+                                                   FontWeight="SemiBold" FontSize="12.5"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <Button Classes="ghost" Padding="10,4" Content="Pause" IsVisible="{Binding CanPause}"
+                                                    Tag="{Binding}" Click="PauseClick" ToolTip.Tip="Pause the download on the console"/>
+                                            <Button Classes="ghost" Padding="10,4" Content="Resume" IsVisible="{Binding CanResume}"
+                                                    Tag="{Binding}" Click="ResumeClick"/>
+                                            <Button Classes="ghost danger" Padding="10,4" Content="Cancel" IsVisible="{Binding CanCancel}"
+                                                    Tag="{Binding}" Click="CancelClick" ToolTip.Tip="Stop the download on the console"/>
+                                            <Button Classes="ghost" Padding="10,4" Content="Retry" IsVisible="{Binding CanRetry}"
+                                                    Tag="{Binding}" Click="RetryClick"/>
+                                            <Button Classes="ghost danger" Padding="10,4" Content="Remove"
+                                                    Tag="{Binding}" Click="RemoveClick"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" MaxWidth="380" Margin="20,0">
+                <TextBlock Classes="h2" Text="Nothing queued" HorizontalAlignment="Center"/>
+                <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Select games in the Library and press Send to PS4, or drop .pkg files onto the Library."/>
+            </StackPanel>
+        </Panel>
+    </Grid>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.failed">
+            <Setter Property="Foreground" Value="{StaticResource Alarm}"/>
+        </Style>
+        <!-- wide layout: kept in styles, not attributes, so the narrow styles below can override it -->
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector="Button.headbutton">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector=":is(Control).list">
+            <Setter Property="Margin" Value="28,0,28,24"/>
+        </Style>
+        <Style Selector=":is(Control).list.downloads">
+            <Setter Property="Margin" Value="28,0,28,8"/>
+        </Style>
+        <!-- state + buttons: last column (after the cover and text) -->
+        <Style Selector="Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Column" Value="2"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector="Grid.entry > StackPanel.actions > :is(Control)">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector="StackPanel.downloads Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+
+        <!-- phones and narrow windows -->
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Button.headbutton">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow :is(Control).list">
+            <Setter Property="Margin" Value="10,0,10,16"/>
+        </Style>
+        <!-- state + buttons move under the text -->
+        <Style Selector=":is(UserControl).narrow Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="1"/>
+            <Setter Property="Grid.ColumnSpan" Value="2"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.downloads Grid.entry > StackPanel.actions">
+            <Setter Property="Grid.Column" Value="0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.entry > StackPanel.actions > :is(Control)">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

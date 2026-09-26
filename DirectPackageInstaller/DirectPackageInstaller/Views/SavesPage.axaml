@@ -1,0 +1,245 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             x:Class="DirectPackageInstaller.Views.SavesPage">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="h1" Text="Saves"/>
+                <TextBlock Name="SummaryText" Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Every game's saved data on the console, for every user, next to your backups."/>
+            </StackPanel>
+            <WrapPanel Classes="headbutton" VerticalAlignment="Center" ItemSpacing="8" LineSpacing="8">
+                <Button Name="BtnImport" ToolTip.ShowOnDisabled="True"
+                        ToolTip.Tip="Add save backup zips from elsewhere to the backup folder">Import backup…</Button>
+                <Button Name="BtnRead" Classes="primary" MinWidth="130" ToolTip.ShowOnDisabled="True">Read the console</Button>
+            </WrapPanel>
+        </Grid>
+
+        <!-- where backups go -->
+        <Border Grid.Row="1" Classes="card folder" Padding="14,10">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" Classes="entry">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Classes="eyebrow" Text="BACKUP FOLDER"/>
+                    <TextBlock Name="FolderText" Classes="mono" FontSize="12" TextWrapping="Wrap"/>
+                </StackPanel>
+                <WrapPanel Classes="actions" VerticalAlignment="Center" ItemSpacing="6" LineSpacing="6">
+                    <Button Name="BtnFolder" ToolTip.Tip="Choose where save backups go">Change…</Button>
+                    <Button Name="BtnOpenFolder" ToolTip.ShowOnDisabled="True">Open</Button>
+                    <Button Name="BtnDefaultFolder" Classes="ghost" ToolTip.Tip="Back to the default folder">Default</Button>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <WrapPanel Grid.Row="2" Orientation="Horizontal" Classes="pagebody chips">
+            <TextBox Name="SearchBox" Width="260" Watermark="Search game or CUSA ID" Margin="0,0,8,0"/>
+            <RadioButton Classes="chip" GroupName="savesKind" Name="FilterAll" IsChecked="True" VerticalAlignment="Center">All</RadioButton>
+            <RadioButton Classes="chip" GroupName="savesKind" Name="FilterConsole" VerticalAlignment="Center">On the console</RadioButton>
+            <RadioButton Classes="chip" GroupName="savesKind" Name="FilterNotBacked" VerticalAlignment="Center">Needs a backup</RadioButton>
+            <RadioButton Classes="chip" GroupName="savesKind" Name="FilterBackups" VerticalAlignment="Center">Backups only</RadioButton>
+        </WrapPanel>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="bulk entry">
+            <TextBlock Name="StatusText" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center"
+                       Foreground="{StaticResource Signal}"/>
+            <StackPanel Classes="actions" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Name="BtnSelectAll" Classes="ghost" ToolTip.ShowOnDisabled="True">Select all</Button>
+                <Button Name="BtnBackupSelected" Classes="primary" IsEnabled="False" ToolTip.ShowOnDisabled="True">Back up selected</Button>
+            </StackPanel>
+        </Grid>
+
+        <Panel Grid.Row="4">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl Name="GameList" Classes="list">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SaveGame">
+                            <Border Classes="card" Padding="12" Margin="0,0,0,8">
+                                <Grid RowDefinitions="Auto,Auto,Auto">
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" Classes="entry game">
+                                        <!-- only saves on the console can be picked; the column keeps its width -->
+                                        <Panel Width="24" VerticalAlignment="Center">
+                                            <CheckBox IsChecked="{Binding Selected}" IsVisible="{Binding HasConsole}"
+                                                      ToolTip.Tip="Pick for Back up selected" MinWidth="0"/>
+                                        </Panel>
+                                        <Border Grid.Column="1" Classes="savecover" CornerRadius="7" ClipToBounds="True"
+                                                Background="{StaticResource Raised}" VerticalAlignment="Top">
+                                            <Panel>
+                                                <TextBlock Text="{Binding Monogram}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                           FontSize="20" Foreground="{StaticResource Muted}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="{Binding !HasCover}"/>
+                                                <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                            </Panel>
+                                        </Border>
+                                        <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                       FontSize="16.5" TextWrapping="Wrap"/>
+                                            <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                                <TextBlock Classes="mono" Text="{Binding TitleId}" VerticalAlignment="Center"/>
+                                                <Border Classes="kind" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}"/>
+                                                </Border>
+                                            </WrapPanel>
+                                            <TextBlock FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding HasConsole}">
+                                                <Run Text="{Binding UsersText}" Foreground="{StaticResource Text}"/>
+                                                <Run Text="  ·  " Foreground="{StaticResource Muted}"/>
+                                                <Run Text="{Binding ConsoleText}" Foreground="{StaticResource Muted}"/>
+                                            </TextBlock>
+                                            <TextBlock FontSize="12.5" Classes="muted" Text="{Binding ConsoleText}" IsVisible="{Binding !HasConsole}"/>
+                                            <TextBlock FontSize="12.5" Text="{Binding BackupText}" Foreground="{Binding BackupBrush}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" Classes="actions" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <Button Content="Back up" Tag="{Binding}" Click="BackupClick" IsVisible="{Binding HasConsole}"
+                                                    IsEnabled="{Binding CanBackup}" ToolTip.Tip="{Binding BackupTip}" ToolTip.ShowOnDisabled="True"/>
+                                            <Button Classes="ghost" Content="{Binding BackupsHeader}" Tag="{Binding}" Click="ToggleClick"
+                                                    IsVisible="{Binding HasBackups}" ToolTip.Tip="Restore or delete this game's backups"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Grid.Row="1" Text="{Binding Status}" IsVisible="{Binding HasStatus}" FontSize="12.5"
+                                               TextWrapping="Wrap" Foreground="{StaticResource Signal}" Margin="0,8,0,0"/>
+
+                                    <ItemsControl Grid.Row="2" ItemsSource="{Binding Backups}" IsVisible="{Binding Expanded}" Margin="0,10,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SaveBackupItem">
+                                                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="4,9,0,1">
+                                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" Classes="entry">
+                                                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                            <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                                                <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding UserText}" Foreground="{StaticResource Text}" VerticalAlignment="Center"/>
+                                                                <Border Classes="kind" IsVisible="{Binding BeforeRestore}" VerticalAlignment="Center"
+                                                                        ToolTip.Tip="Made automatically before a restore overwrote these saves">
+                                                                    <TextBlock Text="BEFORE RESTORE" Foreground="{StaticResource Muted}"/>
+                                                                </Border>
+                                                            </WrapPanel>
+                                                            <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Detail}" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                        <StackPanel Classes="actions" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                            <Button Classes="primary" Content="Restore…" Tag="{Binding}" Click="RestoreClick"
+                                                                    IsEnabled="{Binding CanRestore}" ToolTip.Tip="{Binding RestoreTip}" ToolTip.ShowOnDisabled="True"/>
+                                                            <Button Classes="ghost danger" Content="Delete" Tag="{Binding}" Click="DeleteClick"
+                                                                    IsEnabled="{Binding CanAct}" ToolTip.Tip="Move this backup to the Recycle Bin"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="10" MaxWidth="460" Margin="20,0">
+                <TextBlock Name="EmptyTitle" Classes="h2" Text="Your saves, backed up" TextAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock Name="EmptyText" Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Read the console to list every game's saves for every user. Back them up here, and restore them later to the same user or another one."/>
+            </StackPanel>
+        </Panel>
+
+        <!-- restore one backup to a console user, over the page -->
+        <Border Grid.RowSpan="5" Name="RestorePanel" IsVisible="False" Background="#D90B0E16">
+            <Border Classes="card" Margin="16" Padding="18,16" MaxWidth="560" VerticalAlignment="Center" HorizontalAlignment="Stretch">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="eyebrow" Text="RESTORE SAVES"/>
+                            <TextBlock Name="RestoreGame" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="18" TextWrapping="Wrap"/>
+                            <TextBlock Name="RestoreFrom" Classes="muted" FontSize="12.5" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <TextBlock Classes="eyebrow" Text="RESTORE TO" Margin="0,4,0,0"/>
+                        <StackPanel Name="RestoreUsers" Spacing="4"/>
+                        <TextBlock Name="RestoreWarning" FontSize="12.5" TextWrapping="Wrap" Foreground="{StaticResource Amber}" IsVisible="False"/>
+                        <CheckBox Name="RestoreSafety" IsChecked="True">
+                            <TextBlock TextWrapping="Wrap" Text="Back up the saves on the console first (kept as a BEFORE RESTORE backup)"/>
+                        </CheckBox>
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                                   Text="The game must be closed. Files with the same names are overwritten; other save slots stay. Saves only load on the console they came from; for another console's saves, resign them with Apollo Save Tool."/>
+                        <TextBlock Name="RestoreStatus" FontSize="12.5" TextWrapping="Wrap" Foreground="{StaticResource Signal}" IsVisible="False"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+                            <Button Name="BtnRestoreCancel">Cancel</Button>
+                            <Button Name="BtnRestoreGo" Classes="primary" IsEnabled="False" ToolTip.ShowOnDisabled="True">Restore</Button>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Border>
+    </Grid>
+
+    <UserControl.Styles>
+        <!-- wide layout: kept in styles so the narrow styles below can override it -->
+        <Style Selector="WrapPanel.chips > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+        </Style>
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector=":is(Control).headbutton">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="Border.folder">
+            <Setter Property="Margin" Value="28,0,28,12"/>
+        </Style>
+        <Style Selector="WrapPanel.pagebody">
+            <Setter Property="Margin" Value="28,0,28,6"/>
+        </Style>
+        <Style Selector="Grid.bulk">
+            <Setter Property="Margin" Value="28,0,28,10"/>
+        </Style>
+        <Style Selector=":is(Control).list">
+            <Setter Property="Margin" Value="28,0,28,24"/>
+        </Style>
+        <Style Selector="Grid.entry > :is(Control).actions">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="Grid.game > :is(Control).actions">
+            <Setter Property="Grid.Column" Value="3"/>
+        </Style>
+        <Style Selector="Border.savecover">
+            <Setter Property="Width" Value="72"/>
+            <Setter Property="Height" Value="72"/>
+        </Style>
+
+        <!-- phones and narrow windows -->
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow :is(Control).headbutton">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Border.folder">
+            <Setter Property="Margin" Value="10,0,10,10"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow WrapPanel.pagebody">
+            <Setter Property="Margin" Value="10,0,10,4"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.bulk">
+            <Setter Property="Margin" Value="10,0,10,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow :is(Control).list">
+            <Setter Property="Margin" Value="10,0,10,16"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.entry > :is(Control).actions">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.game > :is(Control).actions">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="2"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Border.savecover">
+            <Setter Property="Width" Value="56"/>
+            <Setter Property="Height" Value="56"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

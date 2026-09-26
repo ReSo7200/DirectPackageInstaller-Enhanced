@@ -1,14 +1,79 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:DirectPackageInstaller.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:DirectPackageInstaller.Views"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        Width="800"
-        Height="450"
+        xmlns:svc="using:DirectPackageInstaller.Services"
+        mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="760"
+        Width="1180" Height="760" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Ink}"
         x:Class="DirectPackageInstaller.Views.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="DirectPackageInstaller">
-        <views:MainView Name="View"/>
+        Icon="/Assets/dpi.ico"
+        Title="DPI Enhanced">
+
+    <Grid RowDefinitions="54,*">
+        <Border Background="{StaticResource Deck}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+            <!-- the pill takes what the tabs leave and trims its text (narrow windows) -->
+            <Grid ColumnDefinitions="Auto,Auto,*" Margin="22,0,14,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="6" Margin="0,0,26,0">
+                    <TextBlock Text="DPI" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="24"
+                               Foreground="{StaticResource Signal}"/>
+                    <TextBlock Text="ENHANCED" Classes="eyebrow" VerticalAlignment="Center" Margin="0,3,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavLibrary" IsChecked="True" Content="Library"
+                                 ToolTip.Tip="Ctrl+1"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavConsole" Content="On PS4" ToolTip.Tip="Ctrl+2"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavSaves" Content="Saves" ToolTip.Tip="Ctrl+7"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavLink" Content="Direct link" ToolTip.Tip="Ctrl+3"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavHomebrew" Content="Homebrew" ToolTip.Tip="Ctrl+6"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavQueue" Content="Queue" ToolTip.Tip="Ctrl+4"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavSettings" Content="Settings" ToolTip.Tip="Ctrl+5"/>
+                </StackPanel>
+
+                <!-- console status pill: click to re-check -->
+                <Button Grid.Column="2" Name="ConsolePill" Classes="ghost" VerticalAlignment="Center" Padding="12,6"
+                        HorizontalAlignment="Right" Margin="12,0,0,0"
+                        x:DataType="svc:ConsoleStatus" x:CompileBindings="True"
+                        ToolTip.Tip="{Binding PillTip}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <Ellipse Width="9" Height="9" Classes="dot"
+                                 Classes.online="{Binding IsOnline}"
+                                 Classes.checking="{Binding IsChecking}"
+                                 VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Spacing="0">
+                            <TextBlock Text="{Binding Address}" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                       Foreground="{StaticResource Text}" HorizontalAlignment="Right"/>
+                            <TextBlock Text="{Binding Mode}" FontSize="11" Foreground="{StaticResource Muted}"
+                                       HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Grid>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Panel Grid.Row="1">
+            <views:LibraryPage Name="LibraryPage"/>
+            <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
+            <views:SavesPage Name="SavesPage" IsVisible="False"/>
+            <views:MainView Name="View" IsVisible="False"/>
+            <views:HomebrewPage Name="HomebrewPage" IsVisible="False"/>
+            <views:QueuePage Name="QueuePage" IsVisible="False"/>
+            <views:SettingsPage Name="SettingsPage" IsVisible="False"/>
+        </Panel>
+    </Grid>
+
+    <Window.Styles>
+        <Style Selector="Ellipse.dot">
+            <Setter Property="Fill" Value="{StaticResource Alarm}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.checking">
+            <Setter Property="Fill" Value="{StaticResource Amber}"/>
+        </Style>
+        <Style Selector="Ellipse.dot.online">
+            <Setter Property="Fill" Value="{StaticResource Go}"/>
+        </Style>
+    </Window.Styles>
 </Window>

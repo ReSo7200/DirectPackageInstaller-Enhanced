@@ -1,0 +1,410 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             xmlns:local="using:DirectPackageInstaller"
+             x:Class="DirectPackageInstaller.Views.LibraryPage"
+             x:DataType="vm:LibraryViewModel"
+             x:CompileBindings="True"
+             DragDrop.AllowDrop="True">
+
+    <Grid RowDefinitions="*,Auto">
+      <!-- narrow: header and filters scroll away with the tiles (wide: vertical scrolling off, a plain panel) -->
+      <ScrollViewer Classes="page" HorizontalScrollBarVisibility="Disabled">
+        <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="h1" Text="Library"/>
+                <TextBlock Classes="muted" FontSize="13" Text="{Binding Summary}"/>
+            </StackPanel>
+            <WrapPanel ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center" Classes="headbuttons">
+                <Button Name="BtnCheck" IsEnabled="{Binding CanCheck}" ToolTip.Tip="{Binding CheckTip}" ToolTip.ShowOnDisabled="True">
+                    <TextBlock Text="{Binding CheckButtonText}"/>
+                </Button>
+                <Button Name="BtnRescan" IsEnabled="{Binding CanRescan}" ToolTip.ShowOnDisabled="True" ToolTip.Tip="Look for new, changed or removed PKGs in the library folders">Rescan</Button>
+                <Button Name="BtnAddFolder" Classes="primary">Add folder</Button>
+            </WrapPanel>
+        </Grid>
+
+        <!-- filters + folders -->
+        <StackPanel Grid.Row="1" Spacing="10" Classes="pagebody">
+            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto" Classes="filters">
+                <TextBox Name="SearchBox" Text="{Binding Search}"
+                         Watermark="Search title, CUSA ID or file name"/>
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Classes="chips">
+                    <RadioButton Classes="chip" GroupName="kind" Name="FilterAll" IsChecked="True">All</RadioButton>
+                    <RadioButton Classes="chip" GroupName="kind" Name="FilterGames">Games</RadioButton>
+                    <RadioButton Classes="chip" GroupName="kind" Name="FilterUpdates">Updates</RadioButton>
+                    <RadioButton Classes="chip" GroupName="kind" Name="FilterDlc">DLC</RadioButton>
+                    <Rectangle Width="1" Height="18" Fill="{StaticResource Line}" Margin="6,0"/>
+                    <ToggleButton Classes="chip" IsChecked="{Binding OnlyMissing}"
+                                  ToolTip.Tip="Hide packages the last PS4 check found installed">Not on PS4</ToggleButton>
+                    <ToggleButton Classes="chip" IsChecked="{Binding OnlyDuplicates}" IsVisible="{Binding HasDuplicates}"
+                                  ToolTip.Tip="Show packages stored more than once (same content ID and version)">Duplicates</ToggleButton>
+                    <ComboBox Name="SortBox" SelectedIndex="0" Margin="8,0,0,0" MinWidth="150" FontSize="12.5" Padding="12,4" MinHeight="30"
+                              ToolTip.Tip="Sort order">
+                        <ComboBoxItem>Sort: title</ComboBoxItem>
+                        <ComboBoxItem>Sort: newest files</ComboBoxItem>
+                        <ComboBoxItem>Sort: largest</ComboBoxItem>
+                    </ComboBox>
+                </WrapPanel>
+                <TextBlock Classes="muted summary" FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" Text="{Binding ConsoleSummary}"
+                           MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ConsoleSummary}"/>
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Folders}" IsVisible="{Binding HasFolders}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LibraryFolder">
+                        <Border Classes="folder" Classes.offline="{Binding !Available}" BorderThickness="1"
+                                Tag="{Binding Path}"
+                                CornerRadius="4" Padding="9,2,2,2" Margin="0,0,6,6" ToolTip.Tip="{Binding Tip}">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Organize into game folders…" Tag="{Binding Path}" Click="MenuOrganizeClick"
+                                              IsEnabled="{Binding Available}"/>
+                                    <MenuItem Header="Open in Explorer" Tag="{Binding Path}" Click="MenuOpenFolderClick"
+                                              IsEnabled="{Binding Available}" IsVisible="{x:Static local:App.IsDesktop}"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Classes="mono folderlabel" Text="{Binding Label}" VerticalAlignment="Center"
+                                           TextTrimming="PrefixCharacterEllipsis"/>
+                                <Button Classes="ghost danger" Padding="6,1" FontSize="12" Content="×"
+                                        Tag="{Binding Path}" Click="RemoveFolderClick"
+                                        ToolTip.Tip="Remove this folder from the library (files are not touched)"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- grid -->
+        <Panel Grid.Row="2">
+            <ListBox Name="Grid" Classes="library grid" ItemsSource="{Binding Items}" SelectedItems="{Binding Selected}"
+                     SelectionMode="Multiple,Toggle" Background="Transparent"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LibraryItem">
+                        <StackPanel Classes="tile" ToolTip.Tip="{Binding Tooltip}">
+                            <StackPanel.ContextMenu>
+                                <!-- Classes: what an item needs; TileMenuOpening enables them -->
+                                <ContextMenu Opening="TileMenuOpening">
+                                    <MenuItem Header="Send to PS4" Tag="{Binding}" Click="MenuSendClick" Classes="install"/>
+                                    <MenuItem Header="Send what this title is missing" Tag="{Binding}" Click="MenuSendMissingClick" Classes="install missing"
+                                              ToolTip.Tip="Game if not installed, newest update if newer than the console's, DLC not installed yet"/>
+                                    <MenuItem Header="{Binding DownloadOfficialText}" Tag="{Binding}" Click="MenuDownloadUpdateClick"
+                                              IsVisible="{Binding HasNewerOfficial}"/>
+                                    <MenuItem Header="Open in Direct link" Tag="{Binding}" Click="MenuInspectClick"/>
+                                    <MenuItem Header="Check the package for damage" Tag="{Binding}" Click="MenuCheckClick" Classes="check"
+                                              />
+                                    <Separator/>
+                                    <MenuItem Header="Show in Explorer" Tag="{Binding}" Click="MenuRevealClick"
+                                              IsVisible="{x:Static local:App.IsDesktop}"/>
+                                    <MenuItem Header="Copy path" Tag="{Binding}" Click="MenuCopyClick"/>
+                                    <MenuItem Header="Rename to a clear name…" Tag="{Binding}" Click="MenuRenameClick"
+                                              IsVisible="{Binding CanRename}"/>
+                                    <MenuItem Header="Move this copy to the Recycle Bin…" Tag="{Binding}" Click="MenuRecycleClick"
+                                              IsVisible="{Binding IsDuplicate}" Classes="recycle"/>
+                                    <MenuItem Header="Move to extended storage on the PS4…" Tag="{Binding}" Click="MenuMoveClick"
+                                              IsVisible="{Binding CanMoveToExtended}" Classes="move"/>
+                                    <MenuItem Header="Move to system storage on the PS4…" Tag="{Binding}" Click="MenuMoveClick"
+                                              IsVisible="{Binding CanMoveToSystem}" Classes="move"/>
+                                    <Separator IsVisible="{Binding CanUninstall}"/>
+                                    <MenuItem Header="Uninstall from PS4…" Tag="{Binding}" Click="MenuUninstallClick"
+                                              IsVisible="{Binding CanUninstall}" Classes="rpi"/>
+                                </ContextMenu>
+                            </StackPanel.ContextMenu>
+                            <Panel Classes="cover">
+                                <Border Classes="frame" CornerRadius="7" ClipToBounds="True"
+                                        Background="{StaticResource Raised}" BorderThickness="2" BorderBrush="Transparent">
+                                    <Panel>
+                                        <TextBlock Classes="mono" FontSize="13" Text="{Binding TitleId}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding !HasCover}"/>
+                                        <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                    </Panel>
+                                </Border>
+                                <Border Classes="kind" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8">
+                                    <TextBlock Text="{Binding Kind}" Foreground="{Binding KindBrush}"/>
+                                </Border>
+                                <Border Classes="check" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
+                                        Width="22" Height="22" CornerRadius="11" Background="{StaticResource Signal}">
+                                    <TextBlock Text="✓" FontWeight="Bold" FontSize="13" Foreground="#0B1220"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8" Spacing="4">
+                                    <Border Classes="kind" IsVisible="{Binding IsBackport}" Background="#E612141C"
+                                            ToolTip.Tip="An update rebuilt to run on older firmware than Sony's original">
+                                        <TextBlock Text="BACKPORT" Foreground="{StaticResource Violet}"/>
+                                    </Border>
+                                    <Border Classes="kind" IsVisible="{Binding IsDuplicate}" Background="#E612141C"
+                                            ToolTip.Tip="Another file in the library is this same package">
+                                        <TextBlock Text="DUPLICATE" Foreground="{StaticResource Amber}"/>
+                                    </Border>
+                                </StackPanel>
+                                <Border Classes="kind" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8"
+                                        IsVisible="{Binding HasError}" Background="{StaticResource AlarmSoft}">
+                                    <TextBlock Text="UNREADABLE" Foreground="{StaticResource Alarm}"/>
+                                </Border>
+                            </Panel>
+
+                            <!-- the shelf rail: install state, filled blue while sending -->
+                            <Panel Height="4" Margin="2,7,2,0">
+                                <Border Background="{Binding RailBrush}" CornerRadius="2"/>
+                                <!-- scaled, not sized: tiles are narrower on phones -->
+                                <Border Background="{StaticResource Signal}" CornerRadius="2"
+                                        RenderTransformOrigin="0%,50%" IsVisible="{Binding ShowRailFill}">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="{Binding RailFill}" ScaleY="1">
+                                            <ScaleTransform.Transitions>
+                                                <Transitions>
+                                                    <DoubleTransition Property="ScaleX" Duration="0:0:0.4"/>
+                                                </Transitions>
+                                            </ScaleTransform.Transitions>
+                                        </ScaleTransform>
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Panel>
+
+                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                       FontSize="16.5" LineHeight="19" MaxLines="2" TextWrapping="Wrap"
+                                       TextTrimming="CharacterEllipsis" Margin="2,8,2,2" Height="38"/>
+                            <TextBlock Classes="mono" Margin="2,0">
+                                <Run Text="{Binding TitleId}"/>
+                                <Run Text=" "/>
+                                <Run Text="{Binding VersionText}"/>
+                            </TextBlock>
+                            <TextBlock Text="{Binding NewerOfficialText}" IsVisible="{Binding HasNewerOfficial}"
+                                       Foreground="{StaticResource Amber}" FontSize="11.5" FontWeight="SemiBold" Margin="2,3,2,0"/>
+                            <Grid ColumnDefinitions="Auto,*" Margin="2,3,2,0">
+                                <TextBlock Classes="mono" Text="{Binding SizeText}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"
+                                           FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Right"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- empty: no folders yet -->
+            <StackPanel IsVisible="{Binding !HasFolders}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="10" MaxWidth="420" Margin="20,0">
+                <TextBlock Classes="h2" Text="Add the folder where you keep your PKGs" TextAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Subfolders are included. Games, updates and DLC are grouped by title, and a PS4 check shows what's already installed. You can also drop a folder here."/>
+                <Button Name="BtnAddFolderEmpty" Classes="primary" HorizontalAlignment="Center" Margin="0,6,0,0">Add folder</Button>
+            </StackPanel>
+
+            <!-- empty: folders but no PKGs -->
+            <TextBlock IsVisible="{Binding IsEmpty}" Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"
+                       Text="No .pkg files found yet. Press Rescan after adding files."/>
+
+            <TextBlock IsVisible="{Binding HasNoMatches}" Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"
+                       Text="Nothing matches this search or filter."/>
+        </Panel>
+
+        </Grid>
+      </ScrollViewer>
+
+        <!-- send bar -->
+        <!-- narrow: selection text + Send on top, the other two buttons under them -->
+        <Border Grid.Row="1" IsVisible="{Binding HasSelection}" Background="{StaticResource Deck}"
+                BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Classes="sendbar">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                <TextBlock Text="{Binding SelectionText}" FontFamily="{StaticResource Mono}" FontSize="13"
+                           VerticalAlignment="Center" TextWrapping="Wrap" Classes="selection"/>
+                <Button Name="BtnSelectFamily" Classes="ghost" IsEnabled="{Binding CanSelectFamily}" ToolTip.ShowOnDisabled="True"
+                        ToolTip.Tip="Also select the updates and DLC of the selected games (needs a game selected that has some)">Add updates &amp; DLC</Button>
+                <Button Name="BtnClearSelection" Classes="ghost">Clear</Button>
+                <Button Grid.Column="3" Name="BtnSend" Classes="primary" MinWidth="130"
+                        IsEnabled="{Binding CanSend}" ToolTip.Tip="{Binding SendTip}" ToolTip.ShowOnDisabled="True">Send to PS4</Button>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <UserControl.Styles>
+        <Style Selector="Border.folder">
+            <Setter Property="Background" Value="{StaticResource Deck}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+        </Style>
+        <Style Selector="Border.folder.offline">
+            <Setter Property="BorderBrush" Value="{StaticResource Alarm}"/>
+            <Setter Property="Background" Value="{StaticResource AlarmSoft}"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,16,20"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem:pointerover Border.frame">
+            <Setter Property="BorderBrush" Value="{StaticResource Faint}"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem:selected Border.frame">
+            <Setter Property="BorderBrush" Value="{StaticResource Signal}"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem:focus-visible Border.frame">
+            <Setter Property="BorderBrush" Value="{StaticResource Text}"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem Border.check">
+            <Setter Property="IsVisible" Value="False"/>
+        </Style>
+        <Style Selector="ListBox.library ListBoxItem:selected Border.check">
+            <Setter Property="IsVisible" Value="True"/>
+        </Style>
+
+        <!-- wide layout: kept in styles, not attributes, so the narrow styles below can override it -->
+        <Style Selector="WrapPanel.chips > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+        </Style>
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector="WrapPanel.headbuttons">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="StackPanel.pagebody">
+            <Setter Property="Margin" Value="28,0,28,12"/>
+        </Style>
+        <Style Selector="TextBox#SearchBox">
+            <Setter Property="Width" Value="290"/>
+        </Style>
+        <Style Selector="Grid.filters > WrapPanel.chips">
+            <Setter Property="Grid.Column" Value="1"/>
+            <Setter Property="Margin" Value="14,0,0,0"/>
+        </Style>
+        <!-- the PS4 line under the filters: beside them it got squeezed to nothing -->
+        <Style Selector="TextBlock.summary">
+            <Setter Property="Grid.Row" Value="2"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+        <Style Selector="TextBlock.folderlabel">
+            <Setter Property="MaxWidth" Value="460"/>
+        </Style>
+        <Style Selector="ScrollViewer.page">
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+        <Style Selector="ListBox.grid">
+            <Setter Property="Padding" Value="28,4,14,20"/>
+        </Style>
+        <Style Selector="StackPanel.tile">
+            <Setter Property="Width" Value="176"/>
+        </Style>
+        <Style Selector="Panel.cover">
+            <Setter Property="Width" Value="176"/>
+            <Setter Property="Height" Value="176"/>
+        </Style>
+        <Style Selector="Border.sendbar">
+            <Setter Property="Padding" Value="28,12"/>
+        </Style>
+        <Style Selector="Button#BtnSelectFamily">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="Button#BtnClearSelection">
+            <Setter Property="Grid.Column" Value="2"/>
+        </Style>
+
+        <!-- phones and narrow windows -->
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <!-- no ColumnSpan here: a spanning child widens the Auto column and squeezes the title to nothing -->
+        <Style Selector=":is(UserControl).narrow WrapPanel.headbuttons">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
+            <Setter Property="Margin" Value="14,0,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBox#SearchBox">
+            <Setter Property="Width" Value="NaN"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.filters > WrapPanel.chips">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBlock.summary">
+            <Setter Property="Grid.Row" Value="2"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBlock.folderlabel">
+            <Setter Property="MaxWidth" Value="250"/>
+        </Style>
+        <!-- the page scrolls instead of the list (the list's own scrolling would swallow the swipe) -->
+        <Style Selector=":is(UserControl).narrow ScrollViewer.page">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+        <!-- two tiles per row on a ~360 dp phone -->
+        <Style Selector=":is(UserControl).narrow ListBox.grid">
+            <Setter Property="Padding" Value="14,4,2,16"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow ListBox.library ListBoxItem">
+            <Setter Property="Margin" Value="0,0,12,16"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.tile">
+            <Setter Property="Width" Value="160"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Panel.cover">
+            <Setter Property="Width" Value="160"/>
+            <Setter Property="Height" Value="160"/>
+        </Style>
+        <!-- send bar: selection + Send on the first line, the other buttons under them -->
+        <Style Selector=":is(UserControl).narrow Border.sendbar">
+            <Setter Property="Padding" Value="14,10"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Border.sendbar > Grid">
+            <Setter Property="RowSpacing" Value="8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow TextBlock.selection">
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Button#BtnSelectFamily">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Grid.ColumnSpan" Value="3"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Button#BtnClearSelection">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="3"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

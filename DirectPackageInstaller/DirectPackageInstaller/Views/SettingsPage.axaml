@@ -1,0 +1,328 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             xmlns:local="using:DirectPackageInstaller"
+             xmlns:svc="using:DirectPackageInstaller.Services"
+             x:Class="DirectPackageInstaller.Views.SettingsPage"
+             x:DataType="vm:MainViewModel"
+             x:CompileBindings="True">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18" MaxWidth="820" HorizontalAlignment="Left" Classes="pagebody">
+            <TextBlock Classes="h1" Text="Settings"/>
+
+            <!-- console -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="CONSOLE"/>
+                <Border Classes="card">
+                    <StackPanel>
+                        <Grid Classes="row" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,220,Auto" Name="PsIpRow">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="PS4 / PS5 address"/>
+                                <TextBlock Classes="hint" Text="Press Find consoles to scan your network, or type it (on the console: Settings › Network › View Connection Status)."/>
+                            </StackPanel>
+                            <TextBox Grid.Column="1" Name="PsIp" Text="{Binding PS4IP}" Watermark="192.168.1.20"
+                                     FontFamily="{StaticResource Mono}"/>
+                            <Button Grid.Column="2" Name="BtnFindConsoles"
+                                    ToolTip.Tip="Look for consoles on this PC's networks (takes a few seconds)">Find consoles</Button>
+
+                            <StackPanel Grid.Row="2" Grid.ColumnSpan="3" Name="FoundPanel" IsVisible="False" Spacing="6" Margin="0,12,0,0">
+                                <TextBlock Name="FoundStatus" Classes="hint"/>
+                                <ItemsControl Name="FoundList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="svc:FoundConsole">
+                                            <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                    Padding="10,7" Margin="0,0,0,4" Tag="{Binding Address}" Click="UseConsoleClick"
+                                                    BorderBrush="{StaticResource Line}" BorderThickness="1">
+                                                <TextBlock Text="{Binding Label}" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                           Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis"/>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="This PC's address"/>
+                                <TextBlock Classes="hint" Text="The network adapter the console downloads from. Pick the one on the same network as the console; it won't change unless you change it here."/>
+                            </StackPanel>
+                            <Grid Grid.Row="1" Grid.ColumnSpan="2" Name="PcIpLine" ColumnDefinitions="Auto,Auto" ColumnSpacing="8"
+                                  HorizontalAlignment="Left" Margin="0,10,0,0">
+                                <ComboBox Name="PcIpPicker" MinWidth="440" MaxWidth="560"
+                                          PlaceholderText="Choose a network adapter">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}" FontFamily="{StaticResource Mono}" FontSize="12.5"
+                                                       x:DataType="local:LocalAddress"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Grid.Column="1" Name="BtnRefreshAdapters" ToolTip.Tip="List the adapters again (after plugging in a cable or joining a network)">Refresh</Button>
+                            </Grid>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Check the PS4 on startup"/>
+                                <TextBlock Classes="hint" Text="After the library scan, ask the console what's installed so the Library shows it right away. Needs GoldHEN's FTP server or Remote Package Installer running."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoCheckConsole}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Check for newer official updates"/>
+                                <TextBlock Classes="hint" Text="Asks Sony's public update server for each title's latest update version (internet needed; results kept for 12 hours) and marks games whose newest local update is behind."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding CheckOfficialUpdates}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <StackPanel Classes="note">
+                            <TextBlock Classes="label" Text="Where games install"/>
+                            <TextBlock Classes="hint" Text="By default the console decides (Settings › Storage › Options › Application Install Location on the PS4). With the experimental payload below, Install to picks the drive for each package, On PS4 shows each drive's free space, and installed games can be moved between drives (right-click › Move)."/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- downloads -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="DOWNLOADS FROM LINKS"/>
+                <Border Classes="card">
+                    <StackPanel>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Download links through this PC"/>
+                                <TextBlock Classes="hint" Text="The console fetches from this PC instead of the host. Needed for hosts the console can't reach or that need cookies."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding ProxyMode}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Segmented downloads"/>
+                                <TextBlock Classes="hint" Text="This PC downloads links in parallel parts for more speed. Uses temporary disk space."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding SegmentedMode}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Show transfer speed"/>
+                                <TextBlock Classes="hint" Text="Shows how much has been sent, and how fast, under Direct link."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowTransferProgress}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Receive links from JDownloader extensions"/>
+                                <TextBlock Classes="hint" Text="Click'n'Load: links sent from the browser to port 9666 open here."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding CNLService}" OnContent="" OffContent=""/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- debrid -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="DEBRID SERVICES"/>
+                <Border Classes="card">
+                    <StackPanel>
+                        <Grid Classes="row debrid" RowDefinitions="Auto,Auto" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="AllDebrid"/>
+                                <TextBlock Classes="hint" Text="API key from alldebrid.com/apikeys"/>
+                            </StackPanel>
+                            <TextBox Grid.Column="1" Text="{Binding AllDebridApiKey}" PasswordChar="•" Watermark="API key"/>
+                            <ToggleSwitch Grid.Column="2" IsChecked="{Binding UseAllDebrid}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row debrid" RowDefinitions="Auto,Auto" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="RealDebrid"/>
+                                <TextBlock Classes="hint" Text="API token from real-debrid.com/apitoken"/>
+                            </StackPanel>
+                            <TextBox Grid.Column="1" Text="{Binding RealDebridApiKey}" PasswordChar="•" Watermark="API token"/>
+                            <ToggleSwitch Grid.Column="2" IsChecked="{Binding UseRealDebrid}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row debrid" RowDefinitions="Auto,Auto" ColumnDefinitions="*,260,Auto" ColumnSpacing="14">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Debrid-Link"/>
+                                <TextBlock Classes="hint" Text="API key from debrid-link.com/webapp/apikey"/>
+                            </StackPanel>
+                            <TextBox Grid.Column="1" Text="{Binding DebridLinkApiKey}" PasswordChar="•" Watermark="API key"/>
+                            <ToggleSwitch Grid.Column="2" IsChecked="{Binding UseDebridLink}" OnContent="" OffContent=""/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- network -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="NETWORK"/>
+                <Border Classes="card">
+                    <StackPanel>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="DhcpRow">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Direct cable to the console"/>
+                                <TextBlock Classes="hint" Text="Runs a DHCP server on the Ethernet port so a console plugged straight into this PC gets an address. Changes your network settings until the app closes; needs admin."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" Name="DhcpSwitch" IsChecked="{Binding DHCPService, Mode=OneWay}" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider" Name="DhcpDivider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="ShellRow">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Explorer right-click menu"/>
+                                <TextBlock Classes="hint" Text="Adds &quot;Send to PS4 (DPI)&quot; to .pkg files and &quot;Add to DPI library&quot; to folders (for your Windows user only). Turn it on again if you move this app to another folder."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" Name="ShellSwitch" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider" Name="ShellDivider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Restart the file server"/>
+                                <TextBlock Classes="hint" Text="Use this if the console stops downloading, or after changing this PC's address."/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Name="BtnRestartServer">Restart</Button>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Send a payload"/>
+                                <TextBlock Classes="hint" Text="Send a .bin or .elf payload file to GoldHEN's BinLoader (port 9090). It runs on the console right away: only send payloads you trust."/>
+                                <TextBlock Classes="hint" Name="PayloadStatus" IsVisible="False" Foreground="{StaticResource Signal}"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Name="BtnSendPayload" ToolTip.ShowOnDisabled="True">Choose file…</Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- experimental -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="EXPERIMENTAL"/>
+                <Border Classes="card">
+                    <StackPanel>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Experimental GoldHEN payload"/>
+                                <TextBlock Classes="hint" Text="A newer build of the installer payload that can report free space (shown on the On PS4 page). Turn it off if installs misbehave. Remote Package Installer and etaHEN installs are not affected."/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" Name="ExperimentalSwitch" OnContent="" OffContent=""/>
+                        </Grid>
+                        <Rectangle Classes="divider"/>
+                        <Grid Classes="row" ColumnDefinitions="*,Auto" Name="StorageRow">
+                            <StackPanel>
+                                <TextBlock Classes="label" Text="Install to"/>
+                                <TextBlock Classes="hint" Text="Needs the experimental payload (GoldHEN BinLoader). For each package it switches the console's Application Install Location to this choice, then back. Remote Package Installer and etaHEN installs use the console's setting."/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" Name="StorageBox" MinWidth="230">
+                                <ComboBoxItem>Console setting</ComboBoxItem>
+                                <ComboBoxItem>System storage</ComboBoxItem>
+                                <ComboBoxItem>Extended storage</ComboBoxItem>
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- about -->
+            <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="ABOUT"/>
+                <Border Classes="card">
+                    <StackPanel>
+                    <Grid Classes="row" ColumnDefinitions="*,Auto" Name="ExitRow" IsVisible="False">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="Close the app"/>
+                            <TextBlock Classes="hint" Text="Stops the file server. Unfinished downloads on the console stop too."/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Name="BtnExit">Close</Button>
+                    </Grid>
+                    <Grid Classes="row" ColumnDefinitions="*,Auto">
+                        <StackPanel>
+                            <TextBlock Classes="label" Name="VersionText"/>
+                            <TextBlock Classes="hint" Text="Based on DirectPackageInstaller by marcussacana. Settings, library cache and logs live in the data folder."/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Name="BtnOpenData">Open data folder</Button>
+                    </Grid>
+                    <Rectangle Classes="divider"/>
+                    <Grid Classes="row" ColumnDefinitions="*,Auto">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="Updates"/>
+                            <TextBlock Classes="hint" Name="UpdateText" Text="Not checked yet."/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Name="BtnDownloadUpdate" Classes="primary" IsVisible="False"
+                                    ToolTip.Tip="Opens the new version's download (or its release page)">Download</Button>
+                            <Button Name="BtnCheckUpdate" ToolTip.ShowOnDisabled="True"
+                                    ToolTip.Tip="Ask GitHub for the latest DPI Enhanced release">Check now</Button>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Classes="row" ColumnDefinitions="*,Auto">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="Check for new versions at startup"/>
+                            <TextBlock Classes="hint" Text="When a newer version is published, asks whether to open its download. Nothing is downloaded or installed by itself."/>
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" Name="UpdateCheckSwitch" OnContent="" OffContent=""/>
+                    </Grid>
+                    </StackPanel>
+                </Border>
+                <!-- contributors and special thanks (ContributorStrip), filled in code -->
+                <StackPanel Name="CreditsPanel" Spacing="12" Margin="0,4,0,0"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+
+    <UserControl.Styles>
+        <Style Selector="StackPanel.pagebody">
+            <Setter Property="Margin" Value="28,22,28,32"/>
+        </Style>
+        <Style Selector="Grid.row">
+            <Setter Property="Margin" Value="18,14"/>
+            <Setter Property="ColumnSpacing" Value="18"/>
+        </Style>
+        <Style Selector="Grid.row > :is(Control)">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="StackPanel.note">
+            <Setter Property="Margin" Value="18,14"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,3,0,0"/>
+        </Style>
+        <Style Selector="Rectangle.divider">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Fill" Value="{StaticResource Line}"/>
+            <Setter Property="Margin" Value="18,0"/>
+        </Style>
+
+        <!-- phones and narrow windows (after the wide styles: the later style wins); text boxes
+             and combo boxes drop under their label in code (NarrowLayout.Reflow) -->
+        <Style Selector=":is(UserControl).narrow StackPanel.pagebody">
+            <Setter Property="Margin" Value="12,14,12,24"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Grid.row">
+            <Setter Property="Margin" Value="12,12"/>
+            <Setter Property="ColumnSpacing" Value="10"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow StackPanel.note">
+            <Setter Property="Margin" Value="12,12"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow Rectangle.divider">
+            <Setter Property="Margin" Value="12,0"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

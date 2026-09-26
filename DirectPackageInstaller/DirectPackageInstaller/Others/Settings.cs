@@ -33,6 +33,21 @@ namespace DirectPackageInstaller
         public bool ShowError;
         public bool ShowTransferProgress;
 
+        /// <summary>Ask the console what is installed right after startup.</summary>
+        public bool AutoCheckConsole;
+
+        /// <summary>Look up the latest official update of each title (Sony's public patch server).</summary>
+        public bool CheckOfficialUpdates;
+
+        /// <summary>Use Payload/payload_experimental.bin for GoldHEN installs (free space, storage choice).</summary>
+        public bool ExperimentalPayload;
+
+        /// <summary>Experimental payload only: -1 console setting, 0 system storage, 1 extended storage.</summary>
+        public int InstallStorage;
+
         public bool AutoSplitPKG;
+
+        /// <summary>Where save backups go ("" = Documents\DPI Save Backups).</summary>
+        public string? SaveBackupFolder;
     }
 }

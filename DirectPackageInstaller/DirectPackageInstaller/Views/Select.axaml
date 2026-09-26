@@ -10,7 +10,7 @@
         Width="800"
         MaxHeight="60"
         MinHeight="60"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/dpi.ico"
         Title="Select An PKG">
     <views:SelectView Name="View"/>
 </Window>

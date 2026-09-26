@@ -46,13 +46,12 @@ namespace DirectPackageInstaller.Host
                 Entry = Task.Entry;
             }
 
-            if (!EntryMap.ContainsKey(Url))
-            {
-                if (!Tasks.ContainsKey(EntryMap[Url]))
-                    return;
-                
-                EntryMap[Url] = Tasks[EntryMap[Url]].EntryName;
-            }
+            if (Url == null)
+                return;
+
+            // follow the task's current entry name (the check was inverted upstream)
+            if (EntryMap.TryGetValue(Url, out var MappedEntry) && MappedEntry != null && Tasks.TryGetValue(MappedEntry, out var MappedTask))
+                EntryMap[Url] = MappedTask.EntryName;
 
             await Decompress(Context, Url, Entry, FromPS4);
         }
@@ -78,13 +77,12 @@ namespace DirectPackageInstaller.Host
                 Entry = Task.Entry;
             }
 
-            if (!EntryMap.ContainsKey(Url))
-            {
-                if (!Tasks.ContainsKey(EntryMap[Url]))
-                    return;
-                
-                EntryMap[Url] = Tasks[EntryMap[Url]].EntryName;
-            }
+            if (Url == null)
+                return;
+
+            // follow the task's current entry name (the check was inverted upstream)
+            if (EntryMap.TryGetValue(Url, out var MappedEntry) && MappedEntry != null && Tasks.TryGetValue(MappedEntry, out var MappedTask))
+                EntryMap[Url] = MappedTask.EntryName;
 
             await Decompress(Context, Url, Entry, FromPS4);
         }
@@ -168,6 +166,8 @@ namespace DirectPackageInstaller.Host
                         return;
                     }
 
+                    Context.Response.StatusCode = 206;
+                    Context.Response.StatusDescription = "Partial Content";
                     Context.Response.ContentLength = rangeLength;
                     Context.Response.Headers["Content-Range"] = $"bytes {rangeStart}-{rangeEnd}/{TaskInfo.TotalSize}";
 

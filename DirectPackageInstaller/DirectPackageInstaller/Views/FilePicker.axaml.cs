@@ -16,6 +16,23 @@ namespace DirectPackageInstaller.Views;
 public partial class FilePicker : UserControl
 {
     public List<string> SelectedFiles { get; set; } = new List<string>();
+
+    /// <summary>Pick a folder: the OK button always shows and returns the folder being browsed.</summary>
+    public bool FolderMode
+    {
+        get => _FolderMode;
+        set
+        {
+            _FolderMode = value;
+            var Ok = this.Find<Button>("btnOK");
+            if (Ok != null && value)
+            {
+                Ok.Content = "Use this folder";
+                Ok.IsVisible = true;
+            }
+        }
+    }
+    bool _FolderMode;
     private FilePickerModel Model => (FilePickerModel)DataContext!;
     public FilePicker()
     {
@@ -170,7 +187,8 @@ public partial class FilePicker : UserControl
         if (Button.DataContext is not FileEntry Entry)
             return;
 
-        if (Entry.IsPKG)
+        // folder mode: files are only shown for orientation
+        if (Entry.IsPKG && !FolderMode)
         {
             Model.Result = DialogResult.OK;
             SelectedFiles = new List<string>(new [] { Entry.FullPath });
@@ -187,7 +205,7 @@ public partial class FilePicker : UserControl
         if (sender is not HoldToToggleButton Button)
             return;
 
-        if (Button.DataContext is FileEntry {IsPKG: true} Entry)
+        if (Button.DataContext is FileEntry {IsPKG: true} Entry && !FolderMode)
             SelectedFiles.Add(Entry.FullPath);
         else
             Button.Toggle();
@@ -208,6 +226,15 @@ public partial class FilePicker : UserControl
 
     private void Open_OnClick(object? sender, RoutedEventArgs e)
     {
+        if (FolderMode)
+        {
+            // the browser keeps a trailing separator; the library stores plain folder paths
+            var Folder = Model.CurrentDir ?? LastDir ?? "";
+            if (Folder.Length > 1)
+                Folder = Folder.TrimEnd('/', '\\');
+            SelectedFiles = new List<string> { Folder };
+        }
+
         Model.Result = DialogResult.OK;
         SingleView.ReturnView(this);
     }

@@ -102,6 +102,24 @@ namespace DirectPackageInstaller.ViewModels
     }
 
     /// <summary>"On PS4": what's installed on the console, read over GoldHEN FTP.</summary>
+    /// <summary>One game's saves in the Saves panel.</summary>
+    public sealed class SaveEntry : ReactiveObject
+    {
+        public SaveEntry(ConsoleSaves.TitleSaves Saves, string Name)
+        {
+            this.Saves = Saves;
+            this.Name = Name;
+        }
+
+        public ConsoleSaves.TitleSaves Saves { get; }
+        public string Name { get; }
+        public string TitleId => Saves.TitleId;
+        public string Detail => $"{TitleId}  ·  {string.Join(", ", Saves.Users.Select(u => u.UserName))}  ·  {Host.TransferProgressInfo.FormatBytes(Saves.Size)}";
+
+        bool _Selected;
+        public bool Selected { get => _Selected; set => this.RaiseAndSetIfChanged(ref _Selected, value); }
+    }
+
     /// <summary>One drive in the "On PS4" storage boxes.</summary>
     public sealed class StorageBox
     {
@@ -130,6 +148,12 @@ namespace DirectPackageInstaller.ViewModels
     {
         readonly Func<IReadOnlyList<LibraryEntry>> LibraryEntries;
         List<ConsoleTitleItem> All = new();
+
+        /// <summary>Every title read from the console (unfiltered), for names elsewhere.</summary>
+        public IReadOnlyList<ConsoleTitleItem> AllTitles => All;
+
+        /// <summary>The library's packages (names for titles the console didn't list).</summary>
+        public IReadOnlyList<LibraryEntry> LibraryItems() => LibraryEntries();
 
         public ConsoleViewModel(Func<IReadOnlyList<LibraryEntry>> LibraryEntries)
         {

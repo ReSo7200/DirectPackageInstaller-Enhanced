@@ -201,6 +201,7 @@ namespace DirectPackageInstaller.Views
                 App.Config.CheckOfficialUpdates = string.IsNullOrWhiteSpace(CheckOfficialUpdates) || IniReader.GetBooleanValue("CheckOfficialUpdates");
                 App.Config.ExperimentalPayload = IniReader.GetBooleanValue("ExperimentalPayload");
                 App.Config.InstallStorage = IniReader.GetIntValue("InstallStorage") ?? -1;
+                App.Config.SaveBackupFolder = IniReader.GetValue("SaveBackupFolder") ?? "";
                 App.Config.AutoSplitPKG = IniReader.GetBooleanValue("AutoSplitPKG");
 
                 App.Config.PayloadPort = IniReader.GetIntValue("PayloadPort");

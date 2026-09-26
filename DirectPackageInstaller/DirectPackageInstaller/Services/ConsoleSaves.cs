@@ -17,11 +17,75 @@ namespace DirectPackageInstaller.Services
     /// </summary>
     public static class ConsoleSaves
     {
-        public static string Folder => App.IsAndroid
+        /// <summary>The folder chosen in the Saves panel, else Documents\DPI Save Backups (phone: Download).</summary>
+        public static string Folder => !string.IsNullOrWhiteSpace(App.Config.SaveBackupFolder)
+            ? App.Config.SaveBackupFolder
+            : DefaultFolder;
+
+        public static string DefaultFolder => App.IsAndroid
             ? "/storage/emulated/0/Download/DPI Save Backups"
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DPI Save Backups");
 
         public sealed record UserSaves(string UserId, string UserName, List<(string Path, long Size)> Files);
+
+        /// <summary>One game's saves on the console: every user who has some.</summary>
+        public sealed record TitleSaves(string TitleId, List<UserSaves> Users)
+        {
+            public long Size => Users.Sum(u => u.Files.Sum(f => Math.Max(0, f.Size)));
+        }
+
+        /// <summary>Every save on the console, per game (all users), read over FTP.</summary>
+        public static async Task<List<TitleSaves>> ListAllAsync(string ConsoleIP, IProgress<string>? Progress = null, CancellationToken Token = default)
+        {
+            var ByTitle = new Dictionary<string, List<UserSaves>>(StringComparer.OrdinalIgnoreCase);
+            await using var Ftp = await Connect(ConsoleIP, Token);
+            var Users = (await Ftp.ListAsync("/user/home", Token)).Where(x => x.IsDirectory && x.Name != "." && x.Name != "..").ToList();
+            int Index = 0;
+            foreach (var User in Users)
+            {
+                Progress?.Report($"Reading user {++Index} of {Users.Count}…");
+                var Home = $"/user/home/{User.Name}";
+                List<FtpEntry> Titles;
+                try { Titles = await Ftp.ListAsync($"{Home}/savedata", Token); }
+                catch (FtpException ex) when (ex.Reply is { Code: >= 400 }) { continue; }
+
+                string Name = await UserNameAsync(ConsoleIP, Home, User.Name, Token);
+                foreach (var Title in Titles.Where(x => x.IsDirectory && x.Name != "." && x.Name != ".." && x.Name != "sce_backup"))
+                {
+                    var Files = new List<(string, long)>();
+                    foreach (var Folder_ in new[] { $"{Home}/savedata/{Title.Name}", $"{Home}/savedata_meta/user/{Title.Name}" })
+                    {
+                        try
+                        {
+                            foreach (var File in await Ftp.ListAsync(Folder_, Token))
+                                if (!File.IsDirectory)
+                                    Files.Add(($"{Folder_}/{File.Name}", File.Size));
+                        }
+                        catch (FtpException ex) when (ex.Reply is { Code: >= 400 }) { }
+                    }
+                    if (Files.Count == 0)
+                        continue;
+                    if (!ByTitle.TryGetValue(Title.Name, out var List))
+                        ByTitle[Title.Name] = List = new List<UserSaves>();
+                    List.Add(new UserSaves(User.Name, Name, Files));
+                }
+            }
+            return ByTitle.Select(x => new TitleSaves(x.Key, x.Value)).OrderBy(x => x.TitleId).ToList();
+        }
+
+        static async Task<string> UserNameAsync(string ConsoleIP, string Home, string Fallback, CancellationToken Token)
+        {
+            try
+            {
+                // its own connection: a failed read can leave the listing one unusable
+                await using var NameFtp = await Connect(ConsoleIP, Token);
+                var Raw = await NameFtp.DownloadAsync($"{Home}/username.dat", 4096, Token);
+                var Text = Encoding.UTF8.GetString(Raw).Split('\0')[0].Trim();
+                return Text.Length > 0 ? Text : Fallback;
+            }
+            catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
+            catch { return Fallback; }
+        }
 
         /// <summary>The title's save files for every console user that has some.</summary>
         public static async Task<List<UserSaves>> FindAsync(string ConsoleIP, string TitleId, CancellationToken Token = default)

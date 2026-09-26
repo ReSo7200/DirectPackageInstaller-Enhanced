@@ -18,6 +18,7 @@
                            Text="{Binding CapturesStatus}" IsVisible="{Binding HasCapturesStatus}"/>
             </StackPanel>
             <WrapPanel Classes="headbutton" VerticalAlignment="Center" ItemSpacing="8" LineSpacing="8">
+                <Button Name="BtnSaves" ToolTip.ShowOnDisabled="True">Saves</Button>
                 <Button Name="BtnCaptures" IsEnabled="{Binding CanCopyCaptures}" ToolTip.ShowOnDisabled="True"
                         ToolTip.Tip="{Binding CapturesTip}">Copy screenshots &amp; videos</Button>
                 <Button Name="BtnRefresh" Classes="primary" MinWidth="110"
@@ -142,6 +143,53 @@
                         IsEnabled="{Binding CanRefresh}" ToolTip.Tip="{Binding RefreshTip}" ToolTip.ShowOnDisabled="True">Read the console</Button>
             </StackPanel>
         </Panel>
+
+        <!-- every save on the console (all users, all games), over the page -->
+        <Border Grid.RowSpan="4" Name="SavesPanel" IsVisible="False" Background="#D90B0E16">
+            <Border Classes="card" Margin="16" Padding="18,16" MaxWidth="720" VerticalAlignment="Center"
+                    HorizontalAlignment="Stretch">
+                <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" MaxHeight="660">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="eyebrow" Text="SAVES ON THE CONSOLE"/>
+                        <TextBlock Classes="muted" FontSize="12.5" TextWrapping="Wrap"
+                                   Text="Every game's saved data, for every user. Backups are zipped per user; saves only load on this console and account (restore them with Apollo Save Tool)."/>
+                    </StackPanel>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,10,0,0">
+                        <TextBlock Name="SaveFolderText" Classes="mono" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Name="BtnSaveFolder" ToolTip.Tip="Choose where save backups go">Change folder…</Button>
+                            <Button Name="BtnOpenSaveFolder" ToolTip.ShowOnDisabled="True">Open folder</Button>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Grid.Row="2" Name="SavesStatus" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,4"
+                               Foreground="{StaticResource Signal}" IsVisible="False"/>
+                    <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled" Margin="0,6,0,0">
+                        <ItemsControl Name="SavesList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SaveEntry">
+                                    <Border BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,8">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <CheckBox IsChecked="{Binding Selected}" VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <TextBlock Classes="mono" FontSize="11.5" Text="{Binding Detail}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,12,0,0">
+                        <Button Name="BtnSelectAllSaves" Classes="ghost" ToolTip.ShowOnDisabled="True">Select all</Button>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                            <Button Name="BtnSavesClose">Close</Button>
+                            <Button Name="BtnBackupSaves" Classes="primary" IsEnabled="False" ToolTip.ShowOnDisabled="True">Back up selected</Button>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Border>
 
         <!-- game patches for one title (GoldHEN's Game Patch plugin), over the page -->
         <Border Grid.RowSpan="4" Name="PatchPanel" IsVisible="False" Background="#D90B0E16">

@@ -46,5 +46,8 @@ namespace DirectPackageInstaller
         public int InstallStorage;
 
         public bool AutoSplitPKG;
+
+        /// <summary>Where save backups go ("" = Documents\DPI Save Backups).</summary>
+        public string? SaveBackupFolder;
     }
 }

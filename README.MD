@@ -25,7 +25,7 @@ DPI Enhanced is a fork of [marcussacana/DirectPackageInstaller](https://github.c
 - **Storage boxes:** free space, total and usage for each drive (experimental payload).
 - **Move between system and extended storage** (right-click). It runs on the console, the way Itemzflow restores apps: the installed packages are set aside on the same drive, the title is removed with Remote Package Installer, and the payload installs each package from that file onto the other drive. Nothing is sent from your PC, the copy set aside is only deleted after the console's own task finished, and a move interrupted by closing the app is found again and can be retried.
 - **Game patches:** 60 FPS, resolution and other patches from the [PS-Game-Patch](https://github.com/illusionyy/PS-Game-Patch) database for the installed version. Switch them on, save, and they apply when the game starts (needs GoldHEN's Game Patch plugin).
-- **Back up saves:** a game's saved data for every user on the console, zipped to `Documents\DPI Save Backups` (restore them with Apollo Save Tool).
+- **Saves:** every save on the console, all games and all users, in one list with sizes. Back up the ones you tick (zipped per user) to a folder you choose, `Documents\DPI Save Backups` by default. Restore them with Apollo Save Tool.
 - **Copy screenshots & videos** to `Pictures\DPI Captures`, a folder per game.
 - **Uninstall** games, updates and DLC (Remote Package Installer).
 

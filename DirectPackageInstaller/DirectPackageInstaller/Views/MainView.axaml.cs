@@ -306,8 +306,13 @@ namespace DirectPackageInstaller.Views
                  try
                  {
                      if (await Services.AppUpdates.NewerAsync() is { } New)
-                         Services.Notices.Post($"DPI Enhanced {New.Version} is out",
-                             $"You have {Services.AppUpdates.Current}. Settings › About › Download.");
+                     {
+                         var Reply = await MessageBox.ShowAsync(
+                             $"DPI Enhanced {New.Version} is available (you have {Services.AppUpdates.Current}).\n\nOpen the download now?",
+                             "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                         if (Reply == DialogResult.Yes)
+                             OpenUrl(New.DownloadUrl ?? New.PageUrl);
+                     }
                  }
                  catch
                  {

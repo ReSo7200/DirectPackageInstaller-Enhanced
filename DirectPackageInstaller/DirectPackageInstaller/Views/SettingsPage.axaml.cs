@@ -21,6 +21,26 @@ namespace DirectPackageInstaller.Views
 
             VersionText.Text = $"DPI Enhanced {SelfUpdate.CurrentVersion}";
 
+            // who made this (git history of the project) and whose work it builds on
+            CreditsPanel.Children.Add(new ContributorStrip("Contributors", new Contributor[]
+            {
+                new("ReSo7200", "ReSo7200", Role: "DPI Enhanced"),
+                new("marcussacana", "marcussacana", Role: "Created DirectPackageInstaller"),
+                new("0xMH", "0xMH", Role: "DirectPackageInstaller contributor"),
+                new("ksanjeev284", "ksanjeev284", Role: "DirectPackageInstaller contributor"),
+            }));
+            CreditsPanel.Children.Add(new ContributorStrip("Special thanks", new Contributor[]
+            {
+                new("flatz", "flatz", Role: "Remote Package Installer"),
+                new("GoldHEN", "GoldHEN", Role: "GoldHEN: BinLoader, FTP, plugins"),
+                new("LightningMods", "LightningMods", Role: "Itemzflow (how moving between drives works) and the Homebrew Store"),
+                new("illusionyy", "illusionyy", Role: "PS-Game-Patch: the game patch database"),
+                new("OpenOrbis", "OpenOrbis", Role: "LibOrbisPkg: reading PKG files"),
+                new("oct0xor", "oct0xor", Role: "PS4 registry research"),
+                new("jpmikkers", "jpmikkers", Role: "DHCPServer"),
+                new("AvaloniaUI", "AvaloniaUI", Role: "Avalonia, the UI framework"),
+            }));
+
             // new versions: GitHub releases of the fork (Services.AppUpdates)
             BtnCheckUpdate.Click += async (_, _) => await CheckUpdatesAsync(Force: true);
             BtnDownloadUpdate.Click += async (_, _) =>

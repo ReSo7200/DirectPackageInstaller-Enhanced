@@ -21,6 +21,27 @@ namespace DirectPackageInstaller.Views
 
             VersionText.Text = $"DPI Enhanced {SelfUpdate.CurrentVersion}";
 
+            // new versions: GitHub releases of the fork (Services.AppUpdates)
+            BtnCheckUpdate.Click += async (_, _) => await CheckUpdatesAsync(Force: true);
+            BtnDownloadUpdate.Click += async (_, _) =>
+            {
+                var Url = FoundRelease?.DownloadUrl ?? FoundRelease?.PageUrl ?? Services.AppUpdates.ReleasesPage;
+                try
+                {
+                    if (TopLevel.GetTopLevel(this) is { } Top)
+                        await Top.Launcher.LaunchUriAsync(new Uri(Url));
+                }
+                catch { }
+            };
+            UpdateCheckSwitch.IsCheckedChanged += (_, _) =>
+            {
+                bool Skip = UpdateCheckSwitch.IsChecked != true;
+                if (Skip == App.Config.SkipUpdateCheck)
+                    return;
+                App.Config.SkipUpdateCheck = Skip;
+                App.SaveSettings();
+            };
+
             DhcpRow.IsVisible = DhcpDivider.IsVisible = App.IsWindows;
             DhcpSwitch.Click += DhcpClick;
             BtnRestartServer.Click += (_, _) => Host?.RestartServer_OnClick(this, null);
@@ -45,10 +66,17 @@ namespace DirectPackageInstaller.Views
             void SyncExperimental()
             {
                 ExperimentalSwitch.IsChecked = App.Config.ExperimentalPayload;
+                UpdateCheckSwitch.IsChecked = !App.Config.SkipUpdateCheck;
                 StorageBox.SelectedIndex = App.Config.InstallStorage + 1;
                 StorageBox.IsEnabled = App.Config.ExperimentalPayload;
             }
             AttachedToVisualTree += (_, _) => SyncExperimental();
+            PropertyChanged += async (_, e) =>
+            {
+                // the About card's update line: the startup check's answer (cached), else ask
+                if (e.Property == IsVisibleProperty && IsVisible && UpdateText.Text == "Not checked yet.")
+                    await CheckUpdatesAsync(Force: false);
+            };
             PropertyChanged += (_, e) =>
             {
                 if (e.Property == IsVisibleProperty && IsVisible)
@@ -221,6 +249,33 @@ namespace DirectPackageInstaller.Views
         }
 
         bool SendingPayload;
+
+        Services.AppRelease? FoundRelease;
+
+        /// <summary>Ask GitHub for a newer release and show the answer in the About card.</summary>
+        public async System.Threading.Tasks.Task CheckUpdatesAsync(bool Force)
+        {
+            BtnCheckUpdate.IsEnabled = false;
+            ToolTip.SetTip(BtnCheckUpdate, "Checking…");
+            UpdateText.Text = "Checking…";
+            try
+            {
+                FoundRelease = await Services.AppUpdates.NewerAsync(Force);
+                BtnDownloadUpdate.IsVisible = FoundRelease != null;
+                UpdateText.Text = FoundRelease is { } New
+                    ? $"Version {New.Version} is available ({New.Published:yyyy-MM-dd})" + (New.FileName != null ? $": {New.FileName}." : ". Its release page has the downloads.")
+                    : $"You have the latest version ({Services.AppUpdates.Current}).";
+            }
+            catch (Exception ex)
+            {
+                UpdateText.Text = "Couldn't check: " + ex.Message;
+            }
+            finally
+            {
+                BtnCheckUpdate.IsEnabled = true;
+                ToolTip.SetTip(BtnCheckUpdate, "Ask GitHub for the latest DPI Enhanced release");
+            }
+        }
 
         void SyncPayloadButton()
         {

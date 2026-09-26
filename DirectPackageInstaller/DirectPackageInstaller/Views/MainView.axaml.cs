@@ -298,26 +298,20 @@ namespace DirectPackageInstaller.Views
 
              Model.PropertyChanged += ModelOnPropertyChanged;
              
+             // new versions come from the fork's GitHub releases: a notice, nothing automatic
              App.Callback(async () =>
              {
-                 var MissingRuntime = await App.Updater.RequiresNewRuntime();
-                 if (!App.Config.SkipUpdateCheck && MissingRuntime != null)
-                 {
-                     var Response = await MessageBox.ShowAsync($"A New update has been released, but you can't update because a required program is missing.\nNow, the DirectPackageInstaller will use .NET {MissingRuntime}, and you can update only after install the Runtime, Press Yes to Visit the Download Page.", "DirectPackageInstaller - MISSING RUNTIME", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                     if (Response == DialogResult.Yes)
-                     { 
-                         OpenUrl($"https://dotnet.microsoft.com/en-us/download/dotnet/{MissingRuntime}/runtime");
-                     }
+                 if (App.Config.SkipUpdateCheck)
                      return;
-                 }
-                 
-                 if (!App.Config.SkipUpdateCheck && await App.Updater.HasUpdates())
+                 try
                  {
-                     var Response = await MessageBox.ShowAsync($"New Update Found, You're using the {SelfUpdate.CurrentVersion} the last version is {SelfUpdate.LastVersion},\nDo you wanna update the DirectPackageInstaller now?", "DirectPackageInstaller", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                     if (Response != DialogResult.Yes)
-                         return;
-                     
-                     await App.Updater.DownloadUpdate();
+                     if (await Services.AppUpdates.NewerAsync() is { } New)
+                         Services.Notices.Post($"DPI Enhanced {New.Version} is out",
+                             $"You have {Services.AppUpdates.Current}. Settings › About › Download.");
+                 }
+                 catch
+                 {
+                     // offline or GitHub busy: Settings › About can check later
                  }
              });
 

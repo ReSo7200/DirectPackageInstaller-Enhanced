@@ -25,9 +25,14 @@ DPI Enhanced is a fork of [marcussacana/DirectPackageInstaller](https://github.c
 - **Storage boxes:** free space, total and usage for each drive (experimental payload).
 - **Move between system and extended storage** (right-click). It runs on the console, the way Itemzflow restores apps: the installed packages are set aside on the same drive, the title is removed with Remote Package Installer, and the payload installs each package from that file onto the other drive. Nothing is sent from your PC, the copy set aside is only deleted after the console's own task finished, and a move interrupted by closing the app is found again and can be retried.
 - **Game patches:** 60 FPS, resolution and other patches from the [PS-Game-Patch](https://github.com/illusionyy/PS-Game-Patch) database for the installed version. Switch them on, save, and they apply when the game starts (needs GoldHEN's Game Patch plugin).
-- **Saves:** every save on the console, all games and all users, in one list with sizes. Back up the ones you tick (zipped per user) to a folder you choose, `Documents\DPI Save Backups` by default. Restore them with Apollo Save Tool.
 - **Copy screenshots & videos** to `Pictures\DPI Captures`, a folder per game.
 - **Uninstall** games, updates and DLC (Remote Package Installer).
+
+### Saves
+- **Every save on the console**, all games and all users, next to your backups: covers, users, save slots, size and when it was last saved. Each game says whether it's *backed up*, *not backed up* or *changed since* the last backup; search and filters (*Needs a backup*, *Backups only*).
+- **Back up** one game or all you tick: a zip per user in a folder you choose (`Documents\DPI Save Backups` by default, `Download/DPI Save Backups` on Android), one folder per game with its cover.
+- **Restore** a backup to its own user or another one on the console. What it overwrites is backed up first (kept as a *BEFORE RESTORE* backup), a running game is refused, and each file is checked after it's written. Saves are sealed to their console: another console's saves need resigning with Apollo Save Tool.
+- **Import** save zips from elsewhere, and delete old backups (to the Recycle Bin / Trash).
 
 ### Sending and installing
 - **Queue:** packages go out one at a time (game, then updates, then DLC) with live progress, pause/resume, retry and readable error messages. It says *Installed* when the console confirms it, and the Library and On PS4 update by themselves.

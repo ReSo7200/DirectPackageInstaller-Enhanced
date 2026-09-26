@@ -18,7 +18,7 @@ namespace DirectPackageInstaller.Services
     }
 
     /// <summary>A directory entry parsed from a LIST response (Size -1 when the listing doesn't give it).</summary>
-    public readonly record struct FtpEntry(string Name, bool IsDirectory, long Size = -1);
+    public readonly record struct FtpEntry(string Name, bool IsDirectory, long Size = -1, DateTime? Modified = null);
 
     public class FtpException : Exception
     {
@@ -581,6 +581,7 @@ namespace DirectPackageInstaller.Services
                 // Skip 8 whitespace-separated fields (perms, links, owner, group, size, month, day, time/year).
                 int pos = 0, fields = 0;
                 long size = -1;
+                var date = new string[3];
                 while (fields < 8)
                 {
                     while (pos < line.Length && IsWs(line[pos])) pos++;
@@ -589,6 +590,8 @@ namespace DirectPackageInstaller.Services
                     while (pos < line.Length && !IsWs(line[pos])) pos++;
                     if (fields == 4 && long.TryParse(line.AsSpan(start, pos - start), NumberStyles.None, CultureInfo.InvariantCulture, out var n))
                         size = n;
+                    if (fields >= 5)
+                        date[fields - 5] = line.Substring(start, pos - start);
                     fields++;
                 }
                 if (fields < 8) return false;
@@ -602,7 +605,7 @@ namespace DirectPackageInstaller.Services
                     if (arrow > 0) name = name.Substring(0, arrow);
                 }
                 if (name.Length == 0) return false;
-                entry = new FtpEntry(name, t == 'd', size);
+                entry = new FtpEntry(name, t == 'd', size, ParseListDate(date[0], date[1], date[2]));
                 return true;
             }
 
@@ -619,5 +622,28 @@ namespace DirectPackageInstaller.Services
         }
 
         private static bool IsWs(char c) => c == ' ' || c == '\t';
+
+        /// <summary>"Sep 26 07:20" (this year, or last year when that's ahead) or "Sep 26 2025"; null when unreadable.</summary>
+        private static DateTime? ParseListDate(string? month, string? day, string? timeOrYear)
+        {
+            if (month == null || day == null || timeOrYear == null)
+                return null;
+            int m = Array.FindIndex(CultureInfo.InvariantCulture.DateTimeFormat.AbbreviatedMonthNames,
+                x => x.Length > 0 && x.Equals(month, StringComparison.OrdinalIgnoreCase)) + 1;
+            if (m < 1 || !int.TryParse(day, NumberStyles.None, CultureInfo.InvariantCulture, out var d) || d < 1 || d > 31)
+                return null;
+            if (timeOrYear.Contains(':'))
+            {
+                var parts = timeOrYear.Split(':');
+                if (parts.Length != 2 || !int.TryParse(parts[0], out var hh) || !int.TryParse(parts[1], out var mm) || hh > 23 || mm > 59)
+                    return null;
+                var now = DateTime.Now;
+                var when = new DateTime(now.Year, m, Math.Min(d, DateTime.DaysInMonth(now.Year, m)), hh, mm, 0);
+                return when > now.AddDays(2) ? when.AddYears(-1) : when;
+            }
+            if (int.TryParse(timeOrYear, NumberStyles.None, CultureInfo.InvariantCulture, out var y) && y > 1970 && y < 3000)
+                return new DateTime(y, m, Math.Min(d, DateTime.DaysInMonth(y, m)));
+            return null;
+        }
     }
 }

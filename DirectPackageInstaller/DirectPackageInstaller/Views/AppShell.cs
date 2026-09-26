@@ -9,6 +9,8 @@ namespace DirectPackageInstaller.Views
         void ShowInLibrary(string TitleId);
         void OpenInDirectLink(string Source);
         void ShowQueue();
+        /// <summary>The Saves tab, optionally narrowed to one title.</summary>
+        void ShowSaves(string? TitleId = null);
     }
 
     public static class AppShell

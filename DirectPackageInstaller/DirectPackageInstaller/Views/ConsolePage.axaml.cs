@@ -14,6 +14,9 @@ namespace DirectPackageInstaller.Views
     {
         ConsoleViewModel Model => (ConsoleViewModel)DataContext!;
 
+        /// <summary>The console's titles (names and covers for the Saves tab), once attached.</summary>
+        public ConsoleViewModel? ViewModel => DataContext as ConsoleViewModel;
+
         public ConsolePage()
         {
             InitializeComponent();
@@ -38,28 +41,8 @@ namespace DirectPackageInstaller.Views
             BtnCaptures.Click += async (_, _) => await Model.CopyCapturesAsync();
             BtnPatchClose.Click += (_, _) => PatchPanel.IsVisible = false;
 
-            BtnSaves.Click += async (_, _) => await ShowSavesAsync();
-            BtnSavesClose.Click += (_, _) => SavesPanel.IsVisible = false;
-            BtnBackupSaves.Click += async (_, _) => await BackupSelectedSavesAsync();
-            BtnSelectAllSaves.Click += (_, _) =>
-            {
-                bool All = SaveEntries.All(x => x.Selected);
-                foreach (var Entry in SaveEntries)
-                    Entry.Selected = !All;
-            };
-            BtnSaveFolder.Click += async (_, _) => await ChooseSaveFolderAsync();
-            BtnOpenSaveFolder.Click += (_, _) =>
-            {
-                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ConsoleSaves.Folder) { UseShellExecute = true }); }
-                catch { }
-            };
-            BtnOpenSaveFolder.IsVisible = App.IsDesktop;
-            ConsoleStatus.Instance.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(ConsoleStatus.FtpOpen))
-                    SyncSaveButtons();
-            };
-            SyncSaveButtons();
+            // the Saves tab has every save and the backups
+            BtnSaves.Click += (_, _) => AppShell.Current?.ShowSaves();
             BtnPatchSave.Click += async (_, _) => await SavePatchesAsync();
             BtnRefreshIntro.Click += async (_, _) => await Model.RefreshAsync();
 
@@ -101,10 +84,10 @@ namespace DirectPackageInstaller.Views
                 }
                 if (Entry.Classes.Contains("ftp"))
                 {
-                    Entry.IsEnabled = Model.CanCopyCaptures;
-                    ToolTip.SetTip(Entry, Model.CanCopyCaptures
-                        ? $"Copies this game's saved data for every user to {ConsoleSaves.Folder} (read-only on the console)"
-                        : ConsoleStatus.Instance.FtpOpen ? "Another copy is running" : "Needs GoldHEN's FTP server running on the console");
+                    Entry.IsEnabled = ConsoleStatus.Instance.FtpOpen;
+                    ToolTip.SetTip(Entry, ConsoleStatus.Instance.FtpOpen
+                        ? "60 FPS, resolution and other patches for the installed version"
+                        : "Needs GoldHEN's FTP server running on the console");
                     ToolTip.SetShowOnDisabled(Entry, true);
                 }
                 if (Entry.Classes.Contains("library"))
@@ -125,142 +108,6 @@ namespace DirectPackageInstaller.Views
         }
 
         void MenuUninstallClick(object? sender, RoutedEventArgs e) => Uninstall(ItemOf(sender), "gd");
-
-        // ----- saves panel: every save on the console
-
-        List<SaveEntry> SaveEntries = new();
-        bool SavesBusy;
-
-        void SetSavesStatus(string Text)
-        {
-            SavesStatus.Text = Text;
-            SavesStatus.IsVisible = Text.Length > 0;
-        }
-
-        void SyncSaveButtons()
-        {
-            bool Ftp = ConsoleStatus.Instance.FtpOpen;
-            BtnSaves.IsEnabled = Ftp;
-            ToolTip.SetTip(BtnSaves, Ftp ? "Every game's saves on the console, to back up" : "Needs GoldHEN's FTP server running on the console");
-
-            int Picked = SaveEntries.Count(x => x.Selected);
-            BtnBackupSaves.IsEnabled = Ftp && !SavesBusy && Picked > 0;
-            BtnBackupSaves.Content = Picked > 1 ? $"Back up {Picked} games" : "Back up selected";
-            ToolTip.SetTip(BtnBackupSaves, SavesBusy ? "Backing up…" : !Ftp ? "Needs GoldHEN's FTP server running on the console"
-                : Picked == 0 ? "Tick the games to back up" : $"Zips them into {ConsoleSaves.Folder}");
-            BtnSelectAllSaves.IsEnabled = SaveEntries.Count > 0 && !SavesBusy;
-            BtnSelectAllSaves.Content = SaveEntries.Count > 0 && SaveEntries.All(x => x.Selected) ? "Select none" : "Select all";
-            BtnSaveFolder.IsEnabled = !SavesBusy;
-            SaveFolderText.Text = "Backups go to: " + ConsoleSaves.Folder;
-            BtnOpenSaveFolder.IsEnabled = Directory.Exists(ConsoleSaves.Folder);
-            ToolTip.SetTip(BtnOpenSaveFolder, BtnOpenSaveFolder.IsEnabled ? "Open the backup folder" : "Nothing backed up there yet");
-        }
-
-        async System.Threading.Tasks.Task ShowSavesAsync()
-        {
-            if (string.IsNullOrWhiteSpace(App.Config.PSIP) || SavesBusy)
-                return;
-
-            SaveEntries = new();
-            SavesList.ItemsSource = null;
-            SavesPanel.IsVisible = true;
-            SavesBusy = true;
-            SyncSaveButtons();
-            try
-            {
-                SetSavesStatus("Reading the saves on the console…");
-                var Found = await ConsoleSaves.ListAllAsync(App.Config.PSIP.Trim(), new Progress<string>(SetSavesStatus));
-
-                // names from the console's titles, then the library, else the title ID
-                var Names = Model.AllTitles.ToDictionary(x => x.TitleId, x => x.Name, StringComparer.OrdinalIgnoreCase);
-                foreach (var Entry in Model.LibraryItems())
-                    Names.TryAdd(Entry.TitleId, Entry.Title);
-
-                SaveEntries = Found.Select(x => new SaveEntry(x, Names.TryGetValue(x.TitleId, out var N) ? N : x.TitleId))
-                    .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
-                foreach (var Entry in SaveEntries)
-                    Entry.PropertyChanged += (_, _) => SyncSaveButtons();
-                SavesList.ItemsSource = SaveEntries;
-                SetSavesStatus(SaveEntries.Count == 0 ? "No saves on the console."
-                    : $"{SaveEntries.Count} games have saves ({Host.TransferProgressInfo.FormatBytes(SaveEntries.Sum(x => x.Saves.Size))}).");
-            }
-            catch (Exception ex)
-            {
-                SetSavesStatus("Couldn't read the saves: " + ex.Message);
-            }
-            finally
-            {
-                SavesBusy = false;
-                SyncSaveButtons();
-            }
-        }
-
-        async System.Threading.Tasks.Task BackupSelectedSavesAsync()
-        {
-            var Picked = SaveEntries.Where(x => x.Selected).ToList();
-            if (Picked.Count == 0 || SavesBusy)
-                return;
-
-            // a running game writes its saves: skip it rather than copy a half-written one
-            var Running = ConsoleStatus.Instance.RunningTitleId;
-            SavesBusy = true;
-            SyncSaveButtons();
-            int Done = 0;
-            var Skipped = new List<string>();
-            try
-            {
-                foreach (var Entry in Picked)
-                {
-                    if (string.Equals(Entry.TitleId, Running, StringComparison.OrdinalIgnoreCase))
-                    {
-                        Skipped.Add($"{Entry.Name} (running)");
-                        continue;
-                    }
-                    SetSavesStatus($"Backing up {Done + 1} of {Picked.Count}: {Entry.Name}…");
-                    await ConsoleSaves.BackupAsync(App.Config.PSIP.Trim(), Entry.TitleId, Entry.Name, Entry.Saves.Users,
-                        new Progress<string>(Text => SetSavesStatus($"{Entry.Name}: {Text}")));
-                    Done++;
-                    Entry.Selected = false;
-                }
-                SetSavesStatus($"Backed up {Done} {(Done == 1 ? "game" : "games")} to {ConsoleSaves.Folder}."
-                               + (Skipped.Count > 0 ? $" Skipped: {string.Join(", ", Skipped)}; close it and back it up again." : ""));
-            }
-            catch (Exception ex)
-            {
-                SetSavesStatus($"Backed up {Done}, then it stopped: {ex.Message}");
-            }
-            finally
-            {
-                SavesBusy = false;
-                SyncSaveButtons();
-            }
-        }
-
-        async System.Threading.Tasks.Task ChooseSaveFolderAsync()
-        {
-            string? Folder = null;
-            if (App.IsSingleView)
-            {
-                var Picker = new FilePicker { FolderMode = true };
-                await Picker.OpenDir(App.RootDir);
-                await SingleView.CallView(Picker, false);
-                Folder = Picker.SelectedFiles.FirstOrDefault();
-            }
-            else if (TopLevel.GetTopLevel(this) is { } Top)
-            {
-                var Picked = await Top.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
-                {
-                    Title = "Choose where save backups go"
-                });
-                Folder = Picked.FirstOrDefault()?.TryGetLocalPath();
-            }
-            if (string.IsNullOrWhiteSpace(Folder))
-                return;
-
-            App.Config.SaveBackupFolder = Folder;
-            App.SaveSettings();
-            SyncSaveButtons();
-        }
 
         // ----- game patches panel
 
@@ -362,10 +209,10 @@ namespace DirectPackageInstaller.Views
             }
         }
 
-        async void MenuBackupSavesClick(object? sender, RoutedEventArgs e)
+        void MenuSavesClick(object? sender, RoutedEventArgs e)
         {
             if (ItemOf(sender) is { } Item)
-                await Model.BackupSavesAsync(Item);
+                AppShell.Current?.ShowSaves(Item.TitleId);
         }
 
         async void MenuMoveClick(object? sender, RoutedEventArgs e)

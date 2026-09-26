@@ -103,23 +103,6 @@ namespace DirectPackageInstaller.ViewModels
 
     /// <summary>"On PS4": what's installed on the console, read over GoldHEN FTP.</summary>
     /// <summary>One game's saves in the Saves panel.</summary>
-    public sealed class SaveEntry : ReactiveObject
-    {
-        public SaveEntry(ConsoleSaves.TitleSaves Saves, string Name)
-        {
-            this.Saves = Saves;
-            this.Name = Name;
-        }
-
-        public ConsoleSaves.TitleSaves Saves { get; }
-        public string Name { get; }
-        public string TitleId => Saves.TitleId;
-        public string Detail => $"{TitleId}  ·  {string.Join(", ", Saves.Users.Select(u => u.UserName))}  ·  {Host.TransferProgressInfo.FormatBytes(Saves.Size)}";
-
-        bool _Selected;
-        public bool Selected { get => _Selected; set => this.RaiseAndSetIfChanged(ref _Selected, value); }
-    }
-
     /// <summary>One drive in the "On PS4" storage boxes.</summary>
     public sealed class StorageBox
     {
@@ -251,47 +234,6 @@ namespace DirectPackageInstaller.ViewModels
         }
 
         /// <summary>Zip the title's saves (every console user) to this device; read-only on the console.</summary>
-        public async Task BackupSavesAsync(ConsoleTitleItem Item)
-        {
-            var IP = App.Config.PSIP?.Trim();
-            if (!CanCopyCaptures || string.IsNullOrEmpty(IP))
-                return;
-
-            CopyingCaptures = true;
-            this.RaisePropertyChanged(nameof(CanCopyCaptures));
-            this.RaisePropertyChanged(nameof(CapturesTip));
-            try
-            {
-                if (string.Equals(ConsoleStatus.Instance.RunningTitleId, Item.TitleId, StringComparison.OrdinalIgnoreCase))
-                {
-                    CapturesStatus = $"{Item.Name} is running on the console: close it first, so its saves aren't copied half-written.";
-                    return;
-                }
-
-                CapturesStatus = $"Looking for {Item.Name}'s saves…";
-                var Users = await ConsoleSaves.FindAsync(IP, Item.TitleId);
-                if (Users.Count == 0)
-                {
-                    CapturesStatus = $"{Item.Name} has no saved data on the console.";
-                    return;
-                }
-
-                var Folder = await ConsoleSaves.BackupAsync(IP, Item.TitleId, Item.Name, Users, new Progress<string>(Text => CapturesStatus = Text));
-                CapturesStatus = $"Backed up {Item.Name}'s saves ({string.Join(", ", Users.Select(x => x.UserName))}) to {Folder}. " +
-                                 "Saves only load on this console and account; restore them with Apollo Save Tool (Homebrew page).";
-            }
-            catch (Exception ex)
-            {
-                CapturesStatus = "Couldn't back up the saves: " + ex.Message;
-            }
-            finally
-            {
-                CopyingCaptures = false;
-                this.RaisePropertyChanged(nameof(CanCopyCaptures));
-                this.RaisePropertyChanged(nameof(CapturesTip));
-            }
-        }
-
         /// <summary>Reading needs GoldHEN's FTP (or RPI) answering.</summary>
         public bool CanRefresh => !IsLoading && ConsoleStatus.Instance.CanRead;
         public string RefreshTip => ConsoleStatus.Instance.CanRead || IsLoading

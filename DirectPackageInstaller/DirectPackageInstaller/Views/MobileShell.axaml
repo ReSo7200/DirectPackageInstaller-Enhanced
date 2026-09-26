@@ -34,6 +34,7 @@
         <Panel Grid.Row="1" Name="Pages">
             <views:LibraryPage Name="LibraryPage"/>
             <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
+            <views:SavesPage Name="SavesPage" IsVisible="False"/>
             <Panel Name="LinkHost" IsVisible="False"/>
             <views:HomebrewPage Name="HomebrewPage" IsVisible="False"/>
             <views:QueuePage Name="QueuePage" IsVisible="False"/>
@@ -44,6 +45,7 @@
             <UniformGrid Rows="1" Height="58">
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabLibrary" IsChecked="True" Content="Library"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabConsole" Content="On PS4"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabSaves" Content="Saves"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabLink" Content="Link"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabHomebrew" Content="Apps"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabQueue" Content="Queue"/>
@@ -61,7 +63,7 @@
                             <Border Name="Bar" Background="Transparent" Margin="18,0" CornerRadius="0,0,2,2"/>
                             <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="2">
                                 <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center"
-                                                  TextElement.FontSize="13" TextElement.FontWeight="Medium"/>
+                                                  TextElement.FontSize="12" TextElement.FontWeight="Medium"/>
                                 <Border Name="Badge" HorizontalAlignment="Center" IsVisible="{Binding $parent[RadioButton].Tag, Converter={x:Static ObjectConverters.IsNotNull}}"
                                         Background="{StaticResource Signal}" CornerRadius="8" MinWidth="16" Height="16" Padding="4,0">
                                     <TextBlock Text="{Binding $parent[RadioButton].Tag}" FontSize="10" FontWeight="Bold"

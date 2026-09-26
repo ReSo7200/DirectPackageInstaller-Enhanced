@@ -14,7 +14,8 @@
 
     <Grid RowDefinitions="54,*">
         <Border Background="{StaticResource Deck}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,*,Auto" Margin="22,0,14,0">
+            <!-- the pill takes what the tabs leave and trims its text (narrow windows) -->
+            <Grid ColumnDefinitions="Auto,Auto,*" Margin="22,0,14,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="6" Margin="0,0,26,0">
                     <TextBlock Text="DPI" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="24"
                                Foreground="{StaticResource Signal}"/>
@@ -25,6 +26,7 @@
                     <RadioButton Classes="nav" GroupName="nav" Name="NavLibrary" IsChecked="True" Content="Library"
                                  ToolTip.Tip="Ctrl+1"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavConsole" Content="On PS4" ToolTip.Tip="Ctrl+2"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavSaves" Content="Saves" ToolTip.Tip="Ctrl+7"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavLink" Content="Direct link" ToolTip.Tip="Ctrl+3"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavHomebrew" Content="Homebrew" ToolTip.Tip="Ctrl+6"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavQueue" Content="Queue" ToolTip.Tip="Ctrl+4"/>
@@ -33,20 +35,21 @@
 
                 <!-- console status pill: click to re-check -->
                 <Button Grid.Column="2" Name="ConsolePill" Classes="ghost" VerticalAlignment="Center" Padding="12,6"
+                        HorizontalAlignment="Right" Margin="12,0,0,0"
                         x:DataType="svc:ConsoleStatus" x:CompileBindings="True"
                         ToolTip.Tip="{Binding PillTip}">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                         <Ellipse Width="9" Height="9" Classes="dot"
                                  Classes.online="{Binding IsOnline}"
                                  Classes.checking="{Binding IsChecking}"
                                  VerticalAlignment="Center"/>
-                        <StackPanel Spacing="0">
+                        <StackPanel Grid.Column="1" Spacing="0">
                             <TextBlock Text="{Binding Address}" FontFamily="{StaticResource Mono}" FontSize="12.5"
                                        Foreground="{StaticResource Text}" HorizontalAlignment="Right"/>
                             <TextBlock Text="{Binding Mode}" FontSize="11" Foreground="{StaticResource Muted}"
-                                       HorizontalAlignment="Right"/>
+                                       HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
                 </Button>
             </Grid>
         </Border>
@@ -54,6 +57,7 @@
         <Panel Grid.Row="1">
             <views:LibraryPage Name="LibraryPage"/>
             <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
+            <views:SavesPage Name="SavesPage" IsVisible="False"/>
             <views:MainView Name="View" IsVisible="False"/>
             <views:HomebrewPage Name="HomebrewPage" IsVisible="False"/>
             <views:QueuePage Name="QueuePage" IsVisible="False"/>

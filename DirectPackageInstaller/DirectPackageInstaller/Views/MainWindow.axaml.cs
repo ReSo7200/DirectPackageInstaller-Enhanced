@@ -37,10 +37,12 @@ namespace DirectPackageInstaller.Views
             };
 
             ConsolePage.Attach(() => (LibraryPage.DataContext as LibraryViewModel)?.Entries ?? Array.Empty<LibraryEntry>());
+            SavesPage.Attach(() => ConsolePage.ViewModel);
 
             NavLibrary.IsCheckedChanged += (_, _) => ShowPage();
             NavConsole.IsCheckedChanged += (_, _) => ShowPage();
             NavLink.IsCheckedChanged += (_, _) => ShowPage();
+            NavSaves.IsCheckedChanged += (_, _) => ShowPage();
             NavQueue.IsCheckedChanged += (_, _) => ShowPage();
             NavHomebrew.IsCheckedChanged += (_, _) => ShowPage();
             NavSettings.IsCheckedChanged += (_, _) => ShowPage();
@@ -90,6 +92,7 @@ namespace DirectPackageInstaller.Views
             LibraryPage.IsVisible = NavLibrary.IsChecked == true;
             ConsolePage.IsVisible = NavConsole.IsChecked == true;
             View.IsVisible = NavLink.IsChecked == true;
+            SavesPage.IsVisible = NavSaves.IsChecked == true;
             QueuePage.IsVisible = NavQueue.IsChecked == true;
             HomebrewPage.IsVisible = NavHomebrew.IsChecked == true;
             SettingsPage.IsVisible = NavSettings.IsChecked == true;
@@ -107,6 +110,8 @@ namespace DirectPackageInstaller.Views
                 ConsolePage.OnShown();
             if (HomebrewPage.IsVisible)
                 HomebrewPage.OnShown();
+            if (SavesPage.IsVisible)
+                SavesPage.OnShown();
         }
 
         void OnKeyDown(object? sender, KeyEventArgs e)
@@ -122,6 +127,7 @@ namespace DirectPackageInstaller.Views
                 Key.D4 or Key.NumPad4 => NavQueue,
                 Key.D5 or Key.NumPad5 => NavSettings,
                 Key.D6 or Key.NumPad6 => NavHomebrew,
+                Key.D7 or Key.NumPad7 => NavSaves,
                 _ => null
             };
 
@@ -135,6 +141,13 @@ namespace DirectPackageInstaller.Views
         public void ShowDirectLink() => NavLink.IsChecked = true;
 
         public void ShowQueue() => NavQueue.IsChecked = true;
+
+        public void ShowSaves(string? TitleId = null)
+        {
+            if (TitleId != null)
+                SavesPage.ShowTitle(TitleId);
+            NavSaves.IsChecked = true;
+        }
 
         /// <summary>Files sent from Explorer go to the queue; folders join the library.</summary>
         async System.Threading.Tasks.Task HandleShellArgsAsync(string[] Args)

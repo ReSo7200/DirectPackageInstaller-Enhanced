@@ -308,10 +308,15 @@ namespace DirectPackageInstaller.Views
                     return;
                 }
 
+                // flag fake bases: Sony's official update won't marry with a fake PKG (CE-36441-8 at install)
+                var FakeBases = Library
+                    .Where(e => e.Error == null && e.Kind == "Game" && e.Fake)
+                    .Select(e => e.TitleId)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 Installed = Titles
                     .Where(x => x.TitleId.Length > 0)
                     .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
-                    .Select(x => new InstalledUpdate(x)).ToList();
+                    .Select(x => new InstalledUpdate(x) { FakeBase = FakeBases.Contains(x.TitleId) }).ToList();
                 ConsoleStale = false;
                 ApplyConsoleFilter();
                 ShowConsole();

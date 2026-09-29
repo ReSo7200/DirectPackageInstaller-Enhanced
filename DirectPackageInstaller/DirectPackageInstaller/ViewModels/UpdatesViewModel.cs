@@ -24,6 +24,19 @@ namespace DirectPackageInstaller.ViewModels
         /// <summary>The update level installed on the console (APP_VER); base games read "01.00".</summary>
         public string InstalledVersion => Title.Version.Length > 0 ? Title.Version : "01.00";
 
+        bool _FakeBase;
+        /// <summary>The base game in the local library is a fake PKG — Sony's retail update won't marry with it (CE-36441-8).</summary>
+        public bool FakeBase
+        {
+            get => _FakeBase;
+            set
+            {
+                this.RaiseAndSetIfChanged(ref _FakeBase, value);
+                foreach (var Name in new[] { nameof(CanDownload), nameof(Detail) })
+                    this.RaisePropertyChanged(Name);
+            }
+        }
+
         public string Monogram => new string(Name.Where(char.IsLetterOrDigit).Take(2).ToArray()).ToUpperInvariant() is { Length: > 0 } M ? M : "?";
 
         OrbisPatches.Patch? _Latest;
@@ -54,13 +67,15 @@ namespace DirectPackageInstaller.ViewModels
 
         public bool NeedsUpdate => Status == UpdateStatus.UpdateAvailable;
         public bool CanOpen => Status is UpdateStatus.UpdateAvailable or UpdateStatus.UpToDate;
-        public bool CanDownload => Status == UpdateStatus.UpdateAvailable;
+        public bool CanDownload => Status == UpdateStatus.UpdateAvailable && !FakeBase;
 
         public string StatusText => Status switch
         {
             UpdateStatus.Checking => "Checking…",
             UpdateStatus.UpToDate => "Up to date",
-            UpdateStatus.UpdateAvailable => $"Update to v{_Latest!.Version}",
+            UpdateStatus.UpdateAvailable => FakeBase
+                ? $"Update to v{_Latest!.Version} (fake base — needs a matching fake update)"
+                : $"Update to v{_Latest!.Version}",
             UpdateStatus.NoUpdates => "No updates",
             _ => "Couldn't check"
         };

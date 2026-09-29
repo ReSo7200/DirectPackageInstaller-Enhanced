@@ -142,7 +142,7 @@
                                 <Border Classes="card" Padding="14,12" Margin="0,0,0,8">
                                     <Grid RowDefinitions="Auto,Auto">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Classes="entry">
-                                            <StackPanel Spacing="3" VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
                                                 <WrapPanel ItemSpacing="8" LineSpacing="4">
                                                     <TextBlock Text="{Binding Version}" FontWeight="SemiBold" FontSize="15.5" VerticalAlignment="Center"/>
                                                     <Border Classes="kind" VerticalAlignment="Center" IsVisible="{Binding IsLatest}">
@@ -153,7 +153,7 @@
                                                 <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Changelog}" TextWrapping="Wrap"
                                                            IsVisible="{Binding HasChangelog}" Margin="0,2,0,0"/>
                                             </StackPanel>
-                                            <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6"
+                                            <WrapPanel Grid.Column="1" Orientation="Horizontal" ItemSpacing="6" LineSpacing="6"
                                                        VerticalAlignment="Center" HorizontalAlignment="Right">
                                                 <Button Content="Save" Tag="{Binding}" Click="SavePatchClick"
                                                         IsVisible="{Binding IsLatest}" IsEnabled="{Binding !Busy}"

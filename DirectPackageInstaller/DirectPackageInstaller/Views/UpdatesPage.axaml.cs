@@ -480,6 +480,13 @@ namespace DirectPackageInstaller.Views
 
                 var Folder = TargetFolderFor(TitleId);
                 var Firmware = Patch.SystemVersion.Length > 0 ? $"Needs console firmware {Patch.SystemVersion} or newer.\n" : "";
+                // Sony's official updates are retail-signed. If the base game in the library is a fake
+                // PKG the console rejects the update at install (CE-36441-8: the update is not married
+                // to that base). Only a matching fake update from the same source will install over it.
+                var Base = Library.FirstOrDefault(e => e.Error == null && e.Kind == "Game"
+                    && string.Equals(e.TitleId, TitleId, StringComparison.OrdinalIgnoreCase));
+                var FakeWarning = Base is { Fake: true }
+                    ? "\n\n⚠ Your base game for this title is a fake PKG. Sony's official update won't marry with it (CE-36441-8 at install). You need a fake update from the same source (NoPayStation / matching CUSA), not this one." : "";
                 var Confirm = await MessageBox.ShowAsync(
                     (Send
                         ? $"Download {Name} update {Patch.Version} from PlayStation Network and send it to the console?\n\n"
@@ -487,8 +494,10 @@ namespace DirectPackageInstaller.Views
                     $"Size: {TransferProgressInfo.FormatBytes(Patch.Size)}\n" + Firmware +
                     $"Saved to: {Folder}\n\n" +
                     (Send ? "It's sent to the console once the download finishes. " : "") +
-                    "Updates only install over a matching base game.",
-                    Send ? "Send update to PS4" : "Save update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    "Updates only install over a matching base game." + FakeWarning,
+                    Send ? "Send update to PS4" : "Save update",
+                    MessageBoxButtons.YesNo,
+                    Base is { Fake: true } ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
                 if (Confirm != DialogResult.Yes)
                     return;
 

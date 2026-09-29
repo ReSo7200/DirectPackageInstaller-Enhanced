@@ -93,6 +93,12 @@ namespace DirectPackageInstaller.Services
 
         static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
 
+        /// <summary>How long a piece may go without a byte before we call it stalled.</summary>
+        static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(30);
+
+        /// <summary>How long a piece's connect + response headers may take before we call it stalled.</summary>
+        static readonly TimeSpan HeaderTimeout = TimeSpan.FromSeconds(20);
+
         /// <summary>Latest official update with its download manifest, or null (no updates / offline).</summary>
         public static async Task<OfficialPatch?> LatestAsync(string TitleId, CancellationToken Token = default)
         {
@@ -213,8 +219,22 @@ namespace DirectPackageInstaller.Services
                 if (Have > 0)
                     Request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(Have, null);
 
-                using var Response = await Http.SendAsync(Request, HttpCompletionOption.ResponseHeadersRead, Token);
-                Response.EnsureSuccessStatusCode();
+                HttpResponseMessage Response;
+                using (var HdrCts = CancellationTokenSource.CreateLinkedTokenSource(Token))
+                {
+                    HdrCts.CancelAfter(HeaderTimeout);
+                    try
+                    {
+                        Response = await Http.SendAsync(Request, HttpCompletionOption.ResponseHeadersRead, HdrCts.Token);
+                    }
+                    catch (OperationCanceledException) when (!Token.IsCancellationRequested)
+                    {
+                        throw new IOException($"PlayStation Network didn't answer in {(int)HeaderTimeout.TotalSeconds}s. Start it again to retry.");
+                    }
+                }
+                using (Response)
+                {
+                    Response.EnsureSuccessStatusCode();
 
                 // server ignored the range: start over
                 if (Have > 0 && Response.StatusCode != System.Net.HttpStatusCode.PartialContent)
@@ -228,8 +248,23 @@ namespace DirectPackageInstaller.Services
                 long SessionStart = Have;
                 var LastUi = DateTime.MinValue;
                 int Read;
-                while ((Read = await Input.ReadAsync(Buffer, Token)) > 0)
+                while (true)
                 {
+                    // per-read stall guard: if no bytes arrive within ReadTimeout the socket has stalled;
+                    // throw a timeout so the download can be resumed instead of hanging forever
+                    using var ReadCts = CancellationTokenSource.CreateLinkedTokenSource(Token);
+                    ReadCts.CancelAfter(ReadTimeout);
+                    try
+                    {
+                        Read = await Input.ReadAsync(Buffer, ReadCts.Token);
+                    }
+                    catch (OperationCanceledException) when (!Token.IsCancellationRequested)
+                    {
+                        throw new IOException($"The download stalled (no data for {(int)ReadTimeout.TotalSeconds}s). Start it again to continue where it stopped.");
+                    }
+                    if (Read <= 0)
+                        break;
+
                     await Output.WriteAsync(Buffer.AsMemory(0, Read), Token);
                     Have += Read;
 
@@ -244,6 +279,7 @@ namespace DirectPackageInstaller.Services
                             Download.Message = $"{TransferProgressInfo.FormatBytes(Overall)} of {TransferProgressInfo.FormatBytes(Total)}  ·  {TransferProgressInfo.FormatBytes(Speed)}/s";
                         });
                     }
+                }
                 }
             }
 

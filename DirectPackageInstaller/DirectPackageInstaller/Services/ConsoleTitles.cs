@@ -155,6 +155,28 @@ namespace DirectPackageInstaller.Services
                     break;
                 }
 
+                // When an update is installed, the appmeta SFO often still reports the base APP_VER;
+                // the patch's own param.sfo (/user/patch/<TID>/sce_sys/param.sfo, or the ext variant)
+                // carries the installed update version. Use the higher of the two.
+                if (Item.HasUpdate)
+                {
+                    var PatchSfoPaths = new[]
+                    {
+                        $"/user/patch/{Tid}/sce_sys/param.sfo",
+                        $"/mnt/ext0/user/patch/{Tid}/sce_sys/param.sfo"
+                    };
+                    foreach (var PatchSfo in PatchSfoPaths)
+                    {
+                        var Values = await SfoAsync(Ftp, PatchSfo, Token);
+                        if (Values == null)
+                            continue;
+                        if (Values.TryGetValue("APP_VER", out var PatchVer) && PatchVer.Length > 0
+                            && (Item.Version.Length == 0 || CompareVersion(PatchVer, Item.Version) > 0))
+                            Item.Version = PatchVer;
+                        break;
+                    }
+                }
+
                 // DLC entitlement folders
                 if (DlcRoots.TryGetValue(Tid, out var Roots))
                     foreach (var Root in Roots)
@@ -193,6 +215,19 @@ namespace DirectPackageInstaller.Services
             }
 
             return Result;
+        }
+
+        /// <summary>Compare "01.03" style version strings numerically; unparseable sorts as equal.</summary>
+        static int CompareVersion(string A, string B)
+        {
+            static (int, int) Parse(string V)
+            {
+                var Parts = (V ?? "").Split('.');
+                int.TryParse(Parts.ElementAtOrDefault(0), out var Major);
+                int.TryParse(Parts.ElementAtOrDefault(1), out var Minor);
+                return (Major, Minor);
+            }
+            return Parse(A).CompareTo(Parse(B));
         }
 
         static async Task<Dictionary<string, string>?> SfoAsync(FtpLite Ftp, string SfoPath, CancellationToken Token)

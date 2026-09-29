@@ -67,7 +67,7 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
-                                                   FontSize="16.5" TextWrapping="Wrap"/>
+                                                   FontSize="16.5" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxLines="2"/>
                                         <WrapPanel ItemSpacing="8" LineSpacing="4">
                                             <TextBlock Classes="mono" Text="{Binding TitleId}" VerticalAlignment="Center"/>
                                             <Border Classes="kind" VerticalAlignment="Center">
@@ -76,7 +76,8 @@
                                         </WrapPanel>
                                         <TextBlock Classes="mono" FontSize="12" Text="{Binding Detail}" TextWrapping="Wrap"/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <WrapPanel Grid.Column="2" Orientation="Horizontal" ItemSpacing="6" LineSpacing="6"
+                                               VerticalAlignment="Center" HorizontalAlignment="Right">
                                         <Button Content="Save" Tag="{Binding}" Click="SaveInstalledClick"
                                                 IsVisible="{Binding CanDownload}"
                                                 ToolTip.Tip="Download this update into your PKG library folder"/>
@@ -85,7 +86,7 @@
                                                 ToolTip.Tip="Download it into your library, then send it to the console to install"/>
                                         <Button Classes="ghost" Content="Details" Tag="{Binding}" Click="InstalledDetailsClick"
                                                 ToolTip.Tip="Every update version for this game"/>
-                                    </StackPanel>
+                                    </WrapPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -113,7 +114,7 @@
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
-                                                   FontSize="16.5" TextWrapping="Wrap"/>
+                                                   FontSize="16.5" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxLines="2"/>
                                         <TextBlock Classes="mono" FontSize="12" Text="{Binding Meta}"/>
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Classes="muted" FontSize="18" Text="›" VerticalAlignment="Center" Margin="6,0"/>
@@ -152,7 +153,8 @@
                                                 <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Changelog}" TextWrapping="Wrap"
                                                            IsVisible="{Binding HasChangelog}" Margin="0,2,0,0"/>
                                             </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Right">
                                                 <Button Content="Save" Tag="{Binding}" Click="SavePatchClick"
                                                         IsVisible="{Binding IsLatest}" IsEnabled="{Binding !Busy}"
                                                         ToolTip.Tip="Download this update into your PKG library folder"/>
@@ -161,7 +163,7 @@
                                                         ToolTip.Tip="Download it into your library, then send it to the console to install"/>
                                                 <Button Classes="ghost" Content="Open" Tag="{Binding}" Click="OpenClick"
                                                         ToolTip.Tip="Open this version on orbispatches.com to download it in your browser"/>
-                                            </StackPanel>
+                                            </WrapPanel>
                                         </Grid>
                                     </Grid>
                                 </Border>

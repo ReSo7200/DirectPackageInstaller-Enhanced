@@ -1,10 +1,70 @@
+<div align="center">
+
+<img src="docs/screenshots/library.png" width="900" alt="DPI Enhanced" />
+
 # DPI Enhanced
 
-**A PS4 package manager for Windows and Android.** Keep your `.pkg` files in a library, see what's already on the console, send packages, move games between system and extended storage, back up saves, copy screenshots, switch on game patches and install homebrew, all from your PC or phone.
+**A PS4 package manager for Windows and Android.**
 
-DPI Enhanced is a fork of [marcussacana/DirectPackageInstaller](https://github.com/marcussacana/DirectPackageInstaller), rebuilt around a new design. Sending from direct download links still works as before; that original README is below the line.
+Keep your `.pkg` files in a cover‑grid library, see what's already on the console, send packages, move games between system and extended storage, back up saves, download official updates and copy screenshots — all from your PC or phone.
 
-**On the console you need** a jailbroken PS4 with [GoldHEN](https://github.com/GoldHEN/GoldHEN): its **BinLoader** (payload server) to send packages and its **FTP server** to read what's installed. [Remote Package Installer](https://github.com/flatz/ps4_remote_pkg_installer) is optional (uninstalling, moving games, live progress), and etaHEN is supported for PS5.
+[![Latest release](https://img.shields.io/github/v/release/ReSo7200/DirectPackageInstaller-Enhanced?color=2b7fff&label=release)](https://github.com/ReSo7200/DirectPackageInstaller-Enhanced/releases/latest)
+[![License](https://img.shields.io/badge/license-GPL--3.0-4c9d4c)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-9a86f0)](#)
+
+</div>
+
+---
+
+## Overview
+
+DPI Enhanced is a fork of [marcussacana/DirectPackageInstaller](https://github.com/marcussacana/DirectPackageInstaller), rebuilt around a new design and a workflow that treats your PKG library, the console and your saves as one thing. Sending from a direct download link still works exactly as it did in the original — that README is preserved further below.
+
+**What's on top of the original**
+
+- A cover‑grid **Library** across every folder you point at it, with what's on the console shown right on each cover.
+- An **On PS4** page: everything installed, free space on each drive, moving games between system and extended storage.
+- A **Saves** page: every save, every user, next to your backups.
+- A new **Updates** page: search any PS4 game or check the console for missing updates against **orbispatches.com**; save into the library and send to the console.
+- A resumable **Queue** with live progress, split‑package support, and *Send what's missing* — the game if it isn't installed, the newest update if it's newer, and DLC that isn't there yet.
+- **Homebrew** from authors' GitHub releases; Windows Explorer *Send to PS4* right‑click; drag and drop.
+
+**Console requirements**
+
+Jailbroken PS4 with [GoldHEN](https://github.com/GoldHEN/GoldHEN) — its **BinLoader** to send packages, and its **FTP server** (with full‑file‑system access) to read what's installed. [Remote Package Installer](https://github.com/flatz/ps4_remote_pkg_installer) is optional (uninstalling, moving games, live progress). etaHEN is supported for PS5.
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/library.png"><img src="docs/screenshots/library.png" alt="Library"/></a>
+      <p><b>Library</b> — every game, update and DLC across your PKG folders, with what's on the console shown on each cover.</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/on-ps4.png"><img src="docs/screenshots/on-ps4.png" alt="On PS4"/></a>
+      <p><b>On PS4</b> — everything installed, with free space on system and extended storage.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/saves.png"><img src="docs/screenshots/saves.png" alt="Saves"/></a>
+      <p><b>Saves</b> — every save on the console for every user, next to your backups.</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/updates.png"><img src="docs/screenshots/updates.png" alt="Updates"/></a>
+      <p><b>Updates</b> — installed games with a newer official update from orbispatches.com. Save into your library or send to the console.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top" align="center">
+      <a href="docs/screenshots/queue.png"><img src="docs/screenshots/queue.png" alt="Queue" width="900"/></a>
+      <p><b>Queue</b> — packages go to the PS4 one at a time, with resumable transfers and live progress.</p>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -33,6 +93,12 @@ DPI Enhanced is a fork of [marcussacana/DirectPackageInstaller](https://github.c
 - **Back up** one game or all you tick: a zip per user in a folder you choose (`Documents\DPI Save Backups` by default, `Download/DPI Save Backups` on Android), one folder per game with its cover.
 - **Restore** a backup to its own user or another one on the console. What it overwrites is backed up first (kept as a *BEFORE RESTORE* backup), a running game is refused, and each file is checked after it's written. Saves are sealed to their console: another console's saves need resigning with Apollo Save Tool.
 - **Import** save zips from elsewhere, and delete old backups (to the Recycle Bin / Trash).
+
+### Updates
+- **Search any PS4 game** on [orbispatches.com](https://orbispatches.com) by name or CUSA ID and see its full update history: version, size, required firmware and changelog.
+- **Installed on PS4:** read the console, then look each installed game up on orbispatches to flag which are behind. *Needs update only* filter and a plain-English summary ("13 of 27 games need an update"). Refreshes automatically when the console is rescanned on another tab.
+- **Save** downloads the latest update from PlayStation Network into your PKG library folder — next to the base game when it's there, else the folder you chose (`Change…` on the page). **Send to PS4** downloads it, then enqueues it to the console just like the Library's send.
+- Older versions open on **orbispatches.com** so the browser can handle the site's reCAPTCHA gate for direct download.
 
 ### Sending and installing
 - **Queue:** packages go out one at a time (game, then updates, then DLC) with live progress, pause/resume, retry and readable error messages. It says *Installed* when the console confirms it, and the Library and On PS4 update by themselves.
@@ -65,7 +131,7 @@ Buttons are only enabled when they can do something, and their tooltip says why 
 
 For the experimental features (free space, Install to, moving games), turn on **Experimental GoldHEN payload** in Settings.
 
-## Updates
+## App updates
 
 DPI checks for new versions the way InstaEclipse does: it reads [`version.json`](version.json) on this repository's default branch:
 

@@ -387,6 +387,8 @@ namespace DirectPackageInstaller.ViewModels
                           + (Installing > 0 ? $" ({Installing} still installing)" : "")
                           + $"  ·  read at {DateTime.Now:HH:mm}";
                 Loaded = true;
+                // dependent tabs (Updates, Saves) can share this scan instead of redoing FTP
+                this.RaisePropertyChanged(nameof(AllTitles));
                 ApplyFilter();
                 _ = ReadFreeSpaceAsync(IP);
             }

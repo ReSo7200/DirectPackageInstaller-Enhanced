@@ -63,10 +63,43 @@ namespace DirectPackageInstaller.Views
             SetMode();
         }
 
-        /// <summary>Reuse the On PS4 page's already-read titles (and its cached covers) when it has them.</summary>
-        public void Attach(Func<ConsoleViewModel?> Console) => this.Console = Console;
+        /// <summary>Reuse the On PS4 page's already-read titles (and its cached covers) when it has them.
+        /// Also listen: when that page rescans, refresh here too (or on next OnShown), so this tab
+        /// isn't stale after a scan or a console-side change like an install.</summary>
+        public void Attach(Func<ConsoleViewModel?> Console)
+        {
+            this.Console = Console;
+            SubscribeToConsole();
+        }
 
-        public void OnShown() { SyncConsoleButtons(); RefreshFolder(); }
+        bool ConsoleSubscribed;
+        void SubscribeToConsole()
+        {
+            if (ConsoleSubscribed || Console() is not { } Vm)
+                return;
+            Vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(ConsoleViewModel.AllTitles))
+                    return;
+                ConsoleStale = true;
+                if (ConsoleMode && IsVisible)
+                    _ = ReadConsoleAsync();
+            };
+            ConsoleSubscribed = true;
+        }
+
+        /// <summary>True when a scan happened elsewhere (On PS4 refresh, install, uninstall) since our last read.</summary>
+        bool ConsoleStale;
+
+        public void OnShown()
+        {
+            SubscribeToConsole();
+            SyncConsoleButtons();
+            RefreshFolder();
+            // switched back after the console changed: re-read silently so the list isn't stale
+            if (ConsoleMode && ConsoleStale && Ftp && !Busy)
+                _ = ReadConsoleAsync();
+        }
 
         string Ip => App.Config.PSIP?.Trim() ?? "";
         bool Ftp => ConsoleStatus.Instance.FtpOpen && Ip.Length > 0;
@@ -279,6 +312,7 @@ namespace DirectPackageInstaller.Views
                     .Where(x => x.TitleId.Length > 0)
                     .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
                     .Select(x => new InstalledUpdate(x)).ToList();
+                ConsoleStale = false;
                 ApplyConsoleFilter();
                 ShowConsole();
                 await CheckUpdatesAsync();

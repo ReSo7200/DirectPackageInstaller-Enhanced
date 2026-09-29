@@ -27,6 +27,7 @@
                                  ToolTip.Tip="Ctrl+1"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavConsole" Content="On PS4" ToolTip.Tip="Ctrl+2"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavSaves" Content="Saves" ToolTip.Tip="Ctrl+7"/>
+                    <RadioButton Classes="nav" GroupName="nav" Name="NavUpdates" Content="Updates" ToolTip.Tip="Ctrl+8"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavLink" Content="Direct link" ToolTip.Tip="Ctrl+3"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavHomebrew" Content="Homebrew" ToolTip.Tip="Ctrl+6"/>
                     <RadioButton Classes="nav" GroupName="nav" Name="NavQueue" Content="Queue" ToolTip.Tip="Ctrl+4"/>
@@ -58,6 +59,7 @@
             <views:LibraryPage Name="LibraryPage"/>
             <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
             <views:SavesPage Name="SavesPage" IsVisible="False"/>
+            <views:UpdatesPage Name="UpdatesPage" IsVisible="False"/>
             <views:MainView Name="View" IsVisible="False"/>
             <views:HomebrewPage Name="HomebrewPage" IsVisible="False"/>
             <views:QueuePage Name="QueuePage" IsVisible="False"/>

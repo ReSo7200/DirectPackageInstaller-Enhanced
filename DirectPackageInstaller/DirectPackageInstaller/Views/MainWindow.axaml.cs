@@ -38,11 +38,13 @@ namespace DirectPackageInstaller.Views
 
             ConsolePage.Attach(() => (LibraryPage.DataContext as LibraryViewModel)?.Entries ?? Array.Empty<LibraryEntry>());
             SavesPage.Attach(() => ConsolePage.ViewModel);
+            UpdatesPage.Attach(() => ConsolePage.ViewModel);
 
             NavLibrary.IsCheckedChanged += (_, _) => ShowPage();
             NavConsole.IsCheckedChanged += (_, _) => ShowPage();
             NavLink.IsCheckedChanged += (_, _) => ShowPage();
             NavSaves.IsCheckedChanged += (_, _) => ShowPage();
+            NavUpdates.IsCheckedChanged += (_, _) => ShowPage();
             NavQueue.IsCheckedChanged += (_, _) => ShowPage();
             NavHomebrew.IsCheckedChanged += (_, _) => ShowPage();
             NavSettings.IsCheckedChanged += (_, _) => ShowPage();
@@ -93,6 +95,7 @@ namespace DirectPackageInstaller.Views
             ConsolePage.IsVisible = NavConsole.IsChecked == true;
             View.IsVisible = NavLink.IsChecked == true;
             SavesPage.IsVisible = NavSaves.IsChecked == true;
+            UpdatesPage.IsVisible = NavUpdates.IsChecked == true;
             QueuePage.IsVisible = NavQueue.IsChecked == true;
             HomebrewPage.IsVisible = NavHomebrew.IsChecked == true;
             SettingsPage.IsVisible = NavSettings.IsChecked == true;
@@ -112,6 +115,8 @@ namespace DirectPackageInstaller.Views
                 HomebrewPage.OnShown();
             if (SavesPage.IsVisible)
                 SavesPage.OnShown();
+            if (UpdatesPage.IsVisible)
+                UpdatesPage.OnShown();
         }
 
         void OnKeyDown(object? sender, KeyEventArgs e)
@@ -128,6 +133,7 @@ namespace DirectPackageInstaller.Views
                 Key.D5 or Key.NumPad5 => NavSettings,
                 Key.D6 or Key.NumPad6 => NavHomebrew,
                 Key.D7 or Key.NumPad7 => NavSaves,
+                Key.D8 or Key.NumPad8 => NavUpdates,
                 _ => null
             };
 

@@ -35,6 +35,7 @@
             <views:LibraryPage Name="LibraryPage"/>
             <views:ConsolePage Name="ConsolePage" IsVisible="False"/>
             <views:SavesPage Name="SavesPage" IsVisible="False"/>
+            <views:UpdatesPage Name="UpdatesPage" IsVisible="False"/>
             <Panel Name="LinkHost" IsVisible="False"/>
             <views:HomebrewPage Name="HomebrewPage" IsVisible="False"/>
             <views:QueuePage Name="QueuePage" IsVisible="False"/>
@@ -46,6 +47,7 @@
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabLibrary" IsChecked="True" Content="Library"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabConsole" Content="On PS4"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabSaves" Content="Saves"/>
+                <RadioButton Classes="tab" GroupName="mtab" Name="TabUpdates" Content="Updates"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabLink" Content="Link"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabHomebrew" Content="Apps"/>
                 <RadioButton Classes="tab" GroupName="mtab" Name="TabQueue" Content="Queue"/>

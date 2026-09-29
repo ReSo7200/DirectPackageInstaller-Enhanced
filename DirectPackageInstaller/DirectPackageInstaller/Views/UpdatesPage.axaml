@@ -1,0 +1,225 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DirectPackageInstaller.ViewModels"
+             x:Class="DirectPackageInstaller.Views.UpdatesPage">
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Classes="pagehead">
+            <StackPanel Spacing="2">
+                <TextBlock Classes="h1" Text="Updates"/>
+                <TextBlock Name="SummaryText" Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="Search any PS4 game's official update history, from orbispatches.com."/>
+            </StackPanel>
+            <WrapPanel Classes="headbutton" VerticalAlignment="Center" ItemSpacing="8" LineSpacing="8">
+                <Button Name="BtnBack" IsVisible="False" ToolTip.Tip="Back to the search results">&lt; Results</Button>
+                <Button Name="BtnSite" Classes="ghost" ToolTip.Tip="Open orbispatches.com">orbispatches.com</Button>
+            </WrapPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Classes="pagebody" Spacing="9">
+            <WrapPanel Orientation="Horizontal" Classes="chips">
+                <RadioButton Classes="chip" GroupName="updMode" Name="ModeSearch" IsChecked="True" VerticalAlignment="Center">Search a game</RadioButton>
+                <RadioButton Classes="chip" GroupName="updMode" Name="ModeConsole" VerticalAlignment="Center">Installed on PS4</RadioButton>
+            </WrapPanel>
+
+            <!-- where downloaded updates are saved (a folder in your PKG library) -->
+            <Border Classes="card" Padding="14,10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="eyebrow" Text="PKG LIBRARY FOLDER"/>
+                        <TextBlock Name="FolderText" Classes="mono" FontSize="12" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <WrapPanel Grid.Column="1" VerticalAlignment="Center" ItemSpacing="6" LineSpacing="6">
+                        <Button Name="BtnFolder" ToolTip.Tip="Choose the PKG library folder to save updates into">Change…</Button>
+                        <Button Name="BtnOpenFolder" ToolTip.ShowOnDisabled="True">Open</Button>
+                        <Button Name="BtnDefaultFolder" Classes="ghost" ToolTip.Tip="Save next to the base game in your library (default)">Default</Button>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+            <WrapPanel Name="SearchBar" Orientation="Horizontal" Classes="chips">
+                <TextBox Name="SearchBox" Width="320" Watermark="Search a game name or CUSA ID" Margin="0,0,8,0"/>
+                <Button Name="BtnSearch" Classes="primary">Search</Button>
+            </WrapPanel>
+            <WrapPanel Name="ConsoleBar" Orientation="Horizontal" Classes="chips" IsVisible="False">
+                <Button Name="BtnReadConsole" Classes="primary" MinWidth="130" ToolTip.ShowOnDisabled="True">Read the console</Button>
+                <CheckBox Name="OnlyNeedsUpdate" VerticalAlignment="Center" Margin="6,0,0,0">Needs update only</CheckBox>
+                <TextBlock Name="ConsoleStatusText" Classes="muted" FontSize="12.5" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap"/>
+            </WrapPanel>
+        </StackPanel>
+
+        <Panel Grid.Row="2">
+            <!-- installed on the console, checked for a newer update -->
+            <ScrollViewer Name="ConsoleScroll" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+                <ItemsControl Name="ConsoleList" Classes="list">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:InstalledUpdate">
+                            <Border Classes="card" Padding="12" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Classes="entry game">
+                                    <Border Classes="gamecover" CornerRadius="7" ClipToBounds="True"
+                                            Background="{StaticResource Raised}" VerticalAlignment="Center">
+                                        <Panel>
+                                            <TextBlock Text="{Binding Monogram}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                       FontSize="20" Foreground="{StaticResource Muted}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding !HasCover}"/>
+                                            <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                        </Panel>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                   FontSize="16.5" TextWrapping="Wrap"/>
+                                        <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                            <TextBlock Classes="mono" Text="{Binding TitleId}" VerticalAlignment="Center"/>
+                                            <Border Classes="kind" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"/>
+                                            </Border>
+                                        </WrapPanel>
+                                        <TextBlock Classes="mono" FontSize="12" Text="{Binding Detail}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <Button Content="Save" Tag="{Binding}" Click="SaveInstalledClick"
+                                                IsVisible="{Binding CanDownload}"
+                                                ToolTip.Tip="Download this update into your PKG library folder"/>
+                                        <Button Classes="primary" Content="Send to PS4" Tag="{Binding}" Click="SendInstalledClick"
+                                                IsVisible="{Binding CanDownload}"
+                                                ToolTip.Tip="Download it into your library, then send it to the console to install"/>
+                                        <Button Classes="ghost" Content="Details" Tag="{Binding}" Click="InstalledDetailsClick"
+                                                ToolTip.Tip="Every update version for this game"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- search results -->
+            <ScrollViewer Name="ResultsScroll" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl Name="ResultsList" Classes="list">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:UpdateGame">
+                            <Border Classes="card row" Padding="12" Margin="0,0,0,8" Tag="{Binding}"
+                                    PointerPressed="GameClick" Cursor="Hand">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                    <Border Classes="gamecover" CornerRadius="7" ClipToBounds="True"
+                                            Background="{StaticResource Raised}" VerticalAlignment="Center">
+                                        <Panel>
+                                            <TextBlock Text="{Binding Monogram}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                       FontSize="20" Foreground="{StaticResource Muted}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding !HasCover}"/>
+                                            <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                        </Panel>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Display}" FontWeight="SemiBold"
+                                                   FontSize="16.5" TextWrapping="Wrap"/>
+                                        <TextBlock Classes="mono" FontSize="12" Text="{Binding Meta}"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Classes="muted" FontSize="18" Text="›" VerticalAlignment="Center" Margin="6,0"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- one game's patch history -->
+            <ScrollViewer Name="DetailScroll" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+                <StackPanel Classes="list" Spacing="0">
+                    <Border Classes="card" Padding="14,12" Margin="0,0,0,10">
+                        <StackPanel Spacing="3">
+                            <TextBlock Name="DetailName" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="19" TextWrapping="Wrap"/>
+                            <TextBlock Name="DetailMeta" Classes="mono" FontSize="12.5"/>
+                            <TextBlock Name="DetailStatus" FontSize="12.5" Foreground="{StaticResource Signal}" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ItemsControl Name="PatchList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:UpdatePatch">
+                                <Border Classes="card" Padding="14,12" Margin="0,0,0,8">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Classes="entry">
+                                            <StackPanel Spacing="3" VerticalAlignment="Center">
+                                                <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                                    <TextBlock Text="{Binding Version}" FontWeight="SemiBold" FontSize="15.5" VerticalAlignment="Center"/>
+                                                    <Border Classes="kind" VerticalAlignment="Center" IsVisible="{Binding IsLatest}">
+                                                        <TextBlock Text="LATEST" Foreground="{StaticResource Go}"/>
+                                                    </Border>
+                                                </WrapPanel>
+                                                <TextBlock Classes="mono" FontSize="12" Text="{Binding Meta}"/>
+                                                <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Changelog}" TextWrapping="Wrap"
+                                                           IsVisible="{Binding HasChangelog}" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <Button Content="Save" Tag="{Binding}" Click="SavePatchClick"
+                                                        IsVisible="{Binding IsLatest}" IsEnabled="{Binding !Busy}"
+                                                        ToolTip.Tip="Download this update into your PKG library folder"/>
+                                                <Button Classes="primary" Content="Send to PS4" Tag="{Binding}" Click="SendPatchClick"
+                                                        IsVisible="{Binding IsLatest}" IsEnabled="{Binding !Busy}"
+                                                        ToolTip.Tip="Download it into your library, then send it to the console to install"/>
+                                                <Button Classes="ghost" Content="Open" Tag="{Binding}" Click="OpenClick"
+                                                        ToolTip.Tip="Open this version on orbispatches.com to download it in your browser"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- empty / intro -->
+            <StackPanel Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="10" MaxWidth="470" Margin="20,0">
+                <TextBlock Name="EmptyTitle" Classes="h2" Text="Find a game's updates" TextAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock Name="EmptyText" Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Search by name or CUSA ID to see every official update version, its size, the firmware it needs and what changed. Download the latest from PlayStation Network, or open any version on orbispatches.com."/>
+            </StackPanel>
+        </Panel>
+    </Grid>
+
+    <UserControl.Styles>
+        <Style Selector="WrapPanel.chips > :is(Control)">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+        </Style>
+        <Style Selector="Grid.pagehead">
+            <Setter Property="Margin" Value="28,22,28,14"/>
+        </Style>
+        <Style Selector=":is(Control).headbutton">
+            <Setter Property="Grid.Column" Value="1"/>
+        </Style>
+        <Style Selector="WrapPanel.pagebody">
+            <Setter Property="Margin" Value="28,0,28,8"/>
+        </Style>
+        <Style Selector=":is(Control).list">
+            <Setter Property="Margin" Value="28,0,28,24"/>
+        </Style>
+        <Style Selector="Border.row:pointerover">
+            <Setter Property="Background" Value="{StaticResource Raised}"/>
+        </Style>
+        <Style Selector="Border.gamecover">
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="64"/>
+        </Style>
+
+        <!-- phones and narrow windows -->
+        <Style Selector=":is(UserControl).narrow Grid.pagehead">
+            <Setter Property="Margin" Value="14,14,14,8"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow :is(Control).headbutton">
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Grid.Column" Value="0"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow WrapPanel.pagebody">
+            <Setter Property="Margin" Value="14,0,14,6"/>
+        </Style>
+        <Style Selector=":is(UserControl).narrow :is(Control).list">
+            <Setter Property="Margin" Value="14,0,14,16"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>

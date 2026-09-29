@@ -49,5 +49,8 @@ namespace DirectPackageInstaller
 
         /// <summary>Where save backups go ("" = Documents\DPI Save Backups).</summary>
         public string? SaveBackupFolder;
+
+        /// <summary>Where downloaded game updates are saved ("" = next to the base game in your library, else your PKG library folder).</summary>
+        public string? UpdateFolder;
     }
 }

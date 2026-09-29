@@ -1,0 +1,51 @@
+name: Release
+
+# Pushing a "v*" tag builds the Windows zips, then publishes a GitHub
+# Release with those zips attached. version.json is meant to point at the
+# tag once the release is out, so the in-app updater can find it.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v8.6.0). If empty, uses the current commit.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Windows zips
+        shell: pwsh
+        run: ./build-windows.ps1 -Runtimes win-x64,win-x86,win-arm64
+
+      - name: Read version from SelfUpdate.cs
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path DirectPackageInstaller/DirectPackageInstaller/SelfUpdate.cs -Pattern 'CurrentVersion = "([^"]+)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          # tag: the pushed one, or v<version> when triggered manually
+          $t = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF -replace '^refs/tags/','' } else { "v$v" }
+          "tag=$t" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: DPI Enhanced ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          files: Release/*.zip

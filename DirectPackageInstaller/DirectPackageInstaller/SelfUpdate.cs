@@ -52,7 +52,7 @@ namespace DirectPackageInstaller
 
         const string UpdateList = "Update.ini";
 
-        public const string CurrentVersion = "8.5.0";
+        public const string CurrentVersion = "8.6.0";
         
         static Version CurrentVer = new Version(CurrentVersion);
 

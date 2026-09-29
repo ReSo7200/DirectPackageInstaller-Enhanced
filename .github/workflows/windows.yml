@@ -2,9 +2,9 @@ name: Windows build
 
 on:
   push:
-    branches: [ DN8 ]
+    branches: [ main, DN8 ]
   pull_request:
-    branches: [ DN8 ]
+    branches: [ main, DN8 ]
   workflow_dispatch:
     inputs:
       publish:

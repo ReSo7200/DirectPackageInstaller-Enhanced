@@ -2,9 +2,9 @@ name: Build the DPI
 
 on:
   push:
-    branches: [ DN8, enhanced-ui ]
+    branches: [ main, DN8 ]
   pull_request:
-    branches: [ DN8, enhanced-ui ]
+    branches: [ main, DN8 ]
   workflow_dispatch:
 
 jobs:

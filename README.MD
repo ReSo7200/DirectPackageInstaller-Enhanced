@@ -9,10 +9,20 @@
 Keep your `.pkg` files in a cover‑grid library, see what's already on the console, send packages, move games between system and extended storage, back up saves, download official updates and copy screenshots — all from your PC or phone.
 
 [![Latest release](https://img.shields.io/github/v/release/ReSo7200/DirectPackageInstaller-Enhanced?color=2b7fff&label=release)](https://github.com/ReSo7200/DirectPackageInstaller-Enhanced/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/ReSo7200/DirectPackageInstaller-Enhanced/total?color=2b7fff&label=downloads)](https://github.com/ReSo7200/DirectPackageInstaller-Enhanced/releases)
 [![License](https://img.shields.io/badge/license-GPL--3.0-4c9d4c)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-9a86f0)](#)
 
+**[Download the latest release →](https://github.com/ReSo7200/DirectPackageInstaller-Enhanced/releases/latest)** &nbsp;·&nbsp;
+[Getting started](#getting-started) &nbsp;·&nbsp;
+[Screenshots](#screenshots) &nbsp;·&nbsp;
+[Features](#features) &nbsp;·&nbsp;
+[Build](#build)
+
 </div>
+
+> [!NOTE]
+> **Console requirements** — a jailbroken PS4 with [GoldHEN](https://github.com/GoldHEN/GoldHEN): its **BinLoader** to send packages and its **FTP server** (with full‑file‑system access) to read what's installed. [Remote Package Installer](https://github.com/flatz/ps4_remote_pkg_installer) is optional (uninstalling, moving games, live progress). etaHEN is supported for PS5.
 
 ---
 
@@ -20,18 +30,31 @@ Keep your `.pkg` files in a cover‑grid library, see what's already on the cons
 
 DPI Enhanced is a fork of [marcussacana/DirectPackageInstaller](https://github.com/marcussacana/DirectPackageInstaller), rebuilt around a new design and a workflow that treats your PKG library, the console and your saves as one thing. Sending from a direct download link still works exactly as it did in the original — that README is preserved further below.
 
-**What's on top of the original**
+### At a glance
 
-- A cover‑grid **Library** across every folder you point at it, with what's on the console shown right on each cover.
-- An **On PS4** page: everything installed, free space on each drive, moving games between system and extended storage.
-- A **Saves** page: every save, every user, next to your backups.
-- A new **Updates** page: search any PS4 game or check the console for missing updates against **orbispatches.com**; save into the library and send to the console.
-- A resumable **Queue** with live progress, split‑package support, and *Send what's missing* — the game if it isn't installed, the newest update if it's newer, and DLC that isn't there yet.
-- **Homebrew** from authors' GitHub releases; Windows Explorer *Send to PS4* right‑click; drag and drop.
+|                     | Vanilla DPI                       | DPI Enhanced                                                                       |
+| ------------------- | --------------------------------- | ---------------------------------------------------------------------------------- |
+| Direct link install | ✅                                | ✅ (identical flow)                                                                |
+| Local PKG library   | —                                 | ✅ Cover grid across folders, with what's on the console shown on each cover       |
+| Installed on PS4    | —                                 | ✅ Games, apps, DLC, updates, running title, free space per drive                  |
+| Save data           | —                                 | ✅ Every save on the console (all users), back up, restore, import                 |
+| Official updates    | —                                 | ✅ Search or check installed, from orbispatches.com; save to library, send to PS4  |
+| Send queue          | Single package                    | ✅ Resumable queue, split‑package support, *Send what's missing*, live progress    |
+| Storage             | —                                 | ✅ Move games between system and extended storage from the PC                      |
+| Homebrew            | —                                 | ✅ Apps from authors' GitHub releases; nothing re‑hosted                           |
+| Explorer integration| —                                 | ✅ *Send to PS4* right‑click; drag and drop                                        |
+| Mobile              | —                                 | ✅ Android build, phone‑sized layout                                               |
 
-**Console requirements**
+### Keyboard shortcuts (desktop)
 
-Jailbroken PS4 with [GoldHEN](https://github.com/GoldHEN/GoldHEN) — its **BinLoader** to send packages, and its **FTP server** (with full‑file‑system access) to read what's installed. [Remote Package Installer](https://github.com/flatz/ps4_remote_pkg_installer) is optional (uninstalling, moving games, live progress). etaHEN is supported for PS5.
+<kbd>Ctrl</kbd>+<kbd>1</kbd> Library&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>2</kbd> On PS4&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>3</kbd> Direct link&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>4</kbd> Queue&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>5</kbd> Settings&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>6</kbd> Homebrew&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>7</kbd> Saves&nbsp;·&nbsp;
+<kbd>Ctrl</kbd>+<kbd>8</kbd> Updates
 
 ---
 
@@ -124,12 +147,21 @@ Buttons are only enabled when they can do something, and their tooltip says why 
 
 ## Getting started
 
-1. On the PS4: start GoldHEN and turn on its **BinLoader** and **FTP server** (GoldHEN settings). Open Remote Package Installer too if you want to uninstall or move games.
-2. On the PC: run `DirectPackageInstaller.Desktop.exe`, open **Settings**, press **Find consoles** (or type the PS4's address), and check **This PC's address** is on the same network.
-3. In **Library**, press **Add folder** and pick where your `.pkg` files are. Press **Check PS4** to see what's already installed.
+**On the PS4**
+
+1. Boot GoldHEN and open **Debug Settings → GoldHEN Settings**.
+2. Turn on **BinLoader Server** (sends packages) and **FTP Server** with **Full File-System Access** (reads what's installed and where saves live).
+3. Optional but recommended: install [Remote Package Installer](https://github.com/flatz/ps4_remote_pkg_installer) — needed for **uninstall** and **live install progress**, and used by **move to extended storage**.
+
+**On the PC**
+
+1. [Download the latest release](https://github.com/ReSo7200/DirectPackageInstaller-Enhanced/releases/latest), unzip, run `DirectPackageInstaller.Desktop.exe`. Framework‑dependent builds need the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0); the *self‑contained* zips don't.
+2. Open **Settings** → **Find consoles** (auto‑discovers PS4s on your network), or type the PS4's address. Confirm **This PC's address** is on the same network.
+3. Go to **Library** → **Add folder** and pick where your `.pkg` files are (nested folders are scanned). Press **Check PS4**.
 4. Select packages and press **Send to PS4**. Keep DPI open until the Queue says they're done.
 
-For the experimental features (free space, Install to, moving games), turn on **Experimental GoldHEN payload** in Settings.
+> [!TIP]
+> Turn on **Experimental GoldHEN payload** in Settings to unlock free‑space per drive, choose install target (system/extended) and the *Move between storage* action.
 
 ## App updates
 
@@ -162,6 +194,50 @@ dotnet publish DirectPackageInstaller\DirectPackageInstaller.Android\DirectPacka
 
 **Testing without a console:** [`Tools/FakePS4`](Tools/FakePS4) pretends to be a PS4 on localhost (FTP, Remote Package Installer and the payload) so moves can be tested end to end.
 
+## Troubleshooting
+
+<details>
+<summary><b>The console pill stays red / "GoldHEN offline"</b></summary>
+
+Make sure GoldHEN's **BinLoader** *and* **FTP server** are both switched on in **Debug Settings → GoldHEN Settings**. On some setups the FTP server needs **Full File‑System Access** enabled (same page). Double‑check the PS4's IP address in Settings.
+
+</details>
+
+<details>
+<summary><b>"Read the console" reads nothing / a few titles missing</b></summary>
+
+GoldHEN's FTP server sometimes drops the first connection or lacks read permission on `/system_data/priv/appmeta`. Toggle its **Full File-System Access** option, restart the FTP server, and press **Read again**. DPI retries automatically across a few ports (2121, 1337, 21).
+
+</details>
+
+<details>
+<summary><b>Send fails "port 12800 refused" or "can't reach the console"</b></summary>
+
+Open **Remote Package Installer** (or another PKG installer) on the console, so it's listening on port 12800. Some routers block PC → PS4 traffic; put both on the same LAN/subnet.
+
+</details>
+
+<details>
+<summary><b>Windows Firewall blocks the sends</b></summary>
+
+DPI hosts a small HTTP server for the console to pull packages from. On first send Windows may prompt to allow it. If you dismissed the prompt, allow `DirectPackageInstaller.Desktop.exe` through the firewall for **Private** networks.
+
+</details>
+
+<details>
+<summary><b>Update installs but the console says the game "needs base"</b></summary>
+
+Updates only install over a matching base game of the same version family. Send the base game first (or use the Library's *Send what's missing*).
+
+</details>
+
+<details>
+<summary><b>Save restore says "the game is running"</b></summary>
+
+Close the game on the console before restoring (or use the app's *Close game* if you have etaHEN). A running game holds its save files open and the restore would corrupt them.
+
+</details>
+
 ## Credits
 
 **Contributors:** [ReSo7200](https://github.com/ReSo7200) (DPI Enhanced), [marcussacana](https://github.com/marcussacana) (DirectPackageInstaller), [0xMH](https://github.com/0xMH), [ksanjeev284](https://github.com/ksanjeev284).
@@ -169,6 +245,11 @@ dotnet publish DirectPackageInstaller\DirectPackageInstaller.Android\DirectPacka
 **Special thanks:** [flatz](https://github.com/flatz) (Remote Package Installer), [GoldHEN](https://github.com/GoldHEN), [LightningMods](https://github.com/LightningMods) (Itemzflow, Homebrew Store), [illusionyy](https://github.com/illusionyy) (PS-Game-Patch), [OpenOrbis](https://github.com/OpenOrbis) (LibOrbisPkg), [oct0xor](https://github.com/oct0xor) (PS4 registry research), [jpmikkers](https://github.com/jpmikkers) (DHCPServer), [AvaloniaUI](https://github.com/AvaloniaUI).
 
 ---
+
+<details>
+<summary><h2>📎 Original DirectPackageInstaller README (upstream)</h2></summary>
+
+<br>
 
 # DirectPackageInstaller
 
@@ -438,3 +519,5 @@ Credits
 -   PS4 OS internals help by _LM_
 -   PS4 export definitions by _OpenOrbis SDK_
 -   **DirectPackageInstaller** by _marcussacana_
+
+</details>

@@ -81,7 +81,7 @@ jobs:
           V=$(grep -oE 'CurrentVersion = "[^"]+"' DirectPackageInstaller/DirectPackageInstaller/SelfUpdate.cs | head -1 | sed 's/.*"\(.*\)"/\1/')
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
-      - name: Publish Android APK (universal: arm, arm64, x86, x64)
+      - name: Publish Android APK (universal - arm, arm64, x86, x64)
         env:
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: |

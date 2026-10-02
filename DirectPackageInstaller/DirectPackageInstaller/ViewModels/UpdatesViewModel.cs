@@ -32,10 +32,31 @@ namespace DirectPackageInstaller.ViewModels
             set
             {
                 this.RaiseAndSetIfChanged(ref _FakeBase, value);
-                foreach (var Name in new[] { nameof(CanDownload), nameof(Detail) })
+                foreach (var Name in new[] { nameof(CanDownload), nameof(Detail), nameof(StatusText) })
                     this.RaisePropertyChanged(Name);
             }
         }
+
+        /// <summary>A fake update PKG in the library that can be remarried to the fake base (highest version wins).</summary>
+        public LibraryEntry? LibraryUpdate { get; set; }
+        public bool HasLibraryUpdate => LibraryUpdate != null;
+
+        bool _Busy;
+        /// <summary>A long-running action (remarry, download) is in progress on this row.</summary>
+        public bool Busy
+        {
+            get => _Busy;
+            set => this.RaiseAndSetIfChanged(ref _Busy, value);
+        }
+
+        string _Message = "";
+        /// <summary>Inline progress message under the row (remarry status, errors) — not the enum Status badge.</summary>
+        public string Message
+        {
+            get => _Message;
+            set { this.RaiseAndSetIfChanged(ref _Message, value); this.RaisePropertyChanged(nameof(HasMessage)); }
+        }
+        public bool HasMessage => Message.Length > 0;
 
         public string Monogram => new string(Name.Where(char.IsLetterOrDigit).Take(2).ToArray()).ToUpperInvariant() is { Length: > 0 } M ? M : "?";
 
@@ -67,14 +88,17 @@ namespace DirectPackageInstaller.ViewModels
 
         public bool NeedsUpdate => Status == UpdateStatus.UpdateAvailable;
         public bool CanOpen => Status is UpdateStatus.UpdateAvailable or UpdateStatus.UpToDate;
-        public bool CanDownload => Status == UpdateStatus.UpdateAvailable && !FakeBase;
+        /// <summary>Save/Send is possible when a Sony update applies (retail base) OR when we have a library update to remarry (fake base).</summary>
+        public bool CanDownload => Status == UpdateStatus.UpdateAvailable && (!FakeBase || HasLibraryUpdate);
 
         public string StatusText => Status switch
         {
             UpdateStatus.Checking => "Checking…",
             UpdateStatus.UpToDate => "Up to date",
             UpdateStatus.UpdateAvailable => FakeBase
-                ? $"Update to v{_Latest!.Version} (fake base — needs a matching fake update)"
+                ? HasLibraryUpdate
+                    ? $"Update to v{_Latest!.Version} (fake v{LibraryUpdate!.AppVersion} from your library)"
+                    : $"Update to v{_Latest!.Version} (fake base — needs a fake/fPKG update; retail ones fail CE-36441-8)"
                 : $"Update to v{_Latest!.Version}",
             UpdateStatus.NoUpdates => "No updates",
             _ => "Couldn't check"

@@ -5,8 +5,8 @@
 		<SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
 		<Nullable>enable</Nullable>
 		<ApplicationId>com.marcussacana.DirectPackageInstaller</ApplicationId>
-		<ApplicationVersion>1</ApplicationVersion>
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>861</ApplicationVersion>
+		<ApplicationDisplayVersion>8.6.1</ApplicationDisplayVersion>
 		<AndroidPackageFormat>apk</AndroidPackageFormat>
 		<AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
 		<NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>

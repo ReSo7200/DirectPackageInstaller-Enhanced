@@ -155,27 +155,15 @@ namespace DirectPackageInstaller.Services
                     break;
                 }
 
-                // When an update is installed, the appmeta SFO often still reports the base APP_VER;
-                // the patch's own param.sfo (/user/patch/<TID>/sce_sys/param.sfo, or the ext variant)
-                // carries the installed update version. Use the higher of the two.
-                if (Item.HasUpdate)
-                {
-                    var PatchSfoPaths = new[]
-                    {
-                        $"/user/patch/{Tid}/sce_sys/param.sfo",
-                        $"/mnt/ext0/user/patch/{Tid}/sce_sys/param.sfo"
-                    };
-                    foreach (var PatchSfo in PatchSfoPaths)
-                    {
-                        var Values = await SfoAsync(Ftp, PatchSfo, Token);
-                        if (Values == null)
-                            continue;
-                        if (Values.TryGetValue("APP_VER", out var PatchVer) && PatchVer.Length > 0
-                            && (Item.Version.Length == 0 || CompareVersion(PatchVer, Item.Version) > 0))
-                            Item.Version = PatchVer;
-                        break;
-                    }
-                }
+                // Item.Version stays at the base game's APP_VER from appmeta. Earlier attempts to also
+                // read the patch folder's own param.sfo (so an installed update would reflect in the
+                // version) were too easily tricked by orphan /user/patch/<TID>/ left behind by failed
+                // installs — those orphans can have a full-size eboot.bin and a populated sce_module/
+                // from the installer having partially extracted the PKG before refusing it, so DPI
+                // would believe the newer APP_VER and report titles as "up to date" when they aren't.
+                // The Library tab's own view compares installed PKGs against orbispatches/Sony and
+                // catches real patch state; the Updates tab now does the same by trusting only the
+                // appmeta version here.
 
                 // DLC entitlement folders
                 if (DlcRoots.TryGetValue(Tid, out var Roots))

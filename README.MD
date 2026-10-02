@@ -187,7 +187,7 @@ The script installs a .NET 8 SDK into `.dotnet\` if none is found. The GitHub wo
 **Android** needs the .NET Android workload, the Android SDK and JDK 17:
 
 ```powershell
-dotnet publish DirectPackageInstaller\DirectPackageInstaller.Android\DirectPackageInstaller.Android.csproj -c Release -r android-arm64 -p:AndroidSdkDirectory=<sdk> -p:JavaSdkDirectory=<jdk17>
+dotnet publish DirectPackageInstaller\DirectPackageInstaller.Android\DirectPackageInstaller.Android.csproj -c Release -f net8.0-android -p:AndroidSdkDirectory=<sdk> -p:JavaSdkDirectory=<jdk17>
 ```
 
 **GoldHEN payload** (`Payload\`): build with `make` / `make experimental` on Linux (or WSL) from a Linux-side clone, since the Windows checkout breaks the header symlinks.
@@ -296,58 +296,10 @@ Supported File Hosting Services
 How to Install
 ----------
 
-1.  Download a build compatible with your platform (see below).
-2.  On Windows, Linux, and Android, install the [.NET 8 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime) first.
-    macOS builds are self-contained and do not require a separate .NET install.
-    
-Downloads:
-----------
+1. Grab the latest build for your platform from the **[DPI Enhanced releases page](https://github.com/ReSo7200/DirectPackageInstaller-Enhanced/releases/latest)** — Windows (x64/x86/ARM64) and Android (`.apk`) are published there.
+2. Windows framework-dependent builds need the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0). Android installs the `.apk` directly (sideload — enable *Install unknown apps* for your file manager).
 
-<details> <summary>Windows</summary>
-
--   [ARM](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Windows-ARM.zip)    
--   [ARM64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Windows-ARM64.zip)    
--   [x64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Windows-X64.zip)    
--   [x86](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Windows-X86.zip)    
-
-</details> <details> <summary>Android</summary>
-
--   [ARM](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Android-ARM.zip)    
--   [ARM64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Android-ARM64.zip)    
--   [x64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Android-X64.zip)    
--   [x86](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Android-X86.zip)    
-
-</details> <details> <summary>Linux</summary>
-
--   [ARM](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Linux-ARM.zip)    
--   [ARM64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Linux-ARM64.zip)    
--   [x64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/Linux-X64.zip)    
-
-</details> <details> <summary>macOS</summary>
-
-**CLI builds:**
-
--   [ARM64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/OSX-ARM64.zip)    
--   [x64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/OSX-X64.zip)    
-
-**App builds (zip):**
-
--   [ARM64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/OSX-ARM64-APP.zip)    
--   [x64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/OSX-X64-APP.zip)   
-
-**App builds (DMG, drag-to-Applications):**
-
--   [ARM64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/OSX-ARM64-APP.dmg)    
--   [x64](https://raw.githubusercontent.com/marcussacana/DirectPackageInstaller/Updater/OSX-X64-APP.dmg)
-
-macOS builds are self-contained (.NET 8 runtime bundled) and the .app is ad-hoc signed so it launches on Apple Silicon without further steps. If Gatekeeper still blocks the app after extracting the zip, run:
-
-```
-xattr -dr com.apple.quarantine /Applications/DirectPackageInstaller.app
-```
-
-</details>
-
+> The upstream `marcussacana/DirectPackageInstaller` builds (Linux, macOS, legacy Android arch zips) are not part of this fork and the links from the original README are not maintained here.
 
 How to Use
 ----------
@@ -390,18 +342,6 @@ How to Use
 4.  Click "Load" and wait.    
 5.  [Optional] Select the desired PKG from the file list.    
 6.  Click "Install" and wait.
-
-macOS CLI Usage
-----------
-
-Use the terminal to run the app:
-```
-./DirectPackageInstaller.Desktop
-```
-In some cases, you may need to run:
-```
-dotnet DirectPackageInstaller.Desktop.dll
-```
 
 NFS PKG Source
 ----------
@@ -451,8 +391,7 @@ To view available options:
 
 Dependencies
 ----------
-Windows, Linux, and Android builds require the [.NET 8.0 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).
-macOS builds are self-contained and ship with the runtime bundled.
+Windows framework-dependent builds require the [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0). Android `.apk` builds are self-contained.
 
 
 How to Build

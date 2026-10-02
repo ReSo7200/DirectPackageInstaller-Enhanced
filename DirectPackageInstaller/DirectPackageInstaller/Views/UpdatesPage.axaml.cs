@@ -313,10 +313,24 @@ namespace DirectPackageInstaller.Views
                     .Where(e => e.Error == null && e.Kind == "Game" && e.Fake)
                     .Select(e => e.TitleId)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                // for fake bases, the automatic remarry needs a fake update PKG in the library to re-sign.
+                // Keep one per title (highest AppVersion wins), so Save/Send on fake-base rows "just work".
+                // only a fake update NEWER than what's installed is useful (an equal one is already on the console)
+                var VersionOrder = Comparer<string>.Create(PatchInfo.Compare);
+                var LibraryUpdates = Library
+                    .Where(e => e.Error == null && e.Kind == "Update" && e.Fake && !string.IsNullOrEmpty(e.TitleId))
+                    .GroupBy(e => e.TitleId, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.AppVersion, VersionOrder).ToList(),
+                        StringComparer.OrdinalIgnoreCase);
                 Installed = Titles
                     .Where(x => x.TitleId.Length > 0)
                     .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
-                    .Select(x => new InstalledUpdate(x) { FakeBase = FakeBases.Contains(x.TitleId) }).ToList();
+                    .Select(x => new InstalledUpdate(x)
+                    {
+                        FakeBase = FakeBases.Contains(x.TitleId),
+                        LibraryUpdate = LibraryUpdates.GetValueOrDefault(x.TitleId)?
+                            .FirstOrDefault(u => PatchInfo.Compare(u.AppVersion, x.Version.Length > 0 ? x.Version : "01.00") > 0)
+                    }).ToList();
                 ConsoleStale = false;
                 ApplyConsoleFilter();
                 ShowConsole();
@@ -333,13 +347,16 @@ namespace DirectPackageInstaller.Views
             }
         }
 
-        /// <summary>The On PS4 page's titles when it has them, else a fresh FTP read.</summary>
+        /// <summary>
+        /// Always re-reads the console. We used to reuse the On PS4 tab's cached <c>AllTitles</c>
+        /// when it was loaded — but those are shared <see cref="InstalledTitle"/> instances whose
+        /// <c>Version</c> was mutated by whatever code ran on the first scan. If that scan happened
+        /// under old logic (e.g. the orphan-patch version override), the stale Version values
+        /// survive across tab switches and pressing "Read again" doesn't clear them. A fresh FTP
+        /// read every time avoids every variant of that staleness.
+        /// </summary>
         async Task<List<InstalledTitle>?> LoadTitlesAsync(CancellationToken Token)
-        {
-            if (Console() is { Loaded: true } Vm && Vm.AllTitles.Count > 0)
-                return Vm.AllTitles.Select(x => x.Title).ToList();
-            return await ConsoleTitles.QueryAsync(Ip, new Progress<string>(SetConsoleStatus), Token);
-        }
+            => await ConsoleTitles.QueryAsync(Ip, new Progress<string>(SetConsoleStatus), Token);
 
         /// <summary>Look each installed title up on orbispatches (limited concurrency) and mark the ones behind.</summary>
         async Task CheckUpdatesAsync()
@@ -348,24 +365,57 @@ namespace DirectPackageInstaller.Views
             if (Items.Count == 0)
                 return;
 
-            int Done = 0;
             SetConsoleStatus($"Checking {Items.Count} {(Items.Count == 1 ? "game" : "games")} for updates…");
-            await Parallel.ForEachAsync(Items, new ParallelOptions { MaxDegreeOfParallelism = 5 }, async (Item, ct) =>
+
+            // Two sources, newest wins: Sony's own title-patch server (what the Library tab uses,
+            // cached 12h) and orbispatches (changelogs, sizes, full history). orbispatches alone
+            // intermittently rejects bursts, and a rejected title used to read as "No updates".
+            Dictionary<string, string> Sony;
+            try { Sony = await PatchInfo.LatestAsync(Items.Select(x => x.TitleId)); }
+            catch { Sony = new(StringComparer.OrdinalIgnoreCase); }
+
+            var Orbis = new System.Collections.Concurrent.ConcurrentDictionary<string, OrbisPatches.Patch?>(StringComparer.OrdinalIgnoreCase);
+            async Task LookupAsync(InstalledUpdate Item, CancellationToken ct)
             {
-                bool Failed = false;
-                OrbisPatches.Patch? Latest = null;
-                try { Latest = await OrbisPatches.LatestPatchAsync(Item.TitleId, ct); }
-                catch { Failed = true; }
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    Item.Resolve(Latest, Failed);
-                    int N = Interlocked.Increment(ref Done);
-                    if (N == Items.Count)
-                        FinishCheck();
-                    else if (N % 3 == 0)
-                        SetConsoleStatus($"Checking… {N} of {Items.Count}");
-                });
+                try { Orbis[Item.TitleId] = await OrbisPatches.LatestPatchAsync(Item.TitleId, ct); }
+                catch { Orbis[Item.TitleId] = null; }
+            }
+
+            int Done = 0;
+            await Parallel.ForEachAsync(Items, new ParallelOptions { MaxDegreeOfParallelism = 2 }, async (Item, ct) =>
+            {
+                await LookupAsync(Item, ct);
+                int N = Interlocked.Increment(ref Done);
+                if (N % 3 == 0)
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => SetConsoleStatus($"Checking… {N} of {Items.Count}"));
             });
+
+            // second, one-at-a-time pass for whatever orbispatches refused during the burst
+            var Retry = Items.Where(x => Orbis.GetValueOrDefault(x.TitleId) == null && !OrbisPatches.IsNotListed(x.TitleId)).ToList();
+            for (int i = 0; i < Retry.Count; i++)
+            {
+                SetConsoleStatus($"Re-checking {i + 1} of {Retry.Count} that didn't answer…");
+                await Task.Delay(800);
+                await LookupAsync(Retry[i], CancellationToken.None);
+            }
+
+            foreach (var Item in Items)
+            {
+                var FromOrbis = Orbis.GetValueOrDefault(Item.TitleId);
+                Sony.TryGetValue(Item.TitleId, out var SonyVersion); // null = lookup failed, "" = no updates
+
+                var Latest = FromOrbis;
+                if (!string.IsNullOrEmpty(SonyVersion) && (Latest == null || PatchInfo.Compare(SonyVersion, Latest.Version) > 0))
+                    Latest = new OrbisPatches.Patch(SonyVersion, "", PatchInfo.FirmwareFor(Item.TitleId), "", "", true);
+
+                // a definitive "nothing" needs at least one source to have actually answered
+                bool Answered = FromOrbis != null || OrbisPatches.IsNotListed(Item.TitleId) || SonyVersion != null;
+                Item.Resolve(Latest, Latest == null && !Answered);
+                Item.Message = Item.Status == UpdateStatus.Unknown && OrbisPatches.LastFailure.TryGetValue(Item.TitleId, out var Why)
+                    ? "Couldn't check: " + Why
+                    : Item.Message;
+            }
+            FinishCheck();
         }
 
         void FinishCheck()
@@ -390,13 +440,21 @@ namespace DirectPackageInstaller.Views
 
         async void SaveInstalledClick(object? sender, RoutedEventArgs e)
         {
-            if ((sender as Control)?.Tag is InstalledUpdate Item)
+            if ((sender as Control)?.Tag is not InstalledUpdate Item)
+                return;
+            if (Item.FakeBase)
+                await AutoRemarryAsync(Item, Send: false);
+            else
                 await GetAsync(Item.TitleId, Item.Name, null, Send: false);
         }
 
         async void SendInstalledClick(object? sender, RoutedEventArgs e)
         {
-            if ((sender as Control)?.Tag is InstalledUpdate Item)
+            if ((sender as Control)?.Tag is not InstalledUpdate Item)
+                return;
+            if (Item.FakeBase)
+                await AutoRemarryAsync(Item, Send: true);
+            else
                 await GetAsync(Item.TitleId, Item.Name, null, Send: true);
         }
 
@@ -408,6 +466,97 @@ namespace DirectPackageInstaller.Views
             Work = new CancellationTokenSource();
             var Game = new UpdateGame(new OrbisPatches.Game(Item.TitleId, Item.Name, "", Item.Title.IconFile));
             _ = OpenGameAsync(Game, Work.Token);
+        }
+
+        /// <summary>
+        /// Automatic fake remarry: pick a fake update PKG for this title from the local library (highest
+        /// APP_VER wins), extract it, rewrite its CONTENT_ID to the installed fake base's, rebuild as a
+        /// fresh fake pkg_ps4_patch, and either save it next to the base or enqueue to the console.
+        /// No file picker — Save / Send to PS4 on a fake-base row routes here instead of the Sony
+        /// download because retail updates can't marry a fake base (CE-36441-8).
+        /// </summary>
+        async Task AutoRemarryAsync(InstalledUpdate Item, bool Send)
+        {
+            if (Item.Busy)
+                return;
+
+            var Base = Library.FirstOrDefault(e => e.Error == null && e.Kind == "Game"
+                && string.Equals(e.TitleId, Item.TitleId, StringComparison.OrdinalIgnoreCase));
+            if (Base == null || !FakeRemarry.IsContentId(Base.ContentId))
+            {
+                Item.Message = $"DPI needs {Item.Name}'s base game in your PKG library (scan it on the Library tab) so it can read the content id to remarry to.";
+                return;
+            }
+
+            var SourceEntry = Item.LibraryUpdate;
+            if (SourceEntry == null || string.IsNullOrEmpty(SourceEntry.Path))
+            {
+                Item.Message = $"Your {Item.Name} base is a fake PKG, so Sony's retail update won't install (CE-36441-8). " +
+                    $"Add a fake (fPKG) update newer than v{Item.InstalledVersion} to your library and read the console again.";
+                return;
+            }
+
+            // already married to this base: nothing to rebuild, just deliver it
+            if (string.Equals(SourceEntry.ContentId, Base.ContentId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (Send)
+                {
+                    SendQueue.Instance.Enqueue(new[] { SourceEntry });
+                    AppShell.Current?.ShowQueue();
+                    Item.Message = $"Fake update v{SourceEntry.AppVersion} already matches your base  ·  sent to the queue";
+                }
+                else
+                    Item.Message = $"Fake update v{SourceEntry.AppVersion} already matches your base and is in your library: {SourceEntry.Path}";
+                return;
+            }
+
+            Item.Busy = true;
+            Item.Message = $"Remarrying from library update v{SourceEntry.AppVersion}…";
+            try
+            {
+                var OutputFolder = Send
+                    ? FakeRemarry.DefaultOutputFolder
+                    : Path.GetDirectoryName(Base.Path) ?? FakeRemarry.DefaultOutputFolder;
+
+                var OutputPkg = await FakeRemarry.RemarryAsync(SourceEntry.Path, Base.ContentId, OutputFolder,
+                    new Progress<string>(Text => Item.Message = Text));
+
+                var Entry = await Task.Run(() => LibraryService.ReadPackage(OutputPkg));
+                if (Entry == null || Entry.Error != null)
+                {
+                    Item.Message = $"Built the remarried PKG but DPI couldn't read it back ({Entry?.Error ?? "unknown error"}). File: {OutputPkg}";
+                    return;
+                }
+
+                if (Send)
+                {
+                    SendQueue.Instance.Enqueue(new[] { Entry });
+                    AppShell.Current?.ShowQueue();
+                    Item.Message = $"Remarried v{Entry.AppVersion}  ·  sent to the queue";
+                    Notices.Post("Update remarried → PS4", $"{Base.Title} v{Entry.AppVersion}");
+                }
+                else
+                {
+                    Item.Message = $"Remarried v{Entry.AppVersion}  ·  saved to the library";
+                    Notices.Post("Update remarried", $"{Base.Title} v{Entry.AppVersion}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Item.Message = "Cancelled.";
+            }
+            catch (FakeRemarryException ex)
+            {
+                Item.Message = ex.Message;
+            }
+            catch (Exception ex)
+            {
+                Item.Message = "Couldn't remarry: " + ex.Message;
+            }
+            finally
+            {
+                Item.Busy = false;
+            }
         }
 
         // ----- one game's patch history

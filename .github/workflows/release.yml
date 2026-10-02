@@ -1,8 +1,9 @@
 name: Release
 
-# Pushing a "v*" tag builds the Windows zips, then publishes a GitHub
-# Release with those zips attached. version.json is meant to point at the
-# tag once the release is out, so the in-app updater can find it.
+# Pushing a "v*" tag builds the Windows zips and the Android .apk, then
+# publishes a GitHub Release with everything attached. version.json is
+# meant to point at the tag once the release is out, so the in-app
+# updater can find it.
 
 on:
   push:
@@ -10,15 +11,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v8.6.0). If empty, uses the current commit.'
+        description: 'Tag to release (e.g. v8.6.1). If empty, uses the current commit.'
         required: false
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build-windows:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,14 +42,88 @@ jobs:
         run: |
           $v = (Select-String -Path DirectPackageInstaller/DirectPackageInstaller/SelfUpdate.cs -Pattern 'CurrentVersion = "([^"]+)"').Matches[0].Groups[1].Value
           "version=$v" >> $env:GITHUB_OUTPUT
-          # tag: the pushed one, or v<version> when triggered manually
           $t = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF -replace '^refs/tags/','' } else { "v$v" }
           "tag=$t" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zips
+          path: Release/*.zip
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install .NET Android workload
+        run: dotnet workload install android
+
+      - name: Read version
+        id: ver
+        run: |
+          V=$(grep -oE 'CurrentVersion = "[^"]+"' DirectPackageInstaller/DirectPackageInstaller/SelfUpdate.cs | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Android APK (universal: arm, arm64, x86, x64)
+        env:
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: |
+          dotnet publish DirectPackageInstaller/DirectPackageInstaller.Android/DirectPackageInstaller.Android.csproj \
+            -c Release -f net8.0-android \
+            -p:AndroidSdkDirectory=$ANDROID_SDK_ROOT \
+            -p:RunAOTCompilation=false -p:EnableLLVM=false
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          # pick the signed .apk from the publish output
+          APK=$(find DirectPackageInstaller/DirectPackageInstaller.Android -path '*/publish/*-Signed.apk' | head -1)
+          if [ -z "$APK" ]; then APK=$(find DirectPackageInstaller/DirectPackageInstaller.Android -name '*.apk' | head -1); fi
+          echo "picked: $APK"
+          cp "$APK" "out/DPI-Enhanced-${{ steps.ver.outputs.version }}-android.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/*.apk
+
+  release:
+    needs: [ build-windows, build-android ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-zips
+          path: dist/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: dist/
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: DPI Enhanced ${{ steps.ver.outputs.tag }}
+          tag_name: ${{ needs.build-windows.outputs.tag }}
+          name: DPI Enhanced ${{ needs.build-windows.outputs.tag }}
           generate_release_notes: true
-          files: Release/*.zip
+          files: |
+            dist/*.zip
+            dist/*.apk

@@ -22,6 +22,15 @@
                 <RadioButton Classes="chip" GroupName="updMode" Name="ModeConsole" VerticalAlignment="Center">Installed on PS4</RadioButton>
             </WrapPanel>
 
+            <!-- downloads here are Sony's retail patches: say up front they don't work on fake (fPKG) bases -->
+            <Border Classes="card" Padding="14,10" BorderBrush="{StaticResource Amber}" BorderThickness="1">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="eyebrow" Text="NOTICE · OFFICIAL (RETAIL) UPDATES ONLY" Foreground="{StaticResource Amber}"/>
+                    <TextBlock FontSize="12.5" TextWrapping="Wrap"
+                               Text="Updates downloaded here are Sony's official retail PKGs — not fake (fPKG) updates. They only install on a retail/legit base game. If your game was installed from a fake PKG, a retail update fails with CE-36441-8: use a fake update PKG from your library instead (DPI picks it up automatically)."/>
+                </StackPanel>
+            </Border>
+
             <!-- where downloaded updates are saved (a folder in your PKG library) -->
             <Border Classes="card" Padding="14,10">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -54,6 +63,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:InstalledUpdate">
                             <Border Classes="card" Padding="12" Margin="0,0,0,8">
+                                <Grid RowDefinitions="Auto,Auto">
                                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Classes="entry game">
                                     <Border Classes="gamecover" CornerRadius="7" ClipToBounds="True"
                                             Background="{StaticResource Raised}" VerticalAlignment="Center">
@@ -87,6 +97,9 @@
                                         <Button Classes="ghost" Content="Details" Tag="{Binding}" Click="InstalledDetailsClick"
                                                 ToolTip.Tip="Every update version for this game"/>
                                     </WrapPanel>
+                                </Grid>
+                                <TextBlock Grid.Row="1" Text="{Binding Message}" IsVisible="{Binding HasMessage}" FontSize="12.5"
+                                           TextWrapping="Wrap" Foreground="{StaticResource Signal}" Margin="0,8,0,0"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
